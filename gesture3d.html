@@ -151,7 +151,9 @@
        焦点态只留一道细下划线，便于看出光标位置。 */
     flex:1; min-width:0; background:transparent; border:0; border-radius:0;
     border-bottom:1px solid transparent;
-    color:var(--gold); font-size:16px; text-align:center; padding:6px 0; outline:none;
+    /* 纵向内边距 3px：行高 35 → 31px。再往下减已无效果 ——
+       16px 字体的行框本身就约 23px，是高度下限。 */
+    color:var(--gold); font-size:16px; text-align:center; padding:3px 0; outline:none;
     font-family:"Songti SC","STSong",serif;
   }
   .row input:focus { border-bottom-color:rgba(255,196,107,.45); }
@@ -160,7 +162,7 @@
      margin（无论单边还是双边）都会改变占位，flex 会把差额补给
      flex:1 的输入框，把输入框的框撑宽；transform 不参与布局，
      只挪动绘制位置，输入框宽度与按钮占位都保持原样。 */
-  .row .cbtn { padding:6px 14px; transform:translateX(-2px); }
+  .row .cbtn { padding:3px 14px; transform:translateX(-2px); }   /* 纵向与输入框同高 */
 
   #stats { position:fixed; right:16px; top:16px; z-index:10; font-size:11px;
            color:#8fa3bd; text-align:right; line-height:1.7; font-family:Menlo,monospace;
