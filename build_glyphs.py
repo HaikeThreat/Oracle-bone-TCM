@@ -194,6 +194,36 @@ def main():
             1,
         )
 
+    # 5a-2. 字头别名表：同一码位的其他写法（简体 册/麦 → 繁体 冊/麥）也能查到甲骨文。
+    #        数据表的 trad 字段提供了这份对应；同码位的不同字头互为别名。
+    # 必须从【完整数据表】而不是 uniq 生成：去重时简体条目（册、麦）会被
+    # 同码位的繁体（冊、麥）顶掉，若从 uniq 取值，这两个字头就永远进不了别名表，
+    # 用户输简体时便查不到甲骨文（曾因此漏掉「册」「麦」）。
+    # 顺序：先铺完整数据表，再用 uniq 里的规范字头覆盖，保证面板里显示的写法
+    # 一定解析到它自身的码位。
+    alias = {}
+    for g in db:
+        for name in {g["ch"], g.get("trad") or ""}:
+            for c in name:
+                if c and c not in alias:
+                    alias[c] = g["code"]
+    for e in uniq:
+        alias[e["ch"][0]] = e["code"]
+    alias_js = "{" + ", ".join(f"'{k}': '{v}'" for k, v in sorted(alias.items())) + "}"
+    html, n_alias = re.subn(
+        r"<script>window\.ORACLE_GLYPH_ALIAS\s*=\s*\{.*?\};</script>",
+        lambda m: "<script>window.ORACLE_GLYPH_ALIAS = " + alias_js + ";</script>",
+        html, count=1, flags=re.S,
+    )
+    if n_alias == 0:
+        html = html.replace(
+            "<!-- 字库数据：由 build_glyphs.py 生成，勿手改 -->",
+            "<!-- 字库数据：由 build_glyphs.py 生成，勿手改 -->\n"
+            "<script>window.ORACLE_GLYPH_ALIAS = " + alias_js + ";</script>",
+            1,
+        )
+    print(f"字头别名表 {len(alias)} 条")
+
     # 5b. 字体 base64
     html, n2 = re.subn(r"(base64,)[A-Za-z0-9+/=]+(\))", lambda m: m.group(1) + b64 + m.group(2), html, count=1)
     assert n2 == 1, "字体 base64 替换失败"
