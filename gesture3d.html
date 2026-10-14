@@ -21,18 +21,21 @@
          padding:8px 14px; font-size:12px; display:none; z-index:99; }
 
   #topbar {
-    position:fixed; top:16px; left:16px; z-index:10;
-    display:flex; flex-direction:column; align-items:flex-start; gap:8px;
+    position:fixed; top:16px; left:16px; right:16px; z-index:10;
+    display:flex; flex-direction:row; align-items:flex-start; justify-content:space-between; gap:12px;
     text-shadow:0 1px 4px rgba(0,0,0,.8);
+    pointer-events:none;   /* 容器横跨全屏，不能挡住下面的交互 */
   }
+  #topbar > * { pointer-events:auto; }
   .titlerow { display:flex; align-items:baseline; gap:12px; }
   #topbar h1 { font-size:15px; color:var(--gold); letter-spacing:2px; font-weight:700; }
   #topbar .sub { font-size:11px; color:#7d8fa8; }
   #stateBadge {
     font-size:12px; font-weight:700; padding:4px 12px; border-radius:99px;
     background:rgba(17,34,51,.75); border:1px solid #345; color:#9cf; letter-spacing:1px; transition:all .3s;
-    align-self: center;     /* 与标题水平居中对齐 */
-    margin: 4px 0 0;
+    margin: 0;
+    /* 右上角：与右上角 fps/glyph 读数上下错开，互不遮挡 */
+    margin-top: 34px;
   }
 
   /* 手势动画窗格（不显示相机画面，仅实时指尖动画）*/
