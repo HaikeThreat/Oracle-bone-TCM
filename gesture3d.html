@@ -77,33 +77,51 @@
     margin:8px auto 0; text-shadow:0 1px 4px rgba(0,0,0,.8);
   }
 
+  /* 字形面板：左侧竖栏 + 列表式条目（像阅读列表：字形 + 简短介绍），整栏可滚动 */
   #glyphPanel {
-    position:fixed; bottom:88px; left:50%; transform:translateX(-50%); z-index:10;
-    display:none; padding:14px 16px; width:min(680px, 92vw);
+    position:fixed; top:16px; left:16px; bottom:96px; z-index:20;
+    display:none; flex-direction:column; width:min(360px, 88vw);
+    padding:14px 14px 12px;
     background:var(--panel); border:1px solid var(--line); border-radius:14px;
     backdrop-filter:blur(10px); box-shadow:0 8px 32px rgba(0,0,0,.5);
-    max-height:62vh; overflow-y:auto;
+    overflow:hidden;
   }
-  #glyphPanel.open { display:block; }
-  #glyphTop { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
-  #glyphCount { font-size:11px; color:#7d8fa8; letter-spacing:1px; flex:none; }
+  #glyphPanel.open { display:flex; }
+  #glyphTop { flex:none; margin-bottom:8px; }
+  #glyphCount { display:block; font-size:11px; color:#7d8fa8; letter-spacing:1px; margin-bottom:8px; }
   #glyphSearch {
-    flex:1; min-width:0; padding:5px 10px; font-size:12px; color:#cfe0f4;
+    width:100%; box-sizing:border-box; padding:6px 10px; font-size:12px; color:#cfe0f4;
     background:rgba(8,12,20,.6); border:1px solid var(--line); border-radius:8px; outline:none;
   }
   #glyphSearch:focus { border-color:#3d6f9e; }
-  #glyphMore { display:flex; justify-content:center; }
-  #glyphMore .cbtn { padding:5px 14px; font-size:12px; }
-  #glyphGrid { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
-  .chip {
-    cursor:pointer; width:38px; height:38px; border-radius:9px;
-    border:1px solid var(--line); background:#0b1018; color:#9fb4cd;
-    font-family:"Songti SC","STSong",serif; font-size:18px; line-height:1;
-    display:flex; align-items:center; justify-content:center; transition:.15s;
+  #glyphList { flex:1; overflow-y:auto; margin:0 -4px; padding:0 4px; }
+  #glyphList::-webkit-scrollbar { width:8px; }
+  #glyphList::-webkit-scrollbar-thumb { background:rgba(120,150,190,.25); border-radius:4px; }
+  .gitem {
+    display:flex; align-items:center; gap:12px; padding:8px 10px; margin-bottom:5px;
+    border:1px solid transparent; border-left:2px solid var(--line); border-radius:8px;
+    background:rgba(255,255,255,.02); cursor:pointer; transition:background .15s, border-color .15s;
   }
-  .chip:hover { border-color:var(--gold); color:var(--gold); }
-  .chip.active { background:rgba(255,196,107,.16); border-color:var(--gold); color:var(--gold);
-                 box-shadow:0 0 10px rgba(255,196,107,.3); }
+  .gitem:hover { background:rgba(255,255,255,.06); border-left-color:#4a6a8a; }
+  .gitem.active { background:rgba(255,196,107,.12); border-color:rgba(255,196,107,.35);
+                  border-left-color:var(--gold); }
+  .gitem .gch {
+    flex:none; width:36px; text-align:center; font-size:24px; line-height:1.1;
+    color:#cfe0f4; font-family:"Songti SC","STSong",serif;
+  }
+  .gitem.active .gch { color:var(--gold); }
+  .gitem .gmeta { flex:1; min-width:0; }
+  .gitem .gtag {
+    font-size:12px; color:#cfe0f4; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .gitem .gintro {
+    font-size:11px; color:#7d8fa8; margin-top:2px; line-height:1.45;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+  }
+  .gitem.active .gtag { color:var(--gold); }
+  #glyphEmpty { font-size:12px; color:#7d8fa8; text-align:center; padding:16px 0; }
+  /* 底部楷体输入行固定在面板下沿，与可滚动列表以分隔线区分 */
+  #glyphPanel .row { flex:none; margin-top:10px; padding-top:10px; border-top:1px solid var(--line); }
   .row { display:flex; gap:8px; }
   .row input {
     flex:1; min-width:0; background:#0b1018; border:1px solid var(--line); border-radius:8px;
@@ -151,8 +169,7 @@
     <span id="glyphCount">字形库1218字</span>
     <input id="glyphSearch" placeholder="搜索：字 / 拼音 / 释义" autocomplete="off">
   </div>
-  <div id="glyphGrid"></div>
-  <div id="glyphMore"></div>
+  <div id="glyphList"></div>
   <div class="row">
     <input id="charInput" value="" maxlength="2" placeholder="任意字·楷体">
     <div class="cbtn" id="btnGen">生成</div>
@@ -1513,6 +1530,7 @@ const gctxOpt = { willReadFrequently: true };
 
 function sampleGlyph3D(spec) {
   curGlyph3D = spec;                     // [修复] 更新当前字：高亮框/字名/巡字全部依赖它
+  syncGlyphState(spec, true);            // 面板选中态与实际显示保持一致
   const g = gcv.getContext('2d', gctxOpt);
   const isOracle = spec.mode !== 'text';
   const chars = [...spec.ch].slice(0, 2);
@@ -2415,62 +2433,127 @@ document.getElementById('btnGen').onclick = () => {
   if (v) {
     sampleGlyph3D({ mode: 'text', ch: v });
     refreshGlyphPanel(true);
-    document.getElementById('glyphPanel').classList.remove('open');   // 选完自动回缩
+    // 不再自动收起：面板改为左侧常驻列表，收起会打断「再点一下隐藏」的连续操作
   }
 };
 document.getElementById('charInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') document.getElementById('btnGen').click();
 });
-// 字库面板：全库上千字，一次性渲染会拖慢 DOM，故做「搜索 + 分页」。
-// 搜索匹配 字 / 拼音 / 释义，拼音来自数据表，便于按读音找字。
+// 字形面板：左侧竖栏 + 列表式条目（字形 + 简短介绍），整栏可滚动。
+// 全库上千条，一次性建 DOM 会明显卡顿，故按滚动分批追加（每次 GLYPH_PAGE 条）。
+// 交互：点条目 → 显示该字形；再点同一条 → 隐藏（切换）。
 const GLYPH_PAGE = 60;
 let glyphShown = 0;
+// 列表选中态需要两个独立状态，缺一不可：
+//   glyphIdx      —— 当前是哪一条（索引比对，不用 ch 字符串：初始字来自数据数组，
+//                    只有 ch/code/tag/intro，没有 mode，与楷体字靠字符串区分不可靠）
+//   glyphShownNow —— 它此刻是否「显示中」。有了它，首次点击已显示的初始字
+//                   才是「隐藏」，否则会把开局就显示的字误判成需要隐藏。
+let glyphIdx = 0;
+let glyphShownNow = true;
+// 切换/巡字/楷体输入都经这里同步列表选中态，避免各处各自维护而失步。
+// 用对象同一性找索引（数据数组里的条目就是原对象引用，可靠）；
+// 找不到（如楷体输入）则 -1，不误高亮任何条目。
+function syncGlyphState(spec, shown) {
+  const i = ORACLE_GLYPHS.indexOf(spec);
+  glyphIdx = i;
+  glyphShownNow = shown;
+}
 let glyphFiltered = [];
+const glyphHidden = new Set();          // 被用户切换为隐藏的字
+
+function toggleGlyphHidden(ch) {
+  if (glyphHidden.has(ch)) glyphHidden.delete(ch);
+  else glyphHidden.add(ch);
+}
+
+function glyphRow(g, idx) {
+  const it = document.createElement('div');
+  const on = glyphShownNow && idx === glyphIdx;   // 索引唯一，且必须确实处于显示态
+  it.className = 'gitem' + (on ? ' active' : '');
+  it.dataset.ch = g.ch; it.dataset.idx = idx;
+
+  const ch = document.createElement('div');
+  ch.className = 'gch'; ch.textContent = g.ch;
+
+  const meta = document.createElement('div');
+  meta.className = 'gmeta';
+  const tag = document.createElement('div');
+  tag.className = 'gtag'; tag.textContent = g.tag || '';
+  const intro = document.createElement('div');
+  intro.className = 'gintro'; intro.textContent = g.intro || '';
+  meta.appendChild(tag); meta.appendChild(intro);
+
+  it.appendChild(ch); it.appendChild(meta);
+  it.onclick = () => {
+    // 切换语义：点已经显示的那条 → 隐藏（散回星云）；否则 → 显示它。
+    if (glyphShownNow && idx === glyphIdx) {   // 点的是正在显示的那条 → 隐藏
+      clearGlyphToAmbient();
+    } else {                                   // 否则 → 显示它
+      sampleGlyph3D(g);                        // sampleGlyph3D 内部会同步选中态
+    }
+    refreshGlyphPanel(true);
+  };
+  return it;
+}
+
+// 「隐藏」= 取消该字的显示：清掉字形标题与说明，取消列表高亮。
+// 注意不要在这里强行改 disperse/gather —— 那两个由用户的开合度每帧重算，
+// 这里赋的值会在下一帧被覆盖，等于没写（曾这样试过，是无效代码）。
+// 字形的粒子、音效等本身仍由手势驱动，与「面板里选中哪一条」是两件事。
+function clearGlyphToAmbient() {
+  glyphIdx = -1; glyphShownNow = false;
+  formedLatch = false;
+  showLabel('', '', false);                 // 清掉「火 · 甲骨文」标题与释义
+}
+
 function refreshGlyphPanel(reset) {
-  const grid = document.getElementById('glyphGrid');
-  const more = document.getElementById('glyphMore');
+  const list = document.getElementById('glyphList');
   const cnt = document.getElementById('glyphCount');
   const box = document.getElementById('glyphSearch');
   const q = ((box && box.value) || '').trim().toLowerCase();
 
-  if (reset) glyphShown = 0;
-  const pool = ORACLE_GLYPHS.filter(g => !g.hidden);   // hidden 的字保留在字体中，不做按钮
+  if (reset) {
+    glyphShown = 0;
+    list.innerHTML = '';
+    list.scrollTop = 0;
+  }
+  const pool = ORACLE_GLYPHS.filter(g => !g.hidden);   // hidden 的字保留在字体中，不出现在面板
   glyphFiltered = q
     ? pool.filter(g => (g.ch + ' ' + (g.py || '') + ' ' + (g.tag || '') + ' ' + (g.intro || '')).toLowerCase().includes(q))
     : pool;
 
-  if (reset && grid) grid.innerHTML = '';
   if (cnt) cnt.textContent = q
     ? `匹配 ${glyphFiltered.length} / 共 ${pool.length} 字`
     : `字形库${pool.length}字`;
 
   const end = Math.min(glyphFiltered.length, glyphShown + GLYPH_PAGE);
   const frag = document.createDocumentFragment();
-  for (let i = glyphShown; i < end; i++) {
-    const g = glyphFiltered[i];
-    const b = document.createElement('button');
-    b.className = 'chip' + (curGlyph3D.mode !== 'text' && curGlyph3D.ch === g.ch ? ' active' : '');
-    b.textContent = g.ch;
-    b.title = g.ch + ' · ' + g.tag;
-    b.onclick = () => { sampleGlyph3D(g); document.getElementById('glyphPanel').classList.remove('open'); };
-    frag.appendChild(b);
-  }
-  grid.appendChild(frag);
+  for (let i = glyphShown; i < end; i++) frag.appendChild(glyphRow(glyphFiltered[i], i));
+  list.appendChild(frag);
   glyphShown = end;
 
-  more.innerHTML = '';
-  const left = glyphFiltered.length - glyphShown;
-  if (left > 0) {
-    const b = document.createElement('div');
-    b.className = 'cbtn';
-    b.textContent = `加载更多（还有 ${left} 字）`;
-    b.onclick = () => refreshGlyphPanel(false);
-    more.appendChild(b);
-  } else if (glyphFiltered.length === 0) {
-    more.textContent = '没有匹配的字';
-    more.style.color = '#7d8fa8';
+  // 空结果提示
+  const oldEmpty = list.querySelector('#glyphEmpty');
+  if (oldEmpty) oldEmpty.remove();
+  if (glyphFiltered.length === 0) {
+    const d = document.createElement('div');
+    d.id = 'glyphEmpty'; d.textContent = '没有匹配的字';
+    list.appendChild(d);
   }
 }
+
+// 滚动接近底部时追加下一批
+document.getElementById('glyphList').addEventListener('scroll', e => {
+  const el = e.currentTarget;
+  if (el.scrollTop + el.clientHeight >= el.scrollHeight - 120) {
+    if (glyphShown < glyphFiltered.length) {
+      const keep = el.scrollTop;
+      refreshGlyphPanel(false);
+      el.scrollTop = keep;
+    }
+  }
+});
 document.getElementById('glyphSearch').addEventListener('input', () => refreshGlyphPanel(true));
 // 每次打开面板回到第一页（避免上次翻到很后、再打开是空滚动位置）
 document.getElementById('btnGlyphs').addEventListener('click', () => refreshGlyphPanel(true));
@@ -2603,6 +2686,7 @@ function frame(now) {
       const idx = pool.findIndex(g => g.ch === curGlyph3D.ch);
       glyphIndex = (idx < 0 ? 0 : idx + 1) % pool.length;   // 当前字不在池中（手动选过）→ 从池首接上
       sampleGlyph3D(pool[glyphIndex]);
+      syncGlyphState(pool[glyphIndex], true);   // 巡字换字后，面板选中态跟上
     }
   } else ambientT = 0;
   updateGestures(dt, t);
