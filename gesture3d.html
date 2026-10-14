@@ -80,7 +80,11 @@
 
   /* 字形面板：左侧竖栏 + 列表式条目（像阅读列表：字形 + 简短介绍），整栏可滚动 */
   #glyphPanel {
-    position:fixed; top:16px; left:16px; bottom:96px; z-index:20;
+    /* 整体下移 20px：top/bottom 同时 -20。
+       同时加高度上限：左下角手势窗格占 bottom:16px 起约 150px，面板若无上限
+       会盖住它（实测下移后重叠 72px，原值也已重叠 52px）。
+       max-height 让面板在最坏情况下自动止于窗格上缘之上，窗格开启与否都不打架。 */
+    position:fixed; top:36px; left:16px; bottom:76px; max-height:calc(100vh - 250px); z-index:20;
     display:flex; flex-direction:column; width:min(354px, 88vw);
     /* 左内边距保持 14px：22px 圆角在离角 14px 处仅内缩约 1.5px，
        不需要为圆角额外退让；加了反而会把输入框挤窄。 */
