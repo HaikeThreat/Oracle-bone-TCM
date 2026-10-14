@@ -81,7 +81,7 @@
   #glyphPanel {
     position:fixed; top:16px; left:16px; bottom:96px; z-index:20;
     display:none; flex-direction:column; width:min(354px, 88vw);
-    padding:14px;   /* 四边对称；滚动条右缘与面板内缘仅隔 8px（原为 19px，右侧显得空） */
+    padding:14px 6px 12px 14px;   /* 右 6px：搜索框右缘与滚动条右缘落在同一条竖线上 */
     background:var(--panel); border:1px solid var(--line); border-radius:14px;
     backdrop-filter:blur(10px); box-shadow:0 8px 32px rgba(0,0,0,.5);
     overflow:hidden;
@@ -94,9 +94,9 @@
     background:rgba(8,12,20,.6); border:1px solid var(--line); border-radius:8px; outline:none;
   }
   #glyphSearch:focus { border-color:#3d6f9e; }
-  /* 列表不再用负边距：负边距会把滚动条从内容区右缘外推，使滚动条右侧多出
-     一条空白、与上方搜索框右缘对不齐。滚动条收窄到 6px、面板宽度收窄 6px，
-     使「搜索框右缘 / 滚动条 / 面板内缘」三者在视觉上收在一条线上。 */
+  /* 列表不加左右内边距：这样滚动条右缘正好落在内容区右缘，
+     与上方搜索框右缘（同为内容区右缘）对齐成一条竖线。
+     条目自身的 padding 已足够留出文字与滚动条的间隙。 */
   #glyphList { flex:1; overflow-y:auto; }
   #glyphList::-webkit-scrollbar { width:6px; }
   #glyphList::-webkit-scrollbar-thumb { background:rgba(120,150,190,.3); border-radius:3px; }
