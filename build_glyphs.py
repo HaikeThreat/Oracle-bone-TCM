@@ -148,6 +148,9 @@ def main():
         parts = [f"ch: '{e['ch']}'", f"code: '{e['code']}'"]
         if e.get("hidden"):
             parts.append("hidden: true")
+        if e.get("curated"):
+            # 注意：不能用 pick 作键名 —— 它是 JS 保留字，裸键名会导致整个页面语法错误
+            parts.append("curated: true")   # 参与待机巡字的精选字
         if py:
             parts.append(f"py: '{py}'")
         parts.append(f"tag: '{e['tag'].replace(chr(39), '')}'")

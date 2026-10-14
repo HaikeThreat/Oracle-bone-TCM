@@ -4,468 +4,535 @@
   "code": "U60A96",
   "tag": "君主之官·脏腑唯一见甲骨文",
   "intro": "象心脏之形，轮廓与心尖清晰可辨。心为君主之官，主血脉、藏神明，开窍于舌。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "木": {
   "ch": "木",
   "code": "U6076C",
   "tag": "五行·曲直生发",
   "intro": "上枝、中干、下根，象树木挺立。木曰曲直，主生发，应肝，开窍于目。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "水": {
   "ch": "水",
   "code": "U606B4",
   "tag": "五行·润下滋阴",
   "intro": "一条主流，四点飞溅。水曰润下，主滋阴藏精，应肾，开窍于耳。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "火": {
   "ch": "火",
   "code": "U60642",
   "tag": "五行·炎上温煦",
   "intro": "象火苗腾起之形。火曰炎上，主温煦通行，应心，开窍于舌。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "土": {
   "ch": "土",
   "code": "U6062F",
   "tag": "五行·承载化育",
   "intro": "地面之上起土块。土爰稼穑，主承载化育，应脾，开窍于口。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "疾": {
   "ch": "疾",
   "code": "U611F7",
   "tag": "人卧床·身中矢",
   "intro": "一人卧于床，身中一矢。以战伤释病，是三千年前对「疾」最直白的定义。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "龋": {
   "ch": "龋",
   "code": "U60C84",
   "tag": "最早疾病记载",
   "intro": "齿间啮虫——甲骨文记载的人类最早疾病，比后世医书早一千多年。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "齒": {
   "ch": "齒",
   "code": "U60C80",
   "tag": "齿列如口",
   "intro": "口中齿列分明。齿为骨之余，龈护齿床。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "孕": {
   "ch": "孕",
   "code": "U60010",
   "tag": "大腹含子·母亲尊称",
   "intro": "大腹隆起，腹中怀子。十月怀胎之象，「孕」即生命之初形。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "耳": {
   "ch": "耳",
   "code": "U60376",
   "tag": "肾开窍于耳",
   "intro": "象耳廓之形。肾开窍于耳，听声之官。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "目": {
   "ch": "目",
   "code": "U60304",
   "tag": "肝开窍于目",
   "intro": "外框为眼眶，中间为瞳。肝开窍于目，得血而能视。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "舌": {
   "ch": "舌",
   "code": "U603AD",
   "tag": "心开窍于舌",
   "intro": "舌出口中，一点示舌体。心开窍于舌，辨五味。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "酉": {
   "ch": "酉",
   "code": "U60F71",
   "tag": "医酒同源",
   "intro": "象酒坛之形。酒行药势，医之古字「醫」从酉、「毉」从巫——医酒巫三者同源。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "鬯": {
   "ch": "鬯",
   "code": "U61062",
   "tag": "郁金香酒",
   "intro": "象酒器盛郁金香酒。祭祀敬神，亦用于医疗。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "马": {
   "ch": "马",
   "code": "U608C1",
   "tag": "驰骋征战",
   "intro": "侧视骏马，鬃毛长尾四足俱全。行军征战之资。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "牛": {
   "ch": "牛",
   "code": "U60858",
   "tag": "太牢祭牲",
   "intro": "简笔牛首，双角峥嵘。太牢祭牲，骨亦可入药。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "羊": {
   "ch": "羊",
   "code": "U6086A",
   "tag": "吉祥之美",
   "intro": "羊首双角。羊即古「祥」字，温补之品。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "虎": {
   "ch": "虎",
   "code": "U608FC",
   "tag": "百兽之王",
   "intro": "巨口獠牙，斑纹长尾。百兽之王，虎骨虎睛皆曾入药。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "象": {
   "ch": "象",
   "code": "U608E3",
   "tag": "长鼻巨兽",
   "intro": "长鼻垂地，巨身短尾。殷商中原气候尚暖，实有象群。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "龙": {
   "ch": "龙",
   "code": "U609E2",
   "tag": "通天神兽",
   "intro": "角冠巨口，曲身若虹。通天神兽，主云行雨施。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "鱼": {
   "ch": "鱼",
   "code": "U609CF",
   "tag": "如鱼得水",
   "intro": "头鳍鳞尾俱全。如鱼得水，取其滋润生生。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "鳖": {
   "ch": "鳖",
   "code": "U60A33",
   "tag": "鳖甲入药·滋阴潜阳",
   "intro": "象鳖侧视之形，软甲背纹可见。鳖甲入药，滋阴潜阳、软坚散结。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "燕": {
   "ch": "燕",
   "code": "U609C9",
   "tag": "玄鸟报春",
   "intro": "玄鸟剪尾，翩然北来。报春之候，巢于屋梁。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "车": {
   "ch": "车",
   "code": "U61277",
   "tag": "戎车征伐",
   "intro": "双轮立轴，车厢可辨。戎车既安，如轾如轩。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "舟": {
   "ch": "舟",
   "code": "U61255",
   "tag": "行舟渡水",
   "intro": "象一叶小舟。行舟渡水，载药载民。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "鼎": {
   "ch": "鼎",
   "code": "U60FA2",
   "tag": "国之重器",
   "intro": "两耳三足，器形威严。调和五味，亦熬汤药。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "禾": {
   "ch": "禾",
   "code": "U607E5",
   "tag": "五谷之首",
   "intro": "谷穗低垂。五谷为养，脾胃之本。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "鼻": {
   "ch": "鼻",
   "code": "U6039A",
   "tag": "肺开窍于鼻",
   "intro": "上冠、中梁、下孔。肺开窍于鼻，呼吸出入之门。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "囟": {
   "ch": "囟",
   "code": "U60562",
   "tag": "颅囟·婴脑之窗",
   "intro": "象婴儿颅顶囟门。脑为髓海，囟是其窗。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "息": {
   "ch": "息",
   "code": "U603A4",
   "tag": "一呼一吸",
   "intro": "自心从鼻，一呼一吸。真气出入，生生不息。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "腹": {
   "ch": "腹",
   "code": "U60474",
   "tag": "五脏之宫",
   "intro": "象人腹隆起。腹为阴，五脏六腑之宫城。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "乳": {
   "ch": "乳",
   "code": "U601F2",
   "tag": "哺育之恩",
   "intro": "象母亲抱子哺乳。乳汁由血所化，哺育之本。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "母": {
   "ch": "母",
   "code": "U6020C",
   "tag": "十月怀胎",
   "intro": "女字加点，示哺乳双乳。生我劬劳，母恩如天。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "鼠": {
   "ch": "鼠",
   "code": "U608F8",
   "tag": "子时之鼠",
   "intro": "象鼠侧立，尖嘴长尾。鼠为子神，子时正与其相应。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "光": {
   "ch": "光",
   "code": "U6067F",
   "tag": "光明普照",
   "intro": "象人跪坐举火照物。光明普照，喻智慧照人心。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "首": {
   "ch": "首",
   "code": "U60543",
   "tag": "头为精明之府",
   "intro": "象人侧首之形，戴发引颈。头为诸阳之会，精明之府。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "面": {
   "ch": "面",
   "code": "U60314",
   "tag": "心之华在面",
   "intro": "象人面之轮廓。十二经脉皆上注于面，望色察病之所在。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "女": {
   "ch": "女",
   "code": "U6020B",
   "tag": "娴静立姿",
   "intro": "象女子敛手跪坐之形。与母、孕、乳相承，生命之链。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "子": {
   "ch": "子",
   "code": "U602DB",
   "tag": "生命之初",
   "intro": "象襁褓婴儿，头大身小，双臂舞动。承接孕育之线。",
-  "hidden": true
+  "hidden": true,
+  "curated": true
  },
  "立": {
   "ch": "立",
   "code": "U600FE",
   "tag": "立人察形",
   "intro": "象人立于地之形。望闻问切，先立其人。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "风": {
   "ch": "风",
   "code": "U6094C",
   "tag": "百病之长",
   "intro": "从凡从虫——古人以为风动虫生。风为六淫之首，百病之长。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "雨": {
   "ch": "雨",
   "code": "U60601",
   "tag": "润泽万物",
   "intro": "象天上落雨之形。水润万物，亦润人身。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "云": {
   "ch": "云",
   "code": "U605F4",
   "tag": "云行雨施",
   "intro": "象云气回卷之形。云行雨施，品物流形。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "泉": {
   "ch": "泉",
   "code": "U60BEC",
   "tag": "泉源不竭",
   "intro": "象水从崖穴涌出。源泉不竭，滋养生机。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "兑": {
   "ch": "兑",
   "code": "U60047",
   "tag": "兑为泽·山泽通气",
   "intro": "象人张口舒气、欢悦之形。卦象为泽——山泽通气，云行雨施。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "石": {
   "ch": "石",
   "code": "U60CA7",
   "tag": "砭石刺病",
   "intro": "象山崖下之石块。砭石为针——最早的医疗工具。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "虫": {
   "ch": "虫",
   "code": "U60A00",
   "tag": "蛇虫之属",
   "intro": "象蝮蛇蜿蜒之形。虫类入药，通络搜风。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "黍": {
   "ch": "黍",
   "code": "U6080D",
   "tag": "黍谷丰登",
   "intro": "象黍穗散垂。黍为五谷之一，亦可酿酒。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "麥": {
   "ch": "麥",
   "code": "U6081E",
   "tag": "麦养心气",
   "intro": "象麦穗有芒之形。浮小麦养心敛汗，五谷之一。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "桑": {
   "ch": "桑",
   "code": "U607BF",
   "tag": "桑叶入药",
   "intro": "象桑树繁叶之形。桑叶桑葚皆入药，蚕丝由此生。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "壶": {
   "ch": "壶",
   "code": "U60F8A",
   "tag": "悬壶济世",
   "intro": "象壶之形。悬壶济世——壶自古为医者之标。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "玉": {
   "ch": "玉",
   "code": "U61358",
   "tag": "玉石安神",
   "intro": "象玉片串连之形。玉石入药以安神，君子比德于玉。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "鹿": {
   "ch": "鹿",
   "code": "U6093D",
   "tag": "鹿茸入药",
   "intro": "象鹿侧视，歧角短尾。鹿茸鹿角皆入药，补精髓、强筋骨。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "生": {
   "ch": "生",
   "code": "U60739",
   "tag": "生生不息",
   "intro": "象草木破土萌出。生生之谓道——气机升降，生生不已。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "矢": {
   "ch": "矢",
   "code": "U60E67",
   "tag": "疾之所由",
   "intro": "象箭矢之形，镞杆羽尾分明。「疾」字中人所中之矢即是它。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "冊": {
   "ch": "冊",
   "code": "U6112F",
   "tag": "典册医籍",
   "intro": "象简册编连之形。典册载言，医道赖文字以传。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "田": {
   "ch": "田",
   "code": "U60C37",
   "tag": "躬耕药田",
   "intro": "象田亩阡陌之形。百药种植于田，因地制宜。",
-  "hidden": true
+  "hidden": true,
+  "curated": true
  },
  "贝": {
   "ch": "贝",
   "code": "U60A78",
   "tag": "贝币药市",
   "intro": "象海贝之形。贝为古之货币，药市交易之所资。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "一": {
   "ch": "一",
   "code": "U6157E",
   "tag": "万物之始",
   "intro": "唯一横画，万物之始。道生一，一生二，二生三，三生万物。",
-  "hidden": true
+  "hidden": true,
+  "curated": true
  },
  "兄": {
   "ch": "兄",
   "code": "U600BD",
   "tag": "长兄如父",
   "intro": "上口下人，象人张口祝告之形。长兄如父，兄友弟恭。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "朋": {
   "ch": "朋",
   "code": "U6135C",
   "tag": "朋比互助",
   "intro": "象两串贝玉相系。同门曰朋——朋比互助，亦古之货币单位。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "卜": {
   "ch": "卜",
   "code": "U60C9B",
   "tag": "灼龟问吉凶",
   "intro": "象龟甲灼裂之纹。卜者，灼龟问吉凶——甲骨占卜之本字。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "岁": {
   "ch": "岁",
   "code": "U60DB8",
   "tag": "年谷之成",
   "intro": "象斧钺之形，借为岁星之年——岁者，年谷之成也。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "狩": {
   "ch": "狩",
   "code": "U611E4",
   "tag": "冬猎为狩",
   "intro": "从犬守声。狩者，犬田也——冬猎为狩。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "用": {
   "ch": "用",
   "code": "U6140D",
   "tag": "甲骨文·已录入",
   "intro": "",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "见": {
   "ch": "见",
   "code": "U6033A",
   "tag": "人目正视·望诊之根",
   "intro": "象人目正视之形。见者，视也——见微知著。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  },
  "豕": {
   "ch": "豕",
   "code": "U6089E",
   "tag": "六畜之一",
   "intro": "象豕侧视之形，大腹短尾。豕即猪——六畜之一。",
-  "hidden": false
+  "hidden": false,
+  "curated": true
  }
 }
