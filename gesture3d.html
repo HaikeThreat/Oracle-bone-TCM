@@ -141,7 +141,11 @@
   }
   .row input:focus { border-bottom-color:rgba(255,196,107,.45); }
   .row input::placeholder { color:#5d6f86; }
-  .row .cbtn { padding:6px 14px; margin-left:-2px; }   /* 「生成」左移 2px，收一点与输入框的间距 */
+  /* 「生成」左移 2px。必须用 transform：
+     margin（无论单边还是双边）都会改变占位，flex 会把差额补给
+     flex:1 的输入框，把输入框的框撑宽；transform 不参与布局，
+     只挪动绘制位置，输入框宽度与按钮占位都保持原样。 */
+  .row .cbtn { padding:6px 14px; transform:translateX(-2px); }
 
   #stats { position:fixed; right:16px; top:16px; z-index:10; font-size:11px;
            color:#8fa3bd; text-align:right; line-height:1.7; font-family:Menlo,monospace;
