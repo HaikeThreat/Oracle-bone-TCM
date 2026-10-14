@@ -1393,11 +1393,10 @@ function frame(now) {
   }
   renderer.render(scene, camera);
 
-  // 右上角常显：fps / particles / glyph（+ 手数）
+  // 右上角常显：fps / particles / glyph
   // 诊断项（检测帧率 / 相机分辨率 / 顿挫）默认隐藏，按 Ctrl(⌘)+Shift+D 可切换显示。
   document.getElementById('stats').innerHTML =
     `fps <b>${fps.toFixed(0)}</b> · particles <b>${N}</b> · glyph <b>${curGlyph3D.ch}</b>`
-    + (cam.on ? ` · 手 <b>${hands3d[0] ? (hands3d[1] ? 2 : 1) : 0}</b>` : '')
     + `<span id="statsDiag" style="display:${statsDiag ? 'block' : 'none'}">`
     // 检测帧率实测：手势手感（旋转顺滑度）取决于它，怀疑卡顿先看这个数
     + (cam.on && cam.detDt ? `<br>检测 <b>${(1 / cam.detDt).toFixed(0)}</b>fps · 相机 <b>${document.getElementById('camVideo').videoWidth}×${document.getElementById('camVideo').videoHeight}</b>` : '')
