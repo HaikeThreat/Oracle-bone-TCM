@@ -2269,9 +2269,37 @@ document.addEventListener('pointerdown', () => {
   }
 }, { capture: true });   // 任意按下均解锁音频；挂起的成字钟声在此补响
 document.getElementById('btnCam').onclick = () => { unlockAudio(); toggleCamera(); };
+// 全屏：兼容标准与 webkit 前缀，并把真实失败原因显示出来。
+// 原来只写 `.catch(() => banner('浏览器拒绝了全屏请求'))`，把所有原因压成同一句话，
+// 无法判断到底是"被 iframe 限制""用户未交互"还是"浏览器不支持"。
+function enterFullscreen() {
+  const el = document.documentElement;
+  const req = el.requestFullscreen || el.webkitRequestFullscreen;
+  if (typeof req !== 'function') {
+    banner('此浏览器不支持全屏 API（或页面处于受限环境）');
+    return;
+  }
+  // 被嵌在 iframe 里且未加 allowfullscreen 时，浏览器一律拒绝，且与用户操作无关
+  let framed = false;
+  try { framed = window.self !== window.top; } catch (e) { framed = true; }   // 跨域访问抛错也说明被嵌
+  if (typeof document.fullscreenEnabled === 'boolean' && !document.fullscreenEnabled && framed) {
+    banner('页面被嵌在 iframe 中且未授权全屏（需给 iframe 加 allowfullscreen）');
+    return;
+  }
+  try {
+    const p = req.call(el);
+    if (p && typeof p.catch === 'function') {
+      p.catch(e => banner('全屏被拒绝：' + (e && e.name ? e.name : '') + ' ' + (e && e.message ? e.message : e)
+        + (framed ? '（页面在 iframe 中，需 allowfullscreen）' : '')));
+    }
+  } catch (e) {
+    banner('全屏失败：' + (e && e.message ? e.message : e));
+  }
+}
 document.getElementById('btnFs').onclick = () => {
-  if (document.fullscreenElement) document.exitFullscreen();
-  else document.documentElement.requestFullscreen().catch(() => banner('浏览器拒绝了全屏请求'));
+  const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+  if (fsEl) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  else enterFullscreen();
 };
 document.getElementById('btnGlyphs').onclick = () => document.getElementById('glyphPanel').classList.toggle('open');
 // 点击面板与按钮之外的任意空白处 → 字形卡片自动回缩
