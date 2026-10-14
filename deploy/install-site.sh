@@ -120,9 +120,13 @@ server {
     root ${SITE_ROOT};
     index index.html;
 
-    # .wasm 的 MIME 必须显式声明：默认 octet-stream 会让 MediaPipe 走慢速回退
-    types { application/wasm wasm; }
-    include /etc/nginx/mime.types;
+    # .wasm 的 MIME：新版 nginx 的 mime.types 已内置 application/wasm
+    # （本机实测见 /etc/nginx/mime.types:713），此时无需也不应再声明，
+    # 否则 nginx -t 会报 duplicate extension 警告。仍做兼容：
+    # 万一本机 mime.types 较旧没有 wasm，就补上。
+    if ! grep -qE '^[[:space:]]*application/wasm' /etc/nginx/mime.types 2>/dev/null; then
+      types { application/wasm wasm; }
+    fi
 
     gzip on;
     gzip_comp_level 6;
@@ -150,8 +154,13 @@ server {
     root ${SITE_ROOT};
     index index.html;
 
-    types { application/wasm wasm; }
-    include /etc/nginx/mime.types;
+    # .wasm 的 MIME：新版 nginx 的 mime.types 已内置 application/wasm
+    # （本机实测见 /etc/nginx/mime.types:713），此时无需也不应再声明，
+    # 否则 nginx -t 会报 duplicate extension 警告。仍做兼容：
+    # 万一本机 mime.types 较旧没有 wasm，就补上。
+    if ! grep -qE '^[[:space:]]*application/wasm' /etc/nginx/mime.types 2>/dev/null; then
+      types { application/wasm wasm; }
+    fi
 
     gzip on;
     gzip_comp_level 6;

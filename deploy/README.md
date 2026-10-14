@@ -38,3 +38,18 @@ nginx 配置里一旦引用 `ssl_certificate` 而证书文件不存在，`nginx 
 这不是可选项：非 `localhost` 的 HTTP 页面**不是安全上下文**，浏览器不会提供摄像头，
 手势功能整个不可用。证书可用阿里云「数字证书管理服务」的免费 DV 证书，下载 nginx 版后放到
 `/etc/nginx/ssl/<域名>.pem` 与 `.key`，再重跑脚本。
+
+## nginx 配置里的一个实测修正
+
+网上常见的做法是每个 server 块里写 `types { application/wasm wasm; }` +
+`include /etc/nginx/mime.types;`。但本机（nginx 1.30.4）实测：
+
+- `/etc/nginx/mime.types` **已内置** `application/wasm wasm;`（第 713 行），
+  而 `nginx.conf` 的 http 层**已经 include 过它** → 服务器上 .wasm 本来就被
+  标成 `application/wasm`，实测 `curl` 返回的 Content-Type 正确。
+- 此时再在 server 块里声明 wasm，`nginx -t` 会报
+  `duplicate extension "wasm"`；
+- 再 include 一次 mime.types，还会多报一条 `duplicate MIME type "text/html"`。
+
+所以 `install-site.sh` 改为**先探测再声明**：只有本机 mime.types 里确实没有
+wasm 时才补 `types {}`，且不再重复 include。这样在新旧 nginx 上都不报警告。
