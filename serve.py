@@ -13,11 +13,20 @@ class NoCacheHandler(http.server.SimpleHTTPRequestHandler):
     # 表现为「服务器在监听但请求全部超时」（本项目实际踩过）。
     protocol_version = "HTTP/1.0"
 
+    # libs/ 里的模型与运行时体积很大（约 28MB），但内容几乎不变，
+    # 一律禁缓存会让每个访客每次打开都重下 16MB —— 公开部署时这是致命的。
+    # 故只对 libs/ 开长缓存，其余（HTML、data/）保持不强缓存以便改动即时生效。
+    # 改 libs/ 里文件时把页面顶部的 ASSET_V 加一即可破缓存（见 gesture3d.html）。
+    IMMUTABLE_PREFIX = "/libs/"
+
     def end_headers(self):
-        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
-        self.send_header("Pragma", "no-cache")
-        self.send_header("Expires", "0")
-        self.send_header("Connection", "close")
+        path = self.path.split("?")[0]
+        if path.startswith(self.IMMUTABLE_PREFIX):
+            # 一年 + immutable：命中缓存时浏览器连请求都不发
+            self.send_header("Cache-Control", "public, max-age=31536000, immutable")
+        else:
+            # no-cache = 允许存副本但每次校验（有 Last-Modified，改动即时生效）
+            self.send_header("Cache-Control", "no-cache")
         super().end_headers()
 
 

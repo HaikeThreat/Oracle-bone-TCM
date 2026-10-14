@@ -147,8 +147,16 @@
 <div id="label"><div class="big"></div><div class="small"></div><div class="intro"></div></div>
 <div id="stats"></div>
 
-<script src="libs/three.min.js"></script>
-<script src="libs/hands.js"></script>
+<!-- ASSET_V：libs/ 被服务器设为长缓存(immutable)，改动 libs/ 下任何文件后
+     把下面的版本号加一即可让浏览器重新拉取；不改则命中本地缓存、零请求。
+     两个运行时用 JS 注入加载（而非静态 <script src>）：静态 src 无法拼接 ?v=，
+     一旦被 immutable 缓存就再也刷不掉。 -->
+<script>const ASSET_V = '1';</script>
+<script>
+  for (const f of ['three.min.js', 'hands.js']) {
+    document.write('<script src="libs/' + f + '?v=' + ASSET_V + '"><\/script>');
+  }
+</script>
 <script>
 'use strict';
 // ============================================================================
@@ -964,7 +972,7 @@ async function toggleCamera() {
 
     if (!cam.hands) {
       cam.hands = new Hands({
-        locateFile: f => `libs/${f}`                          // 全部本地化，无 CDN 依赖
+        locateFile: f => `libs/${f}?v=${ASSET_V}`              // 本地化，无 CDN；带版本号以配合 libs/ 长缓存
       });
       // modelComplexity：1=full（手部关键点更准）0=lite（推理便宜一大截）。
       // 推理在主线程同步执行，每次约几十毫秒，期间渲染被掐住 → 手势旋转顿挫。
