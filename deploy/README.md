@@ -39,6 +39,11 @@ nginx 配置里一旦引用 `ssl_certificate` 而证书文件不存在，`nginx 
 手势功能整个不可用。证书可用阿里云「数字证书管理服务」的免费 DV 证书，下载 nginx 版后放到
 `/etc/nginx/ssl/<域名>.pem` 与 `.key`，再重跑脚本。
 
+## 备案通过后怎么做
+
+见 **[POST-FILING.md](POST-FILING.md)** —— 逐步清单，含每步的验证命令、
+`certbot` 的真实路径（不在 PATH 里）、以及本次踩到的全部陷阱。
+
 ## 已在真实服务器上验证（2026-10-15）
 
 `install-site.sh` 已在目标服务器上跑通并逐项复测：
