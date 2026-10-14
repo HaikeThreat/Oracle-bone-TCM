@@ -81,20 +81,35 @@
   /* 字形面板：左侧竖栏 + 列表式条目（像阅读列表：字形 + 简短介绍），整栏可滚动 */
   #glyphPanel {
     position:fixed; top:16px; left:16px; bottom:96px; z-index:20;
-    display:none; flex-direction:column; width:min(354px, 88vw);
-    padding:14px 0 12px 14px;   /* 右侧不留内边距：滚动条尽量右移贴到面板内缘 */
-    background:var(--panel); border:1px solid var(--line); border-radius:14px;
+    display:flex; flex-direction:column; width:min(354px, 88vw);
+    /* 左内边距保持 14px：22px 圆角在离角 14px 处仅内缩约 1.5px，
+       不需要为圆角额外退让；加了反而会把输入框挤窄。 */
+    padding:14px 0 12px 14px;
+    background:var(--panel); border:1px solid var(--line); border-radius:22px;
     backdrop-filter:blur(10px); box-shadow:0 8px 32px rgba(0,0,0,.5);
     overflow:hidden;
+    /* 滑入/滑出：不能用 display 切换做过渡，改用 opacity + transform + visibility。
+       visibility 过渡到 hidden 只在末帧生效，保证关闭后既不可见也不可点。 */
+    visibility:hidden; opacity:0; transform:translateX(-14px);
+    transition:opacity .28s ease, transform .28s cubic-bezier(.22,.61,.36,1), visibility 0s linear .28s;
+    will-change:opacity, transform;
   }
-  #glyphPanel.open { display:flex; }
+  #glyphPanel.open {
+    visibility:visible; opacity:1; transform:none;
+    transition:opacity .28s ease, transform .28s cubic-bezier(.22,.61,.36,1), visibility 0s linear 0s;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #glyphPanel { transition:none; transform:none; }
+    #glyphPanel.open { transition:none; }
+  }
   #glyphTop { flex:none; margin-bottom:8px; }
   #glyphCount { display:block; font-size:11px; color:#7d8fa8; letter-spacing:1px; margin-bottom:8px; }
   #glyphSearch {
+    /* 圆角随面板一起放大 */
     /* width:100% 减去 margin-right，两者必须配套：只给 margin 会把盒子撑出面板右缘 */
     width:calc(100% - 6px); box-sizing:border-box; padding:6px 10px; font-size:12px; color:#cfe0f4;
     margin-right:6px;
-    background:rgba(8,12,20,.6); border:1px solid var(--line); border-radius:8px; outline:none;
+    background:rgba(8,12,20,.6); border:1px solid var(--line); border-radius:12px; outline:none;
   }
   #glyphSearch:focus { border-color:#3d6f9e; }
   /* 列表不加左右内边距：这样滚动条右缘正好落在内容区右缘，
@@ -102,12 +117,12 @@
      条目自身的 padding 已足够留出文字与滚动条的间隙。 */
   #glyphList { flex:1; overflow-y:auto; }
   #glyphList::-webkit-scrollbar { width:6px; }
-  #glyphList::-webkit-scrollbar-thumb { background:rgba(120,150,190,.3); border-radius:3px; }
+  #glyphList::-webkit-scrollbar-thumb { background:rgba(120,150,190,.3); border-radius:4px; }
   #glyphList::-webkit-scrollbar-track { background:transparent; }
   .gitem {
     display:flex; align-items:center; gap:12px; padding:8px 10px;
     margin:0 5px 5px 0;   /* 右侧留 5px：选中框右边线不贴滚动条 */
-    border:1px solid transparent; border-left:2px solid var(--line); border-radius:8px;
+    border:1px solid transparent; border-left:2px solid var(--line); border-radius:14px;
     background:rgba(255,255,255,.02); cursor:pointer; transition:background .15s, border-color .15s;
   }
   .gitem:hover { background:rgba(255,255,255,.06); border-left-color:#4a6a8a; }
