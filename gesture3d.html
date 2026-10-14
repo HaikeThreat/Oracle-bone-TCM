@@ -1377,12 +1377,12 @@ let virtualHand = { active:false, x:0, y:0, down:false };
 const ORACLE_GLYPHS = (function () {
   const raw = (typeof window !== 'undefined' && window.ORACLE_GLYPHS_INLINE) || null;
   if (!raw || !raw.length) {
-    banner('字库数据缺失：请运行 build_glyphs.py 生成，或从项目包重新拷贝 gesture3d.html');
+    banner('字库数据缺失：请运行 build_glyphs.py 生成，或从项目包重新拷贝 gesture3d.html', true);
     return [];
   }
   return raw;
 })();
-// 待机巡字用的精选子集：人工编排过、并标了 pick: true 的字。
+// 待机巡字用的精选子集：人工编排过、并标了 curated: true 的字。
 // 全库上千字里多数与中医无关，无人值守轮播时不该出现它们。
 const AMBIENT_GLYPHS = ORACLE_GLYPHS.filter(g => g.curated);
 
@@ -1569,7 +1569,7 @@ function initScene() {
   try {
     renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('stage'), antialias: false });
   } catch (e) {
-    banner('WebGL 初始化失败：' + e.message + '（可尝试换 Chrome/Edge 或更新显卡驱动）');
+    banner('WebGL 初始化失败：' + e.message + '（可尝试换 Chrome/Edge 或更新显卡驱动）', true);
     throw e;
   }
   renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
@@ -1614,7 +1614,7 @@ function initScene() {
   window.addEventListener('resize', onResize);
   document.getElementById('stage').addEventListener('webglcontextlost', e => {
     e.preventDefault();
-    banner('WebGL 上下文丢失（显卡驱动负载过高）。请刷新页面重试。');
+    banner('WebGL 上下文丢失（显卡驱动负载过高）。请刷新页面重试。', true);
   });
 }
 function onResize() {
@@ -2290,9 +2290,15 @@ function showLabel(ch, tag, show) {
   l.querySelector('.intro').textContent = show ? (curGlyph3D.intro || '') : '';
   l.style.opacity = show ? 1 : 0;
 }
-function banner(msg) {
+// 报错横幅。默认 8 秒后自动收起，避免一条一次性提示占着版面到会话结束。
+// sticky=true 用于「页面已不可用」类错误（WebGL 失败、字库缺失、初始化失败），
+// 这类信息不该消失，否则用户面对一片空白却没有任何提示。
+let bannerTimer = 0;
+function banner(msg, sticky) {
   const e = document.getElementById('err');
   e.style.display = 'block'; e.textContent = msg;
+  clearTimeout(bannerTimer); bannerTimer = 0;      // 归零：使「是否有待触发的收起」可被准确观测
+  if (!sticky) bannerTimer = setTimeout(() => { e.style.display = 'none'; bannerTimer = 0; }, 8000);
 }
 window.onerror = (function(orig) {
   return function(msg, src, line) {
@@ -2626,9 +2632,9 @@ function frame(now) {
 
   if (flashT > 0) flashT = Math.max(0, flashT - dt * 1.6);
   // 待机 14 秒自动巡下一字（展馆无人时轮播）。
-  // 只在「精选字」里轮播（数据里标了 pick: true 的人工编排字），而不是全库 1219 个 ——
+  // 只在「精选字」里轮播（数据里标了 curated: true 的人工编排字），而不是全库上千个 ——
   // 全库含「丁」「乙」「丂」等与中医无关的字，无人值守时轮播这些会偏离作品主题。
-  // 兜底：若数据里没有 pick 标记（旧数据），退回全库，避免巡字直接停摆。
+  // 兜底：若数据里没有 curated 标记（旧数据），退回全库，避免巡字直接停摆。
   if (gather < 0.05 && disperse < 0.05 && (!hands3d[0] && !hands3d[1] && !virtualHand.active)) {
     ambientT += dt;
     if (ambientT > 14) {
@@ -2700,7 +2706,7 @@ function frame(now) {
 // ── 启动 ──────────────────────────────────────────────────────────────────
 (async function init() {
   if (typeof THREE === 'undefined') {
-    banner('Three.js 加载失败：libs/three.min.js 缺失。请从项目包重新拷贝 libs 目录'); return;
+    banner('Three.js 加载失败：libs/three.min.js 缺失。请从项目包重新拷贝 libs 目录', true); return;
   }
   buildSwatches();
   initScene();
@@ -2719,7 +2725,7 @@ function frame(now) {
     )), 2500);
   } catch (e) {}
 
-  if (!sampleGlyph3D(curGlyph3D)) { banner('字形渲染失败'); return; }
+  if (!sampleGlyph3D(curGlyph3D)) { banner('字形渲染失败', true); return; }
 
   // file:// 下摄像头手势不可能工作（见 toggleCamera 注释）：鼠标模式照常，
   // 但把按钮标记为不可用，避免用户反复点击只换来一句 "Load failed"。
@@ -2730,7 +2736,7 @@ function frame(now) {
   }
 
   requestAnimationFrame(frame);
-})().catch(e => banner('初始化失败：' + e.message));
+})().catch(e => banner('初始化失败：' + e.message, true));
 </script>
 </body>
 </html>

@@ -67,10 +67,11 @@ python3 serve.py 8138
 | 路径 | 说明 |
 | --- | --- |
 | `gesture3d.html` | 主页面。字体子集与字库全部内嵌，自包含 |
-| `libs/` | Three.js r152 与 MediaPipe Hands 本地运行时（约 28MB） |
-| `data/` | 字表数据库（1530 已释甲骨文）与介绍文案 |
-| `add_glyphs.py` | 逐个加字（日常用，只重子集化涉及的码位） |
-| `build_glyphs.py` | 全量重建字库与子集字体（数据表更新或需重置时用） |
+| `libs/` | Three.js r152 与 MediaPipe Hands 本地运行时（约 28MB，首次访问付一次，之后走长缓存） |
+| `data/` | 字表数据库（1530 行已释甲骨文）与人工编排条目 |
+| `add_glyphs.py` | 往精选字库加字：并入 `data/curated_glyphs.json` 后自动调用 `build_glyphs.py` |
+| `build_glyphs.py` | 唯一的构建实现：重子集化字体 + 注入页面 + 刷新别名表与计数 |
+| `data/curated_glyphs.json` | **人工编排层的唯一数据源**（字头、码位、精选标记、文案） |
 | `serve.py` | 无缓存本地服务器（可选）：`python3 serve.py [端口]`，默认 8138，仅本机用 `--host 127.0.0.1` |
 
 ## 扩充字库
@@ -79,16 +80,24 @@ python3 serve.py 8138
 python3 add_glyphs.py 牛 虎 鹿
 ```
 
-从 `data/oracle_glyphs_full.json` 取码位，重新子集化 `libs/AYJGW.ttf` 并注入页面（需要 `pip install fonttools`）。字必须在数据库中，刷新页面即可生效。
+新字会被并入 `data/curated_glyphs.json`（带上 `curated` 标记，因而进入待机巡字池），随后自动调用 `build_glyphs.py` 完成字体子集化与页面注入。需要 `pip install fonttools`，字必须在数据表中。刷新页面即可生效。
 
-需要一次性重建整个字库（例如数据表更新后）时：
+数据分两层，职责不重叠：
+
+| 层 | 文件 | 作用 |
+| --- | --- | --- |
+| 权威字表 | `data/oracle_glyphs_full.json` | 全部已释甲骨文（字头 ↔ 码位 ↔ 拼音 ↔ 释义） |
+| 人工编排 | `data/curated_glyphs.json` | 人工润色过的条目 + 精选标记，**加字只改这里** |
+
+`build_glyphs.py` 是唯一的构建实现（`add_glyphs.py` 也复用它）：
 
 ```bash
-python3 build_glyphs.py            # 全量灌入数据表
+python3 build_glyphs.py              # 全量重建（读上表两个数据文件）
 python3 build_glyphs.py --limit 200  # 只取前 200 个，试体积用
+python3 build_glyphs.py --db 其它.json --curated 其它.json   # 换数据源
 ```
 
-数据表里的字比页面多得多，全量灌入后面板约 1066 个单字、字体子集约 1.0MB、整个 HTML 约 1.7MB（相比手势模型的 16MB 仍属小头）。字库数据已与主脚本分离：条目写在页面头部的 `window.ORACLE_GLYPHS_INLINE`，重建只改动那一块。
+实测体积：面板约 1066 个单字，字体子集（二进制）约 **962KB**、页面内嵌 base64 约 **1.25MB**、整个 HTML 约 **1.5MB**（相比手势模型的 16MB 仍属小头）。字库数据已与主脚本分离：条目与别名表写在页面头部，重建只改动那两块。
 
 ## 部署到 GitHub Pages
 

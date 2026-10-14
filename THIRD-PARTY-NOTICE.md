@@ -25,6 +25,8 @@
 
 ## 甲骨文字表数据 ⚠ 许可待确认
 
-- 文件：`data/oracle_glyphs_full.json`、`data/intros.json`
+- 文件：`data/oracle_glyphs_full.json`、`data/curated_glyphs.json`
+  （`curated_glyphs.json` 中部分条目的 tag/intro 与平台文案一致，视同继承该来源；
+   原先单独存在的 `data/intros.json` 已被它完全覆盖，故合并删除，避免同一份数据两处维护）
 - 来源：甲骨文AI协同平台（jgwlbq.org.cn）"甲骨文合并字表"已释字数据
 - 状态：数据使用条款待与平台方核实。
