@@ -1371,7 +1371,16 @@ const prevHand = { x: 0.5, y: 0.5 };   // 上一帧手部位置（算挥动速�
 let lastHandResultsAt = 0;   // 最后一次手部数据的时刻（超时视为手离场）
 let ambBlend = 0;
 let flashT = 0;
-let ambientT = 0;
+// 待机聚散节律：0..1 表示「这个周期内应该聚到多少」。
+// 存在的必要性：gather 只由手部捏合度驱动，而待机巡字的触发条件恰恰是「手不在场」
+// —— 于是 closeness 恒为 0、gather 恒为 0，巡字只换了字形目标却没有任何力把粒子
+// 拉过去，表现为「字名在换、粒子纹丝不动」。这里补一条独立的聚散节奏给它。
+let ambientPhase = 0;
+// 「当前是否处于待机」需要在两处使用（frame 里推进节律、updateGestures 里决定
+// 是否让待机节奏接管 gather，以及判断成字礼该不该因「手不在场」被清掉）。
+// 必须放在模块级：此前写成 frame() 内的局部 const，而 updateGestures 里引用它，
+// 结果是每帧抛 ReferenceError、整个手势更新中断（画面直接空掉）。
+let ambient = false;
 let W = 0, H = 0;
 
 // 手势数据
@@ -1552,7 +1561,7 @@ function sampleGlyph3D(spec) {
   formedLatch = false; gatherT = 0;
   refreshColors();
   window.__dbg3d = { ch: spec.ch, n: N, maxDim: maxDim };
-  ambientT = 0;                        // 手动选字 → 重新计待机时间，巡字不会顶掉手动选择
+  ambientPhase = 0;                    // 手动选字 → 重新计待机时间，巡字不会顶掉手动选择
   refreshGlyphPanel(true);
   showLabel(spec.ch, spec.tag, false);
   return true;
@@ -1878,7 +1887,17 @@ function updateGestures(dt, t) {
     for (const h of hands3d) if (h) closeness = Math.max(closeness, clamp01((0.95 - h.ratioSlow) / 0.65));   // 全程跟手：开始闭指即开始聚
   }
   // 鼠标回退：旋转读取的也是 wvx/wvy（pointermove 中已维护）
-  gather = lerp(gather, closeness, Math.min(1, dt * 14));   // 轻滤波（约70ms），几乎零延迟跟手
+  //
+  // 待机（无手、无鼠标）时改由 ambientPhase 驱动 gather：
+  //   先聚成形 → 保持数秒让人看清 → 再散回星云 → 下一字在散开状态下换入。
+  // 之所以必须在【散开时】换字：着色器里 gather 正是把粒子拉向新目标形状的力，
+  // 若在成形状态下直接换目标，粒子会自己变形过去，看起来像「字自己扭曲」。
+  // 手一回到画面 closeness>0 即无条件优先，待机节奏立即让位。
+  const ambientTarget = closeness > 0 ? closeness
+    : (ambientPhase > 0 ? (ambientPhase < 1.6 ? ambientPhase / 1.6
+                          : ambientPhase < 11.2 ? 1
+                          : Math.max(0, 1 - (ambientPhase - 11.2) / 1.8)) : 0);
+  gather = lerp(gather, ambientTarget, Math.min(1, dt * 14));   // 轻滤波（约70ms），几乎零延迟跟手
   // ── 成字状态加滞回：消除"突然卡住" ─────────────────────────────────────
   // 旋转由 gather>=0.98 这个硬门槛控制，而 gather 源自手部关键点、噪声约 ±0.02~0.05。
   // 捏得稍松、手一晃、手指短暂自遮挡，都会让它在门槛上下反复穿越 →
@@ -2008,8 +2027,12 @@ function updateGestures(dt, t) {
       showLabel(curGlyph3D.ch, curGlyph3D.tag, true);
     }
   }
-  // 字成后标题保持显示，直到真正消散或双手全部离开 —— 而非松手瞬间消失
-  if (formedLatch && (gather < 0.45 || disperse > 0.5 || (nH === 0 && !virtualHand.active))) {
+  // 字成后标题保持显示，直到真正消散或双手全部离开 —— 而非松手瞬间消失。
+  // 「双手离开」这一条必须排除待机：待机的定义就是没人，nH 恒为 0，
+  // 若不加这个条件，待机时 formedLatch 会在成字的同一帧被清掉 →
+  // 成字礼（闪光/音效/标题）永远不触发，也看不到「气聚成字」的那一刻。
+  if (formedLatch && (gather < 0.45 || disperse > 0.5
+                      || (nH === 0 && !virtualHand.active && !ambient))) {
     formedLatch = false; showLabel('', '', false);
   }
 
@@ -2671,17 +2694,23 @@ function frame(now) {
   // 只在「精选字」里轮播（数据里标了 curated: true 的人工编排字），而不是全库上千个 ——
   // 全库含「丁」「乙」「丂」等与中医无关的字，无人值守时轮播这些会偏离作品主题。
   // 兜底：若数据里没有 curated 标记（旧数据），退回全库，避免巡字直接停摆。
-  if (gather < 0.05 && disperse < 0.05 && (!hands3d[0] && !hands3d[1] && !virtualHand.active)) {
-    ambientT += dt;
-    if (ambientT > 14) {
-      ambientT = 0;
+  // 先算好待机状态，再更新手势 —— updateGestures 需要读它
+  ambient = (!hands3d[0] && !hands3d[1] && !virtualHand.active && !gatherLock);
+  if (ambient) {
+    // 一个周期 14 秒：0~1.6s 聚形、1.6~11.2s 保持、11.2~13.0s 散开、13.0~14s 空歇。
+    // 换字发生在周期末尾的散开状态下（见上面对着色器行为的说明）。
+    ambientPhase += dt;
+    if (ambientPhase >= 14) {
+      ambientPhase = 0;
       const pool = AMBIENT_GLYPHS.length ? AMBIENT_GLYPHS : ORACLE_GLYPHS;
       const idx = pool.findIndex(g => g.ch === curGlyph3D.ch);
       glyphIndex = (idx < 0 ? 0 : idx + 1) % pool.length;   // 当前字不在池中（手动选过）→ 从池首接上
       sampleGlyph3D(pool[glyphIndex]);
       syncGlyphState(pool[glyphIndex], true);   // 巡字换字后，面板选中态跟上
     }
-  } else ambientT = 0;
+  } else {
+    ambientPhase = 0;          // 有人接管 → 重臂：下次待机从「聚形」重新开始
+  }
   updateGestures(dt, t);
   physics(dt, t);
 
