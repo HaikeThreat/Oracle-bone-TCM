@@ -104,7 +104,8 @@
   #glyphList::-webkit-scrollbar-thumb { background:rgba(120,150,190,.3); border-radius:3px; }
   #glyphList::-webkit-scrollbar-track { background:transparent; }
   .gitem {
-    display:flex; align-items:center; gap:12px; padding:8px 10px; margin:0 0 5px;
+    display:flex; align-items:center; gap:12px; padding:8px 10px;
+    margin:0 5px 5px 0;   /* 右侧留 5px：选中框右边线不贴滚动条 */
     border:1px solid transparent; border-left:2px solid var(--line); border-radius:8px;
     background:rgba(255,255,255,.02); cursor:pointer; transition:background .15s, border-color .15s;
   }
