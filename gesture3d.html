@@ -36,9 +36,11 @@
   }
 
   /* 手势动画窗格（不显示相机画面，仅实时指尖动画）*/
-  #gestureBox { position:fixed; left:16px; bottom:16px; z-index:10; display:none; }
-  #gestureCv { width:150px; height:112px; display:block; }
-  #gstateLabel { display:none; }
+  #gestureBox { position:fixed; left:16px; bottom:16px; z-index:10; display:none; flex-direction:column; gap:4px; }
+  #gestureCv { width:150px; height:112px; display:block; background:rgba(8,12,20,.62);
+               border:1px solid var(--line); border-radius:10px; }
+  #gstateLabel { font-size:11px; letter-spacing:1px; color:#7d8fa8; padding-left:2px;
+                 text-shadow:0 1px 4px rgba(0,0,0,.8); }
   #camVideo { position:fixed; left:-9999px; top:0; width:320px; height:240px; }  /* 幕后取流，不展示 */
 
   /* 底部控制条 */
@@ -175,6 +177,19 @@ window.onerror = function(msg, src, line) {
 
 // ── 全局状态 ──────────────────────────────────────────────────────────────
 const ST = { AMBIENT:'待机 · 气韵流转', FLOW:'风起 · 气随手动', GATHER:'聚形 · 气聚成字', DISPERSE:'气散 · 化入星云' };
+// MediaPipe 手部模型档位：1=full（关键点更准）0=lite（推理显著更快）。
+// 推理在主线程同步跑，直接影响手势旋转的顺滑度：卡就设 0，捏合判定变钝就回 1。
+const MODEL_COMPLEXITY = 1;
+// ── 手势转动幅度（位置跟随模式）────────────────────────────────────────────
+// 嫌字转得不够就调大 *_RANGE；嫌一动就过头就调大 *_SPAN（手要摆更远才吃满）。
+const YAW_RANGE   = 1.5;    // 左右最大转角 rad：1.5≈86°，2.0≈115°，3.14≈180°
+const PITCH_RANGE = 1.35;   // 上下最大俯仰 rad：1.35≈77°（原先被硬编码 ±0.9≈52° 卡住）
+const YAW_SPAN    = 0.40;   // 掌心偏离中心达 0.40×半屏时到满角（越小越灵敏）
+const PITCH_SPAN  = 0.35;
+// 俯仰的最终硬限幅：留一点余量避免完全侧视时字形不可读（π/2≈90° 为完全侧视）。
+const PITCH_LIMIT = 1.45;   // ≈83°
+// 聚形收敛阶段是否强制正视图（成字那一瞬一定是正的）。想让聚形过程中保留手工角度就设 false。
+const FRONT_VIEW_WHILE_FORMING = true;
 let P = {
   attraction: 2.2,      // 牵引力度
   gatherK: 16.0,        // 聚形弹簧（粒子紧贴捏合进度，落位即成字）
@@ -195,6 +210,8 @@ let gather = 0, disperse = 0;                // 聚形/气散权重（平滑）
 let gatherT = 0;                             // 聚形持续计时（级联用）
 let closureHold = 0;                         // 指尖捏拢保持计时（成字时机与接触瞬间同步）
 let formedLatch = false;
+let gatherLock = false;      // 成字滞回锁：防关键点抖动把旋转输入反复切断（"突然卡住"）
+let formedNow = false;       // 本帧「已聚形成字」判定（滞回），frame() 也要读
 let yawVel = 0, pitchVel = 0;
 const prevHand = { x: 0.5, y: 0.5 };   // 上一帧手部位置（算挥动速度用）
 let lastHandResultsAt = 0;   // 最后一次手部数据的时刻（超时视为手离场）
@@ -564,8 +581,7 @@ function updateTriggerState(h, ratio) {
 const _h1 = new THREE.Vector3(), _h2 = new THREE.Vector3(), _hv = new THREE.Vector3();
 let lastPinchSpeed = 0;   // 最近一次捏/张的速度（平滑衰减）
 let gustEnergy = 0;       // 阵风能量（惯性载体：快充慢泄 3~4s）
-let chimePending = false;
-let userWaveRotating = false;   // 用户挥手旋转中   // 待响的成字钟声（等一次手势点击补响）
+let chimePending = false;   // 待响的成字钟声（等一次手势点击补响）
 function physics(dt, t) {
   const wG = gather, wD = disperse, wF = Math.max(0, 1 - wG - wD);
   const dampNow = P.damping * (1 - 0.5 * gustEnergy);   // 阵风能量期间低阻尼 → 惯性滑行
@@ -700,16 +716,32 @@ function physics(dt, t) {
 // ── 手势状态机 ────────────────────────────────────────────────────────────
 let statusText = ST.AMBIENT;
 function updateGestures(dt, t) {
+  // 检测节拍自适应：wvxF 只在相机帧刷新，两次检测之间由本函数按 τ 衰减。
+  // 若 τ 远短于检测间隔，转速就会"到货时冲高、间隔内掉一半"→ 肉眼即「卡卡的」。
+  // 让快通道 τ 随实测检测间隔拉伸，使帧间波动与相机帧率解耦（下限 2.5× 间隔）。
+  const detDt = (cam.on && cam.detDt) ? cam.detDt : 0;
+  const stretch = detDt > 0 ? Math.min(2.5, Math.max(1, 0.14 / detDt)) : 1;
+  const tauS = 0.35, tauF = 0.12 * stretch;
   // 每只手的实时世界速度：相机帧低通目标 × 新鲜度衰减（丢帧时自然失效，不归零不跳变）
   for (const h of hands3d) if (h) {
     h.staleT = (h.fresh === false) ? (h.staleT || 0) + dt : 0;   // 丢帧宽限计时
     const age = Math.max(0, (performance.now() - (h._lt || performance.now())) / 1000 - 0.06);
-    const decay = Math.exp(-age / 0.35);
+    const decay = Math.exp(-age / tauS);
     h.wvx = (h.wvxT || 0) * decay;
     h.wvy = (h.wvyT || 0) * decay;
-    const decayF = Math.exp(-age / 0.12);
+    const decayF = Math.exp(-age / tauF);
     h.wvxF = (h.wvxF || 0) * decayF;                  // 快通道 → 旋转（跟手，衰减更快）
     h.wvyF = (h.wvyF || 0) * decayF;
+  }
+  // 鼠标虚拟手速度同样按新鲜度衰减：pointermove 只在移动时触发，停手后
+  // 最后一次速度必须自然失效——否则视角会以停手前的转速永久自转、风永不停歇
+  if (virtualHand.active && virtualHand._lt) {
+    const age = Math.max(0, (performance.now() - virtualHand._lt) / 1000 - 0.06);
+    const decay = Math.exp(-age / tauS), decayF = Math.exp(-age / tauF);
+    virtualHand.wvx = (virtualHand.wvx || 0) * decay;
+    virtualHand.wvy = (virtualHand.wvy || 0) * decay;
+    virtualHand.wvxF = (virtualHand.wvxF || 0) * decayF;
+    virtualHand.wvyF = (virtualHand.wvyF || 0) * decayF;
   }
   // 宽限超时（0.4s 无检测）才真正离场
   const srcStale = performance.now() - lastHandResultsAt > 400;   // 数据源停更（手移出画面/检测失效）
@@ -739,6 +771,16 @@ function updateGestures(dt, t) {
   }
   // 鼠标回退：旋转读取的也是 wvx/wvy（pointermove 中已维护）
   gather = lerp(gather, closeness, Math.min(1, dt * 14));   // 轻滤波（约70ms），几乎零延迟跟手
+  // ── 成字状态加滞回：消除"突然卡住" ─────────────────────────────────────
+  // 旋转由 gather>=0.98 这个硬门槛控制，而 gather 源自手部关键点、噪声约 ±0.02~0.05。
+  // 捏得稍松、手一晃、手指短暂自遮挡，都会让它在门槛上下反复穿越 →
+  // 瞬间掉回 idle、角度冻结一下，正是肉眼看到的"突然卡住"。
+  // 对策：高位介入(0.95)、低位才退出(0.25)，成字期间给 1.0 地板；抖动再也关不掉输入。
+  // 注意滞回必须用 closeness（未被地板抬高的原始信号）来判断 ——
+  // 若用 gather，地板会让它永远≥1，连松手散字都会被锁死。
+  if (closeness >= 0.95) gatherLock = true;
+  else if (closeness < 0.25) gatherLock = false;
+  if (gatherLock && gather < 1) gather = 1;
   closureHold = closeness > 0.96 ? closureHold + dt : Math.max(0, closureHold - dt * 2);
   disperse = lerp(disperse, dT, Math.min(1, dt * (1.3 + spdN * 7)));
   if (gather > 0.02) gatherT += dt; else gatherT = 0;
@@ -751,28 +793,99 @@ function updateGestures(dt, t) {
     ? { x: virtualHand.x, y: virtualHand.y, wvxF: virtualHand.wvxF || 0, wvyF: virtualHand.wvyF || 0 }
     : hands3d[0];
   if (!hand0) { yawVel = lerp(yawVel, 0, Math.min(1, dt * 1.5)); pitchVel = lerp(pitchVel, 0, Math.min(1, dt * 1.5)); }   // 无手：残余转速缓缓归零
-  const spdX = hand0 ? (hand0.wvxF || 0) : 0, spdY = hand0 ? (hand0.wvyF || 0) : 0;
-  const userRotating = Math.abs(spdX) > 0.25 || Math.abs(spdY) > 0.25;   // 外层声明：回正调度也要读
-  // 软死区：低于阈值的速度平滑压到零（无开关突兀感）
-  const softDead = (v, dz) => { const a = Math.abs(v); return a <= dz ? 0 : Math.sign(v) * (a - dz * 0.55); };
+  // [关键] 旋转通道归一化：wvxF/wvyF 的单位是「世界单位/秒」，而下面的死区(0.25)
+  // 与限幅(3.5)是按「归一速度」写的 —— 两者差了约两个数量级，导致任何微小挥动
+  // （甚至关键点抖动）都会把转速直接顶到最大，转速只剩 0 / 满 两档：
+  // 表现就是字形旋转一顿一顿、"卡卡的"。
+  // ROT_NORM=4（世界单位/秒，约 0.4 屏宽/秒）：实测关键点静止抖动峰值约 0.18 u/s
+  // 落在死区(0.25)之内 → 不动就不转；轻挥约 1.1 rad/s，明确挥动到满速。
+  // 风通道另有 sp/3 的归一（见 windNow），各自标定、互不影响。
+  const ROT_NORM = 4;
+  const LEAD_GAIN = 0.3;   // 检测滞后外推增益：只用来补"加速瞬间"的追赶感。
+                           // 别调大 —— 匀速挥动时样本本就滞后一个检测间隔，增益过大会让
+                           // 视角转速超过手速（字比手跑得快）。0=关闭外推。
+  let spdX = 0, spdY = 0;
   if (hand0) {
-    // 旋转驱动 = 快通道速度（τ=0.07s，跟手）+ 快攻击响应
-    const sx = softDead(spdX, 0.25), sy = softDead(spdY, 0.25);
-    // 成字（≥0.98）后挥动旋转；收敛期间锁定为回正
-    if (gather >= 0.98) {
-      yawVel   = lerp(yawVel,   clamp(sx * 1.4, -3.5, 3.5),  Math.min(1, dt * 10));   // 快攻击 → 即时跟手
-      pitchVel = lerp(pitchVel, clamp(-sy * 0.8, -2, 2), Math.min(1, dt * 10));
+    if (virtualHand.active) {
+      const [vwN, vhN] = viewSize();
+      spdX = (virtualHand.wvxF || 0) * vwN / ROT_NORM;   // 指针速度 → 世界单位/秒
+      spdY = (virtualHand.wvyF || 0) * vhN / ROT_NORM;
     } else {
-      yawVel   = lerp(yawVel, 0, Math.min(1, dt * 8));
-      pitchVel = lerp(pitchVel, 0, Math.min(1, dt * 8));
+      // 外推补偿：转速读到的是「上次检测时刻」的手速，而检测有 30~80ms 滞后，
+      // 这正是「手已经动了、字还没跟上」的那段延迟。按样本年龄适度前推
+      // （上限 ~0.8 个检测间隔，避免过冲抖动）→ 视觉上贴住手。
+      const age = Math.max(0, (performance.now() - (hand0._lastAt || performance.now())) / 1000 - 0.02);
+      const lead = clamp01((age - detDt * 0.2) / detDt);
+      const boost = 1 + LEAD_GAIN * lead;
+      spdX = (hand0.wvxF || 0) * boost / ROT_NORM;
+      spdY = (hand0.wvyF || 0) * boost / ROT_NORM;
     }
   }
-  // 聚形收敛阶段（0.15→0.98）：自动回正视图。
-  // 就近取 2π 整数倍作为目标 → 走最短路径回正，不会晕眩式倒卷；
-  // 字成之后旋转完全交给用户（"之后想怎么挪是他的事情"）。
-  // 旋转完全由用户手势驱动（挥动=转，静止=停）
-  points.rotation.y += yawVel * dt;
-  points.rotation.x = clamp(points.rotation.x + pitchVel * dt, -0.9, 0.9);
+  // 成字后允许转动；收敛期间锁定为回正。
+  // 判据用 gatherLock（滞回锁）而不是 gather>=0.98：后者要求捏到接近满值，
+  // 而普通握持的 gather 常年在 0.90~0.97，噪声一抖就跌破 → 角度瞬断，
+  // 这正是"突然卡住"的主因。gatherLock 有 0.95/0.25 的滞回带，稳定得多。
+  const [vwR, vhR] = viewSize();
+  // 软死区：低于阈值的速度平滑压到零（无开关突兀感）
+  // 注意：这里的 0.25 是「归一速度」阈值 —— 只有 spdX/spdY 先做完 /ROT_NORM 归一才成立
+  const softDead = (v, dz) => { const a = Math.abs(v); return a <= dz ? 0 : Math.sign(v) * (a - dz * 0.55); };
+  formedNow = gatherLock || formedLatch || gather >= 0.98;
+  const rotMode = formedNow
+    ? (virtualHand.active ? 'mouse'
+       // 新鲜度窗口随实测检测间隔自适应：固定 120ms 时，20fps 相机（间隔 50ms）
+       // 只要偶发一次抖动就会误判成"检测断了"而冻结角度 → 看着就是一顿。
+       // 取 max(150ms, 3×间隔)，既容忍正常抖动，又能在真断流时及时交给 hold。
+       : (hand0 && hand0._lastAt && (performance.now() - hand0._lastAt) < Math.max(150, detDt * 3000) ? 'position' : 'hold'))
+    : 'idle';
+  // rotFollow：把目标角度用一阶滤波咬住。它只引入固定的 ~τ 相位滞后，
+  // 不像"速度积分"那样让滞后随动作时间累积 —— 这就是"如影随形"的关键。
+  const rotFollow = (cur, tgt, tau) => cur + (tgt - cur) * Math.min(1, dt / tau);
+
+  if (rotMode === 'position') {
+    // ── 位置跟随（像方向盘）：手在哪儿，字就转到哪儿 ─────────────────────
+    // 原速度积分模型下 rotation.y 是手速的时间积分，滞后随挥动时间无限累积，
+    // 怎么调滤波器都消不掉（实测 >0.5s）。改为位置映射后角度直接由掌心位置决定，
+    // 手停角度就停 —— 只留 ~45ms 固定滞后，且天然不会"永远自转"（角度有界）。
+    // 方向 = 挥动模式同一手感：手往右，字往同一边转（与镜面预览一致）。
+    // 满角 1.0rad(≈57°) 对应掌心偏离中心约 0.35 半屏，且角度有界不会转过头。
+    // 用掌心速度把位置外推到"此刻"：检测只在相机帧率（20~30fps）刷新，
+    // 不补这一步的话角度就是每 50ms 跳一格 —— 那正是"卡住"的观感。
+    // 外推按样本年龄线性推进，方向反转时最多多冲 ~1 帧位置（亚像素级），无副作用。
+    const hAge = Math.max(0, Math.min(
+      (performance.now() - (hand0._lastAt || performance.now())) / 1000, detDt * 1.5));
+    const hxNow = hand0.x + (hand0.wvxF || 0) * hAge;
+    const hyNow = hand0.y + (hand0.wvyF || 0) * hAge;
+    // ── 转动幅度（想让字转得更多就调大这两个数）──────────────────────────
+    // YAW_RANGE   = 左右最大转角（rad）：1.5 ≈ 86°，2.0 ≈ 115°
+    // PITCH_RANGE = 上下最大俯仰（rad）：受 frame() 里 rotation.x 的 ±0.9 硬限幅约束，
+    //               所以实际有效上限就是 0.9（≈52°），填更大也只到 0.9。
+    // 分母的 0.4/0.35 决定"手要摆多远才吃满"：数值越小越灵敏。
+    //   0.40 → 掌心偏离中心约 20% 半屏即到满角（原先要 35%，多数人摆不到 → 觉得幅度小）
+    const yawT   = clamp(-hxNow / (vwR * 0.5) / YAW_SPAN  * YAW_RANGE,   -YAW_RANGE,   YAW_RANGE);
+    const pitchT = clamp(-hyNow / (vhR * 0.5) / PITCH_SPAN * PITCH_RANGE, -PITCH_LIMIT, PITCH_LIMIT);
+    // τ 取 30/45ms：再小就会把检测节拍（相机帧率）的台阶感露出来。
+    // 掌心位置噪声约 0.01 世界单位 → 角度噪声仅约 0.1°，所以这里不靠大 τ 去抖。
+    points.rotation.y = rotFollow(points.rotation.y, yawT,   0.030);
+    points.rotation.x = rotFollow(points.rotation.x, pitchT, 0.040);
+    yawVel = 0; pitchVel = 0;              // 位置模式不再积分速度，避免残留转速
+  } else if (rotMode === 'mouse') {
+    // ── 鼠标/触摸：相对设备，保持"拖动=旋转"的原有手感 ───────────────────
+    // 与位置模式同一判据（formedNow），避免两条路径手感不一致
+    if (formedNow) {
+      const sx = softDead(spdX, 0.25), sy = softDead(spdY, 0.25);
+      yawVel   = lerp(yawVel,   clamp(sx * 1.4, -3.5, 3.5), Math.min(1, dt * 26));
+      pitchVel = lerp(pitchVel, clamp(-sy * 0.8, -2, 2),    Math.min(1, dt * 26));
+    } else {
+      yawVel   = lerp(yawVel, 0, Math.min(1, dt * 14));
+      pitchVel = lerp(pitchVel, 0, Math.min(1, dt * 14));
+    }
+    points.rotation.y += yawVel * dt;
+    points.rotation.x = clamp(points.rotation.x + pitchVel * dt, -PITCH_LIMIT, PITCH_LIMIT);
+  } else {
+    // hold（检测短暂停更）/ idle：角度原地保持，不累积、不跳变
+    yawVel = lerp(yawVel, 0, Math.min(1, dt * 14));
+    pitchVel = lerp(pitchVel, 0, Math.min(1, dt * 14));
+  }
 
   // 聚形完成判定
   if (!formedLatch && gather > 0.85) {
@@ -815,13 +928,32 @@ async function toggleCamera() {
   }
   btn.textContent = '⏳ 加载手势模型…';
   try {
+    // file:// 必须最先拦：Safari 在 file:// 下允许 getUserMedia（摄像头能亮），
+    // 却禁止 fetch 本地文件 —— MediaPipe 的 .wasm/.binarypb 全靠 fetch 取回，
+    // 于是 JS 侧只看到一句 "Load failed"，极难定位。故此处提前给出可操作提示。
+    if (location.protocol === 'file:')
+      throw new Error('手势模型无法在 file:// 下加载（Safari 禁止 fetch 本地 wasm）'
+        + ' —— 请在项目目录运行 python3 serve.py，改用 http://localhost:8138/gesture3d.html 打开');
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia)
-      throw new Error('当前环境不支持摄像头（file:// 请改用 http://localhost 访问）');
+      throw new Error('当前环境不支持摄像头（请改用 http://localhost 访问）');
     if (!window.Hands) throw new Error('MediaPipe 未加载（libs/hands.js 缺失或加载失败）');
 
-    cam.stream = await navigator.mediaDevices.getUserMedia({
-      video: { width: 640, height: 480, facingMode: 'user' }
-    });
+    cam.stream = await Promise.race([
+      // 帧率优先：手势「跟手」程度直接由相机帧率决定（检测节拍 ≈ 相机帧率）。
+      // ideal 而非 exact —— 不满足时浏览器自动挑最接近的，不会直接抛错。
+      // 分辨率只要够 MediaPipe 用（640×480 足够），换来更高帧率；
+      // 否则有的机器会给 1080p，反而把帧率压到 15~20fps，手感立刻发飘。
+      navigator.mediaDevices.getUserMedia({
+        video: {
+          width:  { ideal: 640 },
+          height: { ideal: 480 },
+          frameRate: { ideal: 30, min: 15 },
+          facingMode: 'user'
+        }
+      }),
+      new Promise((_, rej) => setTimeout(() =>
+        rej(new Error('摄像头授权超时（20s）——请留意系统/浏览器的摄像头授权弹窗')), 20000))
+    ]);
     const video = document.getElementById('camVideo');
     video.srcObject = cam.stream;
     await video.play();
@@ -830,11 +962,16 @@ async function toggleCamera() {
       cam.hands = new Hands({
         locateFile: f => `libs/${f}`                          // 全部本地化，无 CDN 依赖
       });
-      cam.hands.setOptions({ maxNumHands: 2, modelComplexity: 1,
+      // modelComplexity：1=full（手部关键点更准）0=lite（推理便宜一大截）。
+      // 推理在主线程同步执行，每次约几十毫秒，期间渲染被掐住 → 手势旋转顿挫。
+      // 想更快就设 0；若发现"捏合"判定变迟钝，就改回 1。
+      cam.hands.setOptions({ maxNumHands: 2, modelComplexity: MODEL_COMPLEXITY,
         minDetectionConfidence: 0.6, minTrackingConfidence: 0.5 });
       cam.hands.onResults(onHandResults);
     }
     cam.on = true; cam.ready = true;
+    cam.handsErr = null; cam.resultsN = 0; cam.sendFails = 0; cam.initAt = performance.now();
+    virtualHand.active = false; virtualHand.down = false;   // 摄像头接管输入：解除残留的鼠标虚拟手（否则手势数据被永久短路）
     document.getElementById('gestureBox').style.display = 'flex';
     btn.classList.add('on'); btn.textContent = '🎥 手势控制 · 开';
     feedLoop();
@@ -847,16 +984,57 @@ let feeding = false;
 async function feedLoop() {
   if (feeding) return; feeding = true;
   const video = document.getElementById('camVideo');
+  // 只在「相机真的出了一帧新画面」时送检，且判据必须确定可靠。
+  // 旧循环每个 rAF（60/s）都 send()，而相机只有 20~30fps：同一帧被反复上传纹理、
+  // 重复跑推理（同步阻塞主线程），白烧 2~3 倍主线程时间 → 就是那个顿挫。
+  // 这里只用 video.currentTime 是否前进 + 心跳兜底：
+  // 不用 requestVideoFrameCallback —— 它在部分浏览器/状态下不触发，
+  // 一旦不触发就只剩心跳兜底（4 次/秒），反而把检测拖垮（曾踩过这个坑）。
+  let lastMediaTime = -1;
+  let lastSendAt = performance.now();
   while (cam.on) {
-    if (video.readyState >= 2) await cam.hands.send({ image: video });
+    // send 失败绝不能让循环静默死亡（WASM 初始化失败/模型 404 时旧代码会永远卡"未检测"）
+    if (video.readyState >= 2 && video.videoWidth > 0) {
+      const nowMs = performance.now();
+      const mediaAdvanced = video.currentTime !== lastMediaTime;
+      // 心跳只作为"currentTime 不前进"的保险，1 帧超过 150ms 才补一次，
+      // 兜底频率仍高于相机帧率，不会把检测降级。
+      const heartbeat = nowMs - lastSendAt > 150;
+      if (mediaAdvanced || heartbeat) {
+        lastMediaTime = video.currentTime;
+        lastSendAt = nowMs;
+        try {
+          await cam.hands.send({ image: video });
+          if (cam.sendFails) { cam.sendFails = 0; cam.handsErr = null; }   // 恢复后自动清错误
+        } catch (e) {
+          cam.sendFails = (cam.sendFails || 0) + 1;
+          cam.handsErr = (e && e.message) ? String(e.message) : String(e);
+          if (cam.sendFails <= 3) console.warn('[hands] send 失败 (' + cam.sendFails + '):', cam.handsErr);
+          await new Promise(r => setTimeout(r, 400));   // 失败节流，不热旋转
+        }
+      }
+    }
     await new Promise(r => requestAnimationFrame(r));
   }
   feeding = false;
 }
 function onHandResults(results) {
+  cam.lastResults = results;                  // 供左下角骨架绘制读取
+  handleLms(results.multiHandLandmarks || []);
+}
+// 关键点处理：与推理来源解耦（当前由主线程 onHandResults 调用）。
+// 之所以单独成函数：关键点数据将来若改由 Worker 回传，只需换调用方，下游全不用动。
+function handleLms(lms) {
   try {
-  cam.lastResults = results;
-  const lms = results.multiHandLandmarks || [];
+  {                                                     // 检测节拍实测（用于让旋转平滑不依赖相机帧率）
+    const tNow = performance.now();
+    if (cam._lastResAt) {
+      const gap = (tNow - cam._lastResAt) / 1000;
+      if (gap > 0.001 && gap < 1) cam.detDt = cam.detDt ? lerp(cam.detDt, gap, 0.2) : gap;
+    }
+    cam._lastResAt = tNow;
+  }
+  cam.resultsN = (cam.resultsN || 0) + 1;   // 模型出结果的帧数（0 = WASM/模型一直没初始化好）
   for (let k = 0; k < 2; k++) {
     if (lms[k]) {
       const lm = lms[k];
@@ -867,8 +1045,13 @@ function onHandResults(results) {
       const wx = (0.5 - lm[9].x) * vw;            // 掌心（镜像）
       const wy = (0.5 - lm[9].y) * vh;
       const o = openness(lm);
-      if (!hands3d[k]) hands3d[k] = { x: wx, y: wy, open01: o };
+      if (!hands3d[k]) hands3d[k] = { x: wx, y: wy, open01: o, rx: wx, ry: wy };
       const h = hands3d[k];
+      // 速度用【原始关键点】差分，不用平滑后的 h.x/h.y：
+      // 下面 wvxF 自己就有低通（α 由 vdt 决定），若再从平滑位置差分等于滤波两次——
+      // 白白多出约 40ms 相位滞后，正是「拖」的来源。原始差分仅用于速度，
+      // 位置仍走平滑（粒子跟随、风、聚形判定都用 h.x/h.y）。
+      h.rx = wx; h.ry = wy;
       h.x = lerp(h.x, wx, 0.45);                          // 平滑去抖
       h.y = lerp(h.y, wy, 0.45);
       h.open01 = lerp(h.open01, o, 0.35);
@@ -876,22 +1059,24 @@ function onHandResults(results) {
       updateTriggerState(h, tipRatio(lm));                // 施密特触发：捏合/张开状态（用 raw，响应快）
       h.ratioSlow = lerp(h.ratioSlow ?? h.ratio, h.ratio, 0.35);   // EMA：滤抖但跟上捏合完成（约0.1s滞后）
       h.sep01 = clamp01(h.ratio / 1.4);                   // 归一化间距（备用）
-      // 捏合/张开速度 + 世界速度：均在相机检测帧内计算并低通滤波（τ=0.3s EMA）——
-      // 滤除关键点检测抖动；渲染帧只读取该平滑目标值 × 新鲜度衰减，杜绝节拍错位噪声
+      // 捏合/张开速度 + 世界速度：均在相机检测帧内计算并低通滤波 ——
+      // 慢通道 τ=0.3s（风力稳态，需稳）；快通道 τ=0.045s（旋转跟手，要快）
       const now2 = performance.now();
       if (h._lt && h._lwx !== undefined) {
         const vdt = (now2 - h._lt) / 1000;
         if (vdt > 0.001) {
           h.pinchVel = lerp(h.pinchVel || 0, Math.abs(h.ratio - prevRatio) / vdt, 0.35);
           const aS = 1 - Math.exp(-vdt / 0.3);           // 慢通道（τ=0.3s）：风力稳态
-          const aF = 1 - Math.exp(-vdt / 0.07);          // 快通道（τ=0.07s）：旋转跟手
+          const aF = 1 - Math.exp(-vdt / 0.045);         // 快通道（τ=0.045s）：旋转跟手
+          // 快通道用原始位置差分（h.rx/ry），慢通道仍用平滑位置（风要稳）
           h.wvxT = lerp(h.wvxT || 0, (wx - h._lwx) / vdt, aS);
           h.wvyT = lerp(h.wvyT || 0, (wy - h._lwy) / vdt, aS);
-          h.wvxF = lerp(h.wvxF || 0, (wx - h._lwx) / vdt, aF);
-          h.wvyF = lerp(h.wvyF || 0, (wy - h._lwy) / vdt, aF);
+          h.wvxF = lerp(h.wvxF || 0, (h.rx - h._lwx) / vdt, aF);
+          h.wvyF = lerp(h.wvyF || 0, (h.ry - h._lwy) / vdt, aF);
         }
       }
-      h._lt = now2; h._lwx = wx; h._lwy = wy;
+      h._lt = now2; h._lwx = h.rx; h._lwy = h.ry;
+      h._lastAt = now2;
       lastHandResultsAt = performance.now();
     } else if (hands3d[k]) { hands3d[k].fresh = false; }   // 丢帧：保留最后已知状态（宽限期）
   }
@@ -927,8 +1112,14 @@ function cvs_listen() {
     }
     virtualHand._lt = now; virtualHand._lwx = wx; virtualHand._lwy = wy;
   });
-  cvs.addEventListener('pointerup', () => { virtualHand.down = false; });
-  cvs.addEventListener('pointercancel', () => { virtualHand.down = false; });
+  cvs.addEventListener('pointerup', () => {
+    virtualHand.down = false;
+    if (cam.on) virtualHand.active = false;   // 摄像头模式：松开鼠标即把输入权交还摄像头
+  });
+  cvs.addEventListener('pointercancel', () => {
+    virtualHand.down = false;
+    if (cam.on) virtualHand.active = false;
+  });
 }
 
 // ── UI ────────────────────────────────────────────────────────────────────
@@ -1089,7 +1280,16 @@ function drawGestureWidget(t) {
   g.setTransform(2, 0, 0, 2, 0, 0);
   g.clearRect(0, 0, W, H);          // 透明背景：只画骨架，无框无底
 
-  let color = '#5a6b80', label = '未检测';
+  // 状态标签：手势态优先，其次诊断摄像头/模型管线（让"未检测"有原因可查）
+  let color = '#5a6b80', label = '未检测 · 手掌对准镜头';
+  const vid = document.getElementById('camVideo');
+  if (cam.on) {
+    if (cam.handsErr)       { color = '#ff7a6b'; label = '检测出错 · ' + cam.handsErr; }
+    else if (vid.videoWidth === 0) { color = '#ffab4a'; label = '相机无画面 · 被占用或授权中'; }
+    else if (!cam.resultsN) { color = '#ffab4a';
+      label = (performance.now() - (cam.initAt || 0) > 12000)
+        ? '模型初始化失败 · 看控制台/刷新' : '手势模型初始化中…'; }
+  }
   if (gather > 0.5)       { color = '#5cff9d'; label = '聚形'; }
   else if (disperse > 0.5){ color = '#ff7a6b'; label = '气散'; }
   else if ((cam.on && hands3d[0]) || (!cam.on && virtualHand.active)) { color = '#ffab4a'; label = '牵引'; }
@@ -1122,12 +1322,33 @@ function drawGestureWidget(t) {
 
 // ── 主循环 ────────────────────────────────────────────────────────────────
 let lastT = performance.now(), fps = 60;
+// 顿挫度量：按真实帧间隔统计「最差帧」，而不是平均值 —— 卡顿看的是最差值。
+// 1 秒一个窗口，显示最近窗口内最长的帧间隔与 >50ms 的帧数。
+let jankWin = 0, jankMax = 0, jankOver = 0, jankMaxShow = 0, jankOverShow = 0;
+// 右上角诊断项（检测帧率 / 相机 / 顿挫）默认隐藏；Ctrl(⌘)+Shift+D 切换
+let statsDiag = false;
+addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'D' || e.key === 'd')) {
+    statsDiag = !statsDiag;
+    const el = document.getElementById('statsDiag');
+    if (el) el.style.display = statsDiag ? 'block' : 'none';
+    e.preventDefault();
+  }
+});
 function frame(now) {
   requestAnimationFrame(frame);
-  const dt = Math.min((now - lastT) / 1000, 1 / 30);
+  const rawDt = (now - lastT) / 1000;           // 真实帧间隔（不截断）
+  const dt = Math.min(rawDt, 1 / 30);           // 物理用：截断避免大步长炸开
   lastT = now;
   fps = lerp(fps, 1 / Math.max(dt, 1e-4), 0.05);
   const t = now / 1000;
+
+  // 顿挫统计：必须用未截断的真实间隔，否则 >33ms 的停顿全被 dt 截断掩盖
+  const gapMs = rawDt * 1000;
+  if (gapMs > jankMax) jankMax = gapMs;
+  if (gapMs > 50) jankOver++;
+  jankWin += rawDt;
+  if (jankWin >= 1) { jankMaxShow = jankMax; jankOverShow = jankOver; jankWin = 0; jankMax = 0; jankOver = 0; }
 
   if (flashT > 0) flashT = Math.max(0, flashT - dt * 1.6);
   // 待机 14 秒自动巡下一字（展馆无人时轮播）
@@ -1153,15 +1374,28 @@ function frame(now) {
   updateFlightFade();
   drawGestureWidget(t);
 
-  // 硬保证：聚形进度>30% 期间强制正视图（覆盖一切其他旋转机制）
-  if (gather > 0.3 && !userWaveRotating) {
+  // 硬保证：聚形收敛期间（未成字）强制正视图（覆盖一切其他旋转机制）；
+  // 成字（formedLatch）后立刻交还控制权——否则挥动旋转会被这里每帧清零，
+  // 表现为"字成之后怎么挥都转不动视角"。
+  // 用 formedNow（滞回锁）判定而非裸 formedLatch：否则门槛抖动时这一行会
+  // 与旋转输入打架，表现为聚形途中视角被反复掰回正、再被你掰走（闪跳）。
+  if (FRONT_VIEW_WHILE_FORMING && gather > 0.3 && !formedNow) {
     points.rotation.y = 0;
     points.rotation.x = 0;
   }
   renderer.render(scene, camera);
 
+  // 右上角只留最必要的信息，避免堆砌调试项显得杂乱。
+  // 诊断项（检测帧率 / 相机分辨率 / 顿挫）默认隐藏，按 Ctrl(⌘)+Shift+D 可切换显示。
   document.getElementById('stats').innerHTML =
-    `fps <b>${fps.toFixed(0)}</b> · particles <b>${N}</b> · webgl <b>ok</b><br>glyph <b>${curGlyph3D.ch}</b> · 手 <b>${cam.on ? (hands3d[0] ? (hands3d[1] ? 2 : 1) : 0) : (virtualHand.active ? '鼠标' : '无')}</b>`;
+    `fps <b>${fps.toFixed(0)}</b> · glyph <b>${curGlyph3D.ch}</b>`
+    + (cam.on ? ` · 手 <b>${hands3d[0] ? (hands3d[1] ? 2 : 1) : 0}</b>` : '')
+    + `<span id="statsDiag" style="display:${statsDiag ? 'block' : 'none'}">`
+    // 检测帧率实测：手势手感（旋转顺滑度）取决于它，怀疑卡顿先看这个数
+    + (cam.on && cam.detDt ? `<br>检测 <b>${(1 / cam.detDt).toFixed(0)}</b>fps · 相机 <b>${document.getElementById('camVideo').videoWidth}×${document.getElementById('camVideo').videoHeight}</b>` : '')
+    // 顿挫：最近 1 秒的最差帧间隔 / >50ms 帧数（卡顿的直接度量，比平均 fps 有用）
+    + `<br>顿挫 <b>${jankMaxShow.toFixed(0)}</b>ms · >50ms <b>${jankOverShow}</b> 帧/s`
+    + `</span>`;
 }
 
 // ── 启动 ──────────────────────────────────────────────────────────────────
@@ -1182,6 +1416,15 @@ function frame(now) {
   } catch (e) {}
 
   if (!sampleGlyph3D(curGlyph3D)) { banner('字形渲染失败'); return; }
+
+  // file:// 下摄像头手势不可能工作（见 toggleCamera 注释）：鼠标模式照常，
+  // 但把按钮标记为不可用，避免用户反复点击只换来一句 "Load failed"。
+  if (location.protocol === 'file:') {
+    const b = document.getElementById('btnCam');
+    b.style.opacity = '.55';
+    b.title = '手势控制需经 HTTP 打开：python3 serve.py 后访问 http://localhost:8138/gesture3d.html';
+  }
+
   requestAnimationFrame(frame);
 })().catch(e => banner('初始化失败：' + e.message));
 </script>
