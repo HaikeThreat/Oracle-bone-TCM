@@ -134,7 +134,22 @@ def main():
             print(f"⚠ 人工编排顺序不一致：{len(bad)} 处，例如 {bad}")
         print(f"排序：前 {n_cur} 个为人工编排，其后 {len(uniq) - n_cur} 个按数据表顺序")
 
-    # 面板里选不中的字（cur 中 hidden:true）保留在数组与字体中，但不显示按钮
+    # 面板只放「单个汉字」条目。数据表里有 154 条多字条目：
+    #   · X/Y 异体形式（又/右/有/侑/佑/祐）—— 一个码位只对应一个字形，
+    #     整条塞进列表会显示成一长串、且渲染时会在同一画布上画两处文字互相遮挡；
+    #   · X（Y）括注形式（匕（妣））；
+    #   · 合文（祖乙、妣庚）—— 是词条而非单字。
+    # 这些条目的每个字都会由下面的别名表覆盖，因此用户输入单字仍能查到甲骨文。
+    # 例外：不能按「取首字」处理，否则「又/右/有/侑/佑/祐」会退化成「又」。
+    import re as _re
+    def _single_cjk(ch):
+        return len(ch) == 1 and bool(_re.match(r'[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]', ch))
+    kept = [e for e in uniq if _single_cjk(e["ch"])]
+    dropped = len(uniq) - len(kept)
+    if dropped:
+        print(f"面板条目：{len(kept)} 个单字（已排除 {dropped} 条多字/合文条目，其字仍可由别名表查到）")
+    uniq = kept
+
     if args.limit:
         uniq = uniq[: args.limit]
 
@@ -209,6 +224,15 @@ def main():
                     alias[c] = g["code"]
     for e in uniq:
         alias[e["ch"][0]] = e["code"]
+    # 多字条目的组成字也指向该码位（「右」→ U60491），这样输入单字也能查到。
+    # 只在尚无别名时补，避免覆盖单字条目自身的码位。
+    for g in db:
+        if len(g["ch"]) <= 1:
+            continue
+        for c in re.split(r"[/／（）()\s]+", g["ch"]):
+            c = c.strip()
+            if len(c) == 1 and c not in alias:
+                alias[c] = g["code"]
     alias_js = "{" + ", ".join(f"'{k}': '{v}'" for k, v in sorted(alias.items())) + "}"
     html, n_alias = re.subn(
         r"<script>window\.ORACLE_GLYPH_ALIAS\s*=\s*\{.*?\};</script>",
