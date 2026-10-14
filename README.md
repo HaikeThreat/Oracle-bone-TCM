@@ -2,7 +2,7 @@
 
 以手势引气，让三千年前的甲骨文在三维粒子星云中聚形 —— 每个字，都藏着一段中医密码。
 
-![按住鼠标，星云聚成甲骨文](docs/screenshot.png)
+![捏合聚形：粒子聚成甲骨文「心」，左侧为字形库面板](docs/screenshot.png)
 
 **完全离线可运行 · 无任何 CDN 依赖 · 无摄像头也能玩**
 
@@ -66,13 +66,15 @@ python3 serve.py 8138
 
 | 路径 | 说明 |
 | --- | --- |
-| `gesture3d.html` | 主页面。字体子集与字库全部内嵌，自包含 |
+| `index.html` | 站点入口，跳转到 `gesture3d.html`（静态托管的目录入口必须是 index.html，否则根地址 404） |
+| `gesture3d.html` | 作品主页面。字体子集与字库全部内嵌，自包含 |
 | `libs/` | Three.js r152 与 MediaPipe Hands 本地运行时（约 28MB，首次访问付一次，之后走长缓存） |
 | `data/` | 字表数据库（1530 行已释甲骨文）与人工编排条目 |
 | `add_glyphs.py` | 往精选字库加字：并入 `data/curated_glyphs.json` 后自动调用 `build_glyphs.py` |
 | `build_glyphs.py` | 唯一的构建实现：重子集化字体 + 注入页面 + 刷新别名表与计数 |
 | `data/curated_glyphs.json` | **人工编排层的唯一数据源**（字头、码位、精选标记、文案） |
 | `serve.py` | 无缓存本地服务器（可选）：`python3 serve.py [端口]`，默认 8138，仅本机用 `--host 127.0.0.1` |
+| `deploy.py` | 生成上传就绪的站点目录 `dist/`（只挑运行时必需文件，见「部署」） |
 
 ## 扩充字库
 
@@ -99,9 +101,65 @@ python3 build_glyphs.py --db 其它.json --curated 其它.json   # 换数据源
 
 实测体积：面板约 1066 个单字，字体子集（二进制）约 **962KB**、页面内嵌 base64 约 **1.25MB**、整个 HTML 约 **1.5MB**（相比手势模型的 16MB 仍属小头）。字库数据已与主脚本分离：条目与别名表写在页面头部，重建只改动那两块。
 
-## 部署到 GitHub Pages
+## 部署
 
-仓库 **Settings → Pages → Deploy from a branch** 选 `main` / `(root)` 即可。Pages 自带 HTTPS，摄像头手势在线上可直接使用。
+**硬性前提：必须 HTTPS。** 非 `localhost` 的 HTTP 页面不是「安全上下文」，浏览器**不提供摄像头**，手势功能直接不可用。GitHub Pages 自带 HTTPS；自建服务器需自行配证书。
+
+### 方式一：GitHub Pages
+
+仓库 **Settings → Pages → Deploy from a branch** 选 `main` / `(root)`。
+资源全部使用相对路径，已实测子路径（`用户名.github.io/仓库名/`）下可正常运行。
+
+### 方式二：自建服务器（阿里云等）
+
+先生成上传就绪的目录：
+
+```bash
+python3 deploy.py            # 输出到 dist/，16 个文件约 25MB
+```
+
+脚本只挑**运行时真正需要**的文件，并显式保留两类「没被请求但删不得」的 fallback：
+`hands_solution_wasm_bin.{js,wasm}`（旧浏览器无 SIMD 时用）与 `hand_landmark_lite.tflite`（`modelComplexity:0` 时用）。
+不纳入 `libs/AYJGW.ttf`（4.2MB）—— 那是构建时子集化用的完整字体，页面内嵌的是 base64 子集。
+
+把 `dist/` 内容上传到站点根后，nginx 关键配置：
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name 你的域名;
+    ssl_certificate     /etc/nginx/ssl/你的域名.pem;
+    ssl_certificate_key /etc/nginx/ssl/你的域名.key;
+
+    root /var/www/oracle;
+    index index.html;
+
+    # 必须：.wasm 的 MIME（默认 octet-stream 会让 MediaPipe 走慢速回退）
+    types { application/wasm wasm; }
+    include /etc/nginx/mime.types;
+
+    gzip on;
+    gzip_comp_level 6;
+    gzip_min_length 1024;
+    gzip_types text/html text/css application/javascript text/javascript application/json;
+
+    # libs/ 长缓存（首屏约 16MB，只在首次付）；页面用顶部 ASSET_V 破缓存
+    location /libs/ {
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        gzip off;              # wasm/tflite 已是压缩格式，再压无益
+        try_files $uri =404;
+    }
+    location ~ \.html$ { add_header Cache-Control "no-cache"; }
+
+    client_max_body_size 32m;
+}
+server { listen 80; server_name 你的域名; return 301 https://$host$request_uri; }
+```
+
+压缩收益（实测）：`gesture3d.html` 1550→**831KB**、
+`hands_solution_simd_wasm_bin.wasm` 5885→**1773KB**、`three.min.js` 618→**154KB**。
+
+安全组只放行 **443**（与 80 用于跳转）。**不要把 `serve.py` 的 8138 端口暴露到公网** —— 它面向本地开发，没有访问控制。
 
 ## License 与致谢
 

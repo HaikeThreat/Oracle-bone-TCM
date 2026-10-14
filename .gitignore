@@ -5,3 +5,4 @@ __pycache__/
 .playwright-cli/
 .vscode/
 .idea/
+dist/
