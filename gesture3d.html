@@ -1134,7 +1134,10 @@ function buildSwatches() {
   PRESETS.forEach(([name, hex], idx) => {
     const s = document.createElement('div');
     s.className = 'sw' + (idx === 0 ? ' on' : '');
-    s.style.background = hex; s.style.color = hex; s.title = name;
+    // 色块不用 title：悬停会弹出文字提示（"金/青/朱/玉/紫"），视觉上多余。
+    // 改用 aria-label 保留无障碍语义 —— 屏幕阅读器仍可读，但不产生悬停提示。
+    s.style.background = hex; s.style.color = hex;
+    s.setAttribute('aria-label', name);
     s.onclick = () => setColor(hex, s);
     box.appendChild(s);
   });
