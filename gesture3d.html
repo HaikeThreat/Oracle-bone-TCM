@@ -85,6 +85,7 @@
     max-height:62vh; overflow-y:auto;
   }
   #glyphPanel.open { display:block; }
+  #glyphCount { font-size:11px; color:#7d8fa8; letter-spacing:1px; margin-bottom:8px; }
   #glyphGrid { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
   .chip {
     cursor:pointer; width:38px; height:38px; border-radius:9px;
@@ -138,6 +139,7 @@
 </div>
 
 <div id="glyphPanel">
+  <div id="glyphCount">字形库64字</div>
   <div id="glyphGrid"></div>
   <div class="row">
     <input id="charInput" value="" maxlength="2" placeholder="任意字·楷体">

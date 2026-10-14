@@ -69,6 +69,8 @@ lines2 = h.split("\n")
 idx = max(k for k, l in enumerate(lines2) if re.match(r"^\s*\{ ch: '", l))
 lines2.insert(idx + 1, chip_entries.rstrip("\n"))
 h = "\n".join(lines2)
-h = re.sub(r"字形库\\d+字", f"字形库{len(cur)}字", h)
+# 计数由页面按 ORACLE_GLYPHS 实时渲染，无需在此改写文本。
+# （原先这里写的是 r"字形库\\d+字" —— 双反斜杠使 \\d 成了字面反斜杠+d，
+#   正则永远匹配不到，等于空操作。既然页面已能自动显示，直接删掉这一步。）
 open(fp, "w", encoding="utf8").write(h)
 print(f"✔ 已注入 gesture3d.html —— 刷新页面即可使用新字")
