@@ -34,8 +34,7 @@
     font-size:12px; font-weight:700; padding:4px 12px; border-radius:99px;
     background:rgba(17,34,51,.75); border:1px solid #345; color:#9cf; letter-spacing:1px; transition:all .3s;
     margin: 0;
-    /* 右上角：与右上角 fps/glyph 读数上下错开，互不遮挡 */
-    margin-top: 34px;
+    /* 与右上角读数的上下间距由 frame() 每帧按 stats 实际高度设置（见 stats 赋值处）*/
   }
 
   /* 手势动画窗格（不显示相机画面，仅实时指尖动画）*/
@@ -1335,6 +1334,7 @@ let lastT = performance.now(), fps = 60;
 let jankWin = 0, jankMax = 0, jankOver = 0, jankMaxShow = 0, jankOverShow = 0;
 // 右上角诊断项（检测帧率 / 相机 / 顿挫）默认隐藏；Ctrl(⌘)+Shift+D 切换
 let statsDiag = false;
+let badgeMt = -1;            // 状态胶囊当前 margin-top 缓存（避免每帧写 DOM 触发重排）
 addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'D' || e.key === 'd')) {
     statsDiag = !statsDiag;
@@ -1393,10 +1393,10 @@ function frame(now) {
   }
   renderer.render(scene, camera);
 
-  // 右上角只留最必要的信息，避免堆砌调试项显得杂乱。
+  // 右上角常显：fps / particles / glyph（+ 手数）
   // 诊断项（检测帧率 / 相机分辨率 / 顿挫）默认隐藏，按 Ctrl(⌘)+Shift+D 可切换显示。
   document.getElementById('stats').innerHTML =
-    `fps <b>${fps.toFixed(0)}</b> · glyph <b>${curGlyph3D.ch}</b>`
+    `fps <b>${fps.toFixed(0)}</b> · particles <b>${N}</b> · glyph <b>${curGlyph3D.ch}</b>`
     + (cam.on ? ` · 手 <b>${hands3d[0] ? (hands3d[1] ? 2 : 1) : 0}</b>` : '')
     + `<span id="statsDiag" style="display:${statsDiag ? 'block' : 'none'}">`
     // 检测帧率实测：手势手感（旋转顺滑度）取决于它，怀疑卡顿先看这个数
@@ -1404,6 +1404,15 @@ function frame(now) {
     // 顿挫：最近 1 秒的最差帧间隔 / >50ms 帧数（卡顿的直接度量，比平均 fps 有用）
     + `<br>顿挫 <b>${jankMaxShow.toFixed(0)}</b>ms · >50ms <b>${jankOverShow}</b> 帧/s`
     + `</span>`;
+  // 状态胶囊靠 margin-top 让开右上角读数。诊断展开后 stats 由 1 行变 3 行，
+  // 固定数值会与胶囊重叠 → 这里按 stats 的实际高度动态让位。
+  // 只在数值真正变化时才写 DOM：badge 上有 transition:all，每帧写会无谓重排。
+  const badgeEl = document.getElementById('stateBadge');
+  if (badgeEl) {
+    const statsBm = document.getElementById('stats').getBoundingClientRect().bottom;
+    const wantMt = Math.max(0, Math.round(statsBm - 16 + 14));
+    if (wantMt !== badgeMt) { badgeMt = wantMt; badgeEl.style.marginTop = wantMt + 'px'; }
+  }
 }
 
 // ── 启动 ──────────────────────────────────────────────────────────────────
