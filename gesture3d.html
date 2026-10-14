@@ -2323,6 +2323,15 @@ document.getElementById('btnCam').onclick = () => { unlockAudio(); toggleCamera(
 // 全屏：兼容标准与 webkit 前缀，并把真实失败原因显示出来。
 // 原来只写 `.catch(() => banner('浏览器拒绝了全屏请求'))`，把所有原因压成同一句话，
 // 无法判断到底是"被 iframe 限制""用户未交互"还是"浏览器不支持"。
+//
+// 关于「Cannot request fullscreen without transient activation」：
+// 全屏属于需要「瞬时用户激活」的 API —— 必须由一次可信手势触发，
+// 且该激活在当前任务/短暂时间窗内有效。以下情形会丢失它：
+//   · 非手势触发（定时器、程序化调用、键盘宏）
+//   · 点击处理里插入 await / 走到下一个宏任务后才调用
+//   · 页面被嵌在 iframe 而未给 allowfullscreen / allow="fullscreen"
+// 代码中全屏唯一入口是「点击按钮」，故正常点击不受影响；
+// 但为稳妥，这里对「激活丢失」单独识别，并挂到下一次用户手势里自动重试一次。
 function enterFullscreen() {
   const el = document.documentElement;
   const req = el.requestFullscreen || el.webkitRequestFullscreen;
@@ -2337,14 +2346,32 @@ function enterFullscreen() {
     banner('页面被嵌在 iframe 中且未授权全屏（需给 iframe 加 allowfullscreen）');
     return;
   }
+  // 诊断信息：出问题时这几项能直接定位（是否还有用户激活、是否允许全屏、是否被嵌）
+  const act = (navigator.userActivation && typeof navigator.userActivation.isActive === 'boolean')
+    ? navigator.userActivation.isActive : null;
+  const why = () => '（用户激活 ' + (act === null ? '未知' : act)
+    + ' · fullscreenEnabled ' + document.fullscreenEnabled
+    + ' · ' + (framed ? '页面在 iframe 中' : '顶层页面') + '）';
   try {
     const p = req.call(el);
     if (p && typeof p.catch === 'function') {
-      p.catch(e => banner('全屏被拒绝：' + (e && e.name ? e.name : '') + ' ' + (e && e.message ? e.message : e)
-        + (framed ? '（页面在 iframe 中，需 allowfullscreen）' : '')));
+      p.catch(e => {
+        const msg = (e && e.name ? e.name : '') + ' ' + (e && e.message ? e.message : e);
+        if (/activation/i.test(msg)) {
+          // 激活丢失：等下一次真实手势再试一次，而不是让用户反复点击
+          banner('全屏需要用户手势，已就绪 —— 请再点一次「⛶ 全屏」' + why());
+          const once = () => { document.removeEventListener('pointerdown', once, true);
+                               document.removeEventListener('keydown', once, true);
+                               enterFullscreen(); };
+          document.addEventListener('pointerdown', once, true);
+          document.addEventListener('keydown', once, true);
+          return;
+        }
+        banner('全屏被拒绝：' + msg + why() + (framed ? ' —— 需给 iframe 加 allowfullscreen' : ''));
+      });
     }
   } catch (e) {
-    banner('全屏失败：' + (e && e.message ? e.message : e));
+    banner('全屏失败：' + (e && e.message ? e.message : e) + why());
   }
 }
 document.getElementById('btnFs').onclick = () => {
