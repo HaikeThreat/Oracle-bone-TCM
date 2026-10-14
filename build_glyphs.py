@@ -33,7 +33,8 @@ def main():
     ap.add_argument("--limit", type=int, default=0, help="只取前 N 个字（0=全部）")
     ap.add_argument("--src", default="libs/AYJGW.ttf")
     ap.add_argument("--db", default="data/oracle_glyphs_full.json")
-    ap.add_argument("--curated", default="", help="人工润色过的条目 JSON（优先于数据表文案）")
+    ap.add_argument("--curated", default="data/curated_glyphs.json",
+                    help="人工润色条目 JSON（默认取仓库内 data/curated_glyphs.json）")
     args = ap.parse_args()
 
     db_path = os.path.join(base, args.db)
