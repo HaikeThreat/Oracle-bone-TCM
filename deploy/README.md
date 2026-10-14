@@ -39,17 +39,49 @@ nginx 配置里一旦引用 `ssl_certificate` 而证书文件不存在，`nginx 
 手势功能整个不可用。证书可用阿里云「数字证书管理服务」的免费 DV 证书，下载 nginx 版后放到
 `/etc/nginx/ssl/<域名>.pem` 与 `.key`，再重跑脚本。
 
-## nginx 配置里的一个实测修正
+## 已在真实服务器上验证（2026-10-15）
 
-网上常见的做法是每个 server 块里写 `types { application/wasm wasm; }` +
-`include /etc/nginx/mime.types;`。但本机（nginx 1.30.4）实测：
+`install-site.sh` 已在目标服务器上跑通并逐项复测：
 
-- `/etc/nginx/mime.types` **已内置** `application/wasm wasm;`（第 713 行），
-  而 `nginx.conf` 的 http 层**已经 include 过它** → 服务器上 .wasm 本来就被
-  标成 `application/wasm`，实测 `curl` 返回的 Content-Type 正确。
-- 此时再在 server 块里声明 wasm，`nginx -t` 会报
-  `duplicate extension "wasm"`；
-- 再 include 一次 mime.types，还会多报一条 `duplicate MIME type "text/html"`。
+| 检查 | 结果 |
+| --- | --- |
+| `oracletcm.com/` | 200 `text/html` |
+| `oracletcm.com/gesture3d.html` | 200 `text/html` 1,587,069B |
+| `libs/three.min.js` | 200 `text/javascript` |
+| `libs/hands_solution_simd_wasm_bin.wasm` | 200 **`application/wasm`** |
+| `libs/hand_landmark_full.tflite` | 200 `application/octet-stream` |
+| `kylinhealth.com.cn`（既有站点） | 301，未受影响 |
+| `nginx -t` | **零警告** |
+| gzip | `gesture3d.html` 1,587,069B → **850,945B**（省 46%）；`.wasm` 按 `gzip off` 不压缩 |
 
-所以 `install-site.sh` 改为**先探测再声明**：只有本机 mime.types 里确实没有
-wasm 时才补 `types {}`，且不再重复 include。这样在新旧 nginx 上都不报警告。
+### 关于 .wasm 的 MIME：不要照抄网上的写法
+
+常见做法是在 server 块里写 `types { application/wasm wasm; }` + `include /etc/nginx/mime.types;`。
+本机（nginx 1.30.4）实测**两者都是多余的，且各自触发一条 `nginx -t` 警告**：
+
+- `/etc/nginx/mime.types` 第 713 行**已内置** `application/wasm wasm;`，
+  而 `nginx.conf` 的 **http 层已 include 过它** → 服务器本来就把 .wasm 标成
+  `application/wasm`（curl 实测 Content-Type 正确）。
+  故 server 块里再声明 → `duplicate extension "wasm"`；
+- 再 include 一次 mime.types → `duplicate MIME type "text/html"`。
+
+另外 `gzip_types` 里**不要列 `text/html`** —— 它是 nginx 默认就压缩的类型，
+重复列出同样会告警（且并非必要）。
+
+### 两个 nginx 语法陷阱（本次都踩到了）
+
+1. **`if` 不能写在 `server` 块里** —— 只能在 `location` 内。我最初想用
+   `if ! grep -q ... ; then types{} fi` 做兼容判断，`nginx -t` 直接报
+   `directive "if" has no opening "{"`。
+2. **改动必须先 `nginx -t` 通过再 `reload`**，并且脚本要 `set -e` ——
+   本次正是靠这一点：`nginx -t` 失败即退出，**没有 reload**，
+   所以线上配置始终是好的，回滚只是恢复文件、无需重载。
+
+### 分发通道：git 可用，但大陆网络会抖
+
+- 服务器实测 `raw.githubusercontent.com` **不可达**（60s 0 字节），
+  但 `github.com` 可用 —— 首次 `git clone --depth 1`（46MB）仅 **3.4 秒**。
+- 然而同一命令随后**连续 4 次失败**（`Failed to connect to github.com port 443
+  after 36007 ms`），说明大陆访问 GitHub 存在时段性波动。
+- 结论：clone 必须带**重试**；若仓库拉不到，小改动可直接在服务器上就地修补
+  （本次的 MIME 修正就是这么做的），不必依赖 GitHub。

@@ -119,19 +119,15 @@ server {
 
     root ${SITE_ROOT};
     index index.html;
-
-    # .wasm 的 MIME：新版 nginx 的 mime.types 已内置 application/wasm
-    # （本机实测见 /etc/nginx/mime.types:713），此时无需也不应再声明，
-    # 否则 nginx -t 会报 duplicate extension 警告。仍做兼容：
-    # 万一本机 mime.types 较旧没有 wasm，就补上。
-    if ! grep -qE '^[[:space:]]*application/wasm' /etc/nginx/mime.types 2>/dev/null; then
-      types { application/wasm wasm; }
-    fi
+    # 此处无需声明 .wasm MIME，也无需 include mime.types：
+    # nginx.conf 的 http 层已 include 了 /etc/nginx/mime.types，
+    # 其中已含 application/wasm（本机实测见其第 713 行），实测 Content-Type 正确。
+    # 若在此重复声明，nginx -t 会报 duplicate extension / duplicate MIME type。
 
     gzip on;
     gzip_comp_level 6;
     gzip_min_length 1024;
-    gzip_types text/html text/css application/javascript text/javascript application/json;
+    gzip_types text/css application/javascript text/javascript application/json;
 
     # libs/ 首屏约 16MB，长缓存后只在首次付；页面顶部 ASSET_V 可破缓存
     location /libs/ {
@@ -153,19 +149,15 @@ server {
 
     root ${SITE_ROOT};
     index index.html;
-
-    # .wasm 的 MIME：新版 nginx 的 mime.types 已内置 application/wasm
-    # （本机实测见 /etc/nginx/mime.types:713），此时无需也不应再声明，
-    # 否则 nginx -t 会报 duplicate extension 警告。仍做兼容：
-    # 万一本机 mime.types 较旧没有 wasm，就补上。
-    if ! grep -qE '^[[:space:]]*application/wasm' /etc/nginx/mime.types 2>/dev/null; then
-      types { application/wasm wasm; }
-    fi
+    # 此处无需声明 .wasm MIME，也无需 include mime.types：
+    # nginx.conf 的 http 层已 include 了 /etc/nginx/mime.types，
+    # 其中已含 application/wasm（本机实测见其第 713 行），实测 Content-Type 正确。
+    # 若在此重复声明，nginx -t 会报 duplicate extension / duplicate MIME type。
 
     gzip on;
     gzip_comp_level 6;
     gzip_min_length 1024;
-    gzip_types text/html text/css application/javascript text/javascript application/json;
+    gzip_types text/css application/javascript text/javascript application/json;
 
     location /libs/ {
         add_header Cache-Control "public, max-age=31536000, immutable";
