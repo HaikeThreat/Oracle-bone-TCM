@@ -128,13 +128,18 @@
   .gitem.active .gtag { color:var(--gold); }
   #glyphEmpty { font-size:12px; color:#7d8fa8; text-align:center; padding:16px 0; }
   /* 底部楷体输入行固定在面板下沿，与可滚动列表以分隔线区分 */
-  #glyphPanel .row { flex:none; margin-top:10px; padding-top:10px; border-top:1px solid var(--line); }
+  #glyphPanel .row { flex:none; margin-top:10px; }   /* 不要分隔线：输入行不与列表作视觉切分 */
   .row { display:flex; gap:8px; }
   .row input {
-    flex:1; min-width:0; background:#0b1018; border:1px solid var(--line); border-radius:8px;
+    /* 无边框、无底色：输入框不与界面争视觉，点击即可输入。
+       焦点态只留一道细下划线，便于看出光标位置。 */
+    flex:1; min-width:0; background:transparent; border:0; border-radius:0;
+    border-bottom:1px solid transparent;
     color:var(--gold); font-size:16px; text-align:center; padding:6px 0; outline:none;
     font-family:"Songti SC","STSong",serif;
   }
+  .row input:focus { border-bottom-color:rgba(255,196,107,.45); }
+  .row input::placeholder { color:#5d6f86; }
   .row .cbtn { padding:6px 14px; }
 
   #stats { position:fixed; right:16px; top:16px; z-index:10; font-size:11px;
