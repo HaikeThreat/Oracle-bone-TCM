@@ -1384,6 +1384,10 @@ let flashT = 0;
 // 拉过去，表现为「字名在换、粒子纹丝不动」。这里补一条独立的聚散节奏给它。
 let ambientPhase = 0;      // 一个周期内的进度（0..AMBIENT_LOOP_SECS）
 let ambientIdle = 0;       // 连续无输入的累计秒数（有人接管即归零）
+// 待机自转：成字后缓慢转动，避免「字定在那里像死的」。
+// 之所以要单独一个累加器：用 t*ω 直接算在相位复位时会跳变，这里只累加不归零，
+// 再乘一个跟随周期的淡入淡出权重，得到的是连续运动。
+let ambientYaw = 0;
 // 「当前是否处于待机」需要在两处使用（frame 里推进节律、updateGestures 里决定
 // 是否让待机节奏接管 gather，以及判断成字礼该不该因「手不在场」被清掉）。
 // 必须放在模块级：此前写成 frame() 内的局部 const，而 updateGestures 里引用它，
@@ -2758,6 +2762,17 @@ function frame(now) {
   if (FRONT_VIEW_WHILE_FORMING && gather > 0.3 && !formedNow) {
     points.rotation.y = 0;
     points.rotation.x = 0;
+  }
+
+  // 待机自转：成字后让字形缓慢转动，而不是定在正面像死的。
+  // 权重与聚散节律同步淡入淡出 —— 聚形期间为 0（由上面的正视图强制接管），
+  // 成字后升到 1，散开时回落到 0，因此不会和「成形瞬间必须是正面」冲突，
+  // 也不会在换字那一下突然跳角度。
+  if (ambient) {
+    const rotW = gather >= 0.98 ? 1 : Math.max(0, (gather - 0.85) / 0.13);
+    ambientYaw += dt * 0.26 * rotW;              // 约 24 秒转一圈，慢到能看清笔画
+    points.rotation.y = ambientYaw;
+    points.rotation.x = Math.sin(t * 0.35) * 0.085 * rotW;   // 轻微俯仰浮动，减少呆板
   }
   renderer.render(scene, camera);
 
