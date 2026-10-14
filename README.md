@@ -75,6 +75,7 @@ python3 serve.py 8138
 | `data/curated_glyphs.json` | **人工编排层的唯一数据源**（字头、码位、精选标记、文案） |
 | `serve.py` | 无缓存本地服务器（可选）：`python3 serve.py [端口]`，默认 8138，仅本机用 `--host 127.0.0.1` |
 | `deploy.py` | 生成上传就绪的站点目录 `dist/`（只挑运行时必需文件，见「部署」） |
+| `deploy/` | 自建服务器辅助：`setup-server.sh` 一键配 nginx，`README.md` 说明顺序与易错点 |
 
 ## 扩充字库
 
@@ -112,11 +113,17 @@ python3 build_glyphs.py --db 其它.json --curated 其它.json   # 换数据源
 
 ### 方式二：自建服务器（阿里云等）
 
-先生成上传就绪的目录：
+先生成上传就绪的目录，再上传并配置服务器：
 
 ```bash
-python3 deploy.py            # 输出到 dist/，16 个文件约 25MB
+python3 deploy.py                                  # ① 本地：输出 dist/，16 个文件约 25MB
+rsync -avz --delete dist/ root@<ECS公网IP>:/var/www/oracletcm/   # ② 上传
+sudo bash deploy/setup-server.sh oracletcm.com /var/www/oracletcm  # ③ 服务器：配 nginx
 ```
+
+`deploy/setup-server.sh` 会装 nginx、写入下文那份配置、放行防火墙；它是幂等的，
+且**先探测证书** —— 没有证书时先写「仅 HTTP」配置让站点能开（否则 nginx 因引用不存在的
+证书而起不来），证书就绪后重跑即自动切换为 HTTPS。详见 [`deploy/README.md`](deploy/README.md)。
 
 脚本只挑**运行时真正需要**的文件，并显式保留两类「没被请求但删不得」的 fallback：
 `hands_solution_wasm_bin.{js,wasm}`（旧浏览器无 SIMD 时用）与 `hand_landmark_lite.tflite`（`modelComplexity:0` 时用）。
