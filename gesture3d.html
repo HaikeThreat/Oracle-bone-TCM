@@ -2019,6 +2019,7 @@ async function toggleCamera() {
   const btn = document.getElementById('btnCam');
   if (cam.on) {                                     // 关闭
     cam.on = false;
+    feedGen++;                                      // 作废送检循环世代：旧循环下一轮即自行退出
     if (cam.stream) cam.stream.getTracks().forEach(t => t.stop());
     document.getElementById('gestureBox').style.display = 'none';
     btn.classList.remove('on'); btn.textContent = '🎥 手势控制';
@@ -2079,9 +2080,15 @@ async function toggleCamera() {
     banner('摄像头不可用：' + e.message + ' —— 已回退鼠标模式（按住=握拳聚形，松开=气散）');
   }
 }
-let feeding = false;
+// 送检循环用「世代令牌」而非布尔标志。
+// 布尔标志有过真实缺陷：send() 会阻塞上百毫秒，若在此期间「关→开」摄像头，
+// 新循环会因 feeding 仍为 true 而直接 return，旧循环醒来后又按自己的节奏退出，
+// 结果可能没有任何循环在跑 —— 手势静默死亡，只能刷新页面恢复。
+// 世代令牌没有这个问题：每次启动都自增，旧循环发现世代不符即自行退出，
+// 新循环总能立即启动，且在飞的那一次 send 最多多跑一轮。
+let feedGen = 0;
 async function feedLoop() {
-  if (feeding) return; feeding = true;
+  const gen = ++feedGen;
   const video = document.getElementById('camVideo');
   // 只在「相机真的出了一帧新画面」时送检，且判据必须确定可靠。
   // 旧循环每个 rAF（60/s）都 send()，而相机只有 20~30fps：同一帧被反复上传纹理、
@@ -2091,7 +2098,7 @@ async function feedLoop() {
   // 一旦不触发就只剩心跳兜底（4 次/秒），反而把检测拖垮（曾踩过这个坑）。
   let lastMediaTime = -1;
   let lastSendAt = performance.now();
-  while (cam.on) {
+  while (cam.on && gen === feedGen) {
     // send 失败绝不能让循环静默死亡（WASM 初始化失败/模型 404 时旧代码会永远卡"未检测"）
     if (video.readyState >= 2 && video.videoWidth > 0) {
       const nowMs = performance.now();
@@ -2115,7 +2122,7 @@ async function feedLoop() {
     }
     await new Promise(r => requestAnimationFrame(r));
   }
-  feeding = false;
+  if (gen === feedGen) feedGen = 0;      // 只有「仍是当前世代」时才清理，避免误伤新循环
 }
 function onHandResults(results) {
   cam.lastResults = results;                  // 供左下角骨架绘制读取
@@ -2410,13 +2417,6 @@ function syncGlyphState(spec, shown) {
   glyphShownNow = shown;
 }
 let glyphFiltered = [];
-const glyphHidden = new Set();          // 被用户切换为隐藏的字
-
-function toggleGlyphHidden(ch) {
-  if (glyphHidden.has(ch)) glyphHidden.delete(ch);
-  else glyphHidden.add(ch);
-}
-
 function glyphRow(g, idx) {
   const it = document.createElement('div');
   const on = glyphShownNow && idx === glyphIdx;   // 索引唯一，且必须确实处于显示态
@@ -2599,12 +2599,13 @@ let lastT = performance.now(), fps = 60;
 let jankWin = 0, jankMax = 0, jankOver = 0, jankMaxShow = 0, jankOverShow = 0;
 // 右上角诊断项（检测帧率 / 相机 / 顿挫）默认隐藏；Ctrl(⌘)+Shift+D 切换
 let statsDiag = false;
+let statsSig = '';           // 右上角读数的内容签名：不变则不重建 DOM（见 frame()）
 let badgeMt = -1;            // 状态胶囊当前 margin-top 缓存（避免每帧写 DOM 触发重排）
 addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'D' || e.key === 'd')) {
     statsDiag = !statsDiag;
-    const el = document.getElementById('statsDiag');
-    if (el) el.style.display = statsDiag ? 'block' : 'none';
+    // 不在这里改 DOM：显示状态已并入 frame() 的签名，下一帧会统一重建，
+    // 避免「处理器改一半、主循环改一半」造成状态不一致。
     e.preventDefault();
   }
 });
@@ -2665,14 +2666,26 @@ function frame(now) {
 
   // 右上角常显：fps / particles / glyph
   // 诊断项（检测帧率 / 相机分辨率 / 顿挫）默认隐藏，按 Ctrl(⌘)+Shift+D 可切换显示。
-  document.getElementById('stats').innerHTML =
-    `fps <b>${fps.toFixed(0)}</b> · particles <b>${N}</b> · glyph <b>${curGlyph3D.ch}</b>`
-    + `<span id="statsDiag" style="display:${statsDiag ? 'block' : 'none'}">`
-    // 检测帧率实测：手势手感（旋转顺滑度）取决于它，怀疑卡顿先看这个数
-    + (cam.on && cam.detDt ? `<br>检测 <b>${(1 / cam.detDt).toFixed(0)}</b>fps · 相机 <b>${document.getElementById('camVideo').videoWidth}×${document.getElementById('camVideo').videoHeight}</b>` : '')
-    // 顿挫：最近 1 秒的最差帧间隔 / >50ms 帧数（卡顿的直接度量，比平均 fps 有用）
-    + `<br>顿挫 <b>${jankMaxShow.toFixed(0)}</b>ms · >50ms <b>${jankOverShow}</b> 帧/s`
-    + `</span>`;
+  // 只在「显示出来的内容真的变了」时才重建 DOM：先用签名字符串比对。
+  // 原先每帧无条件写 innerHTML（60 次/秒的 HTML 解析 + DOM 重建），
+  // 而 particles、glyph、诊断行绝大多数帧并不变，纯属白烧。
+  // 签名必须用四舍五入后的 fps —— 否则 fps 每帧都不同，签名形同虚设。
+  const fpsShow = fps.toFixed(0);
+  const camVideoEl = document.getElementById('camVideo');
+  // 检测帧率实测：手势手感（旋转顺滑度）取决于它，怀疑卡顿先看这个数
+  const diagLine = (cam.on && cam.detDt)
+    ? `<br>检测 <b>${(1 / cam.detDt).toFixed(0)}</b>fps · 相机 <b>${camVideoEl.videoWidth}×${camVideoEl.videoHeight}</b>` : '';
+  // 顿挫：最近 1 秒的最差帧间隔 / >50ms 帧数（卡顿的直接度量，比平均 fps 有用）
+  const jankLine = `<br>顿挫 <b>${jankMaxShow.toFixed(0)}</b>ms · >50ms <b>${jankOverShow}</b> 帧/s`;
+  const statsSigNow = [fpsShow, N, curGlyph3D.ch, statsDiag ? 1 : 0, diagLine, jankLine].join('\u0001');
+  if (statsSigNow !== statsSig) {
+    statsSig = statsSigNow;
+    document.getElementById('stats').innerHTML =
+      `fps <b>${fpsShow}</b> · particles <b>${N}</b> · glyph <b>${curGlyph3D.ch}</b>`
+      + `<span id="statsDiag" style="display:${statsDiag ? 'block' : 'none'}">`
+      + diagLine + jankLine
+      + `</span>`;
+  }
   // 状态胶囊靠 margin-top 让开右上角读数。诊断展开后 stats 由 1 行变 3 行，
   // 固定数值会与胶囊重叠 → 这里按 stats 的实际高度动态让位。
   // 只在数值真正变化时才写 DOM：badge 上有 transition:all，每帧写会无谓重排。
@@ -2691,6 +2704,11 @@ function frame(now) {
   }
   buildSwatches();
   initScene();
+  // 字库为空必须在这里收手：否则 curGlyph3D 为 undefined，
+  // sampleGlyph3D(undefined) 会在 `[...spec.ch]` 处抛 TypeError，
+  // 把 init() 末尾 catch 的「初始化失败：Cannot read properties of undefined」
+  // 盖在本来准确的那句「字库数据缺失」上面，反而更难排查。
+  if (!ORACLE_GLYPHS.length) return;
   curGlyph3D = ORACLE_GLYPHS[0];
 
   // 等甲骨文字体就绪（超时兜底）
