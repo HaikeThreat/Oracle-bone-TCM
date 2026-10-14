@@ -1344,6 +1344,13 @@ const PITCH_SPAN  = 0.45;
 const PITCH_LIMIT = 1.05;   // ≈60°
 // 聚形收敛阶段是否强制正视图（成字那一瞬一定是正的）。想让聚形过程中保留手工角度就设 false。
 const FRONT_VIEW_WHILE_FORMING = true;
+
+// ── 待机轮播（屏保语义）────────────────────────────────────────────────
+// 关键：首次必须等「长时间无操作」才启动，不能一进页面就轮播 ——
+// 否则用户还没看清初始字、也没来得及体验手势，画面就自己动起来了。
+// 之后的循环用较短周期（展馆无人值守时一直轮播）。
+const AMBIENT_FIRST_IDLE = 45;   // 首次待机：进页面后连续无输入 45 秒才启动
+const AMBIENT_LOOP_SECS  = 14;   // 启动后每 14 秒一个「聚形→保持→散开」周期
 let P = {
   attraction: 2.2,      // 牵引力度
   gatherK: 16.0,        // 聚形弹簧（粒子紧贴捏合进度，落位即成字）
@@ -1375,7 +1382,8 @@ let flashT = 0;
 // 存在的必要性：gather 只由手部捏合度驱动，而待机巡字的触发条件恰恰是「手不在场」
 // —— 于是 closeness 恒为 0、gather 恒为 0，巡字只换了字形目标却没有任何力把粒子
 // 拉过去，表现为「字名在换、粒子纹丝不动」。这里补一条独立的聚散节奏给它。
-let ambientPhase = 0;
+let ambientPhase = 0;      // 一个周期内的进度（0..AMBIENT_LOOP_SECS）
+let ambientIdle = 0;       // 连续无输入的累计秒数（有人接管即归零）
 // 「当前是否处于待机」需要在两处使用（frame 里推进节律、updateGestures 里决定
 // 是否让待机节奏接管 gather，以及判断成字礼该不该因「手不在场」被清掉）。
 // 必须放在模块级：此前写成 frame() 内的局部 const，而 updateGestures 里引用它，
@@ -1425,6 +1433,10 @@ const gcv = document.createElement('canvas'); gcv.width = gcv.height = 512;
 const gctxOpt = { willReadFrequently: true };
 
 function sampleGlyph3D(spec) {
+  // 防御：spec 为 undefined 时下一行就会抛 TypeError 并让整个应用崩掉
+  // （实测：查库未命中的字被误传到此处即复现）。返回 false 与「字形渲染失败」
+  // 同一条错误通路，调用方能据此提示而不是白屏。
+  if (!spec || !spec.ch) { console.warn('[Oracle] sampleGlyph3D 收到空 spec'); return false; }
   curGlyph3D = spec;                     // [修复] 更新当前字：高亮框/字名/巡字全部依赖它
   syncGlyphState(spec, true);            // 面板选中态与实际显示保持一致
   const g = gcv.getContext('2d', gctxOpt);
@@ -1561,7 +1573,10 @@ function sampleGlyph3D(spec) {
   formedLatch = false; gatherT = 0;
   refreshColors();
   window.__dbg3d = { ch: spec.ch, n: N, maxDim: maxDim };
-  ambientPhase = 0;                    // 手动选字 → 重新计待机时间，巡字不会顶掉手动选择
+  // 手动选字 / 巡字换字都走这里 → 重新计待机时间，避免巡字顶掉用户的选择。
+  // 两个变量都要复位：ambientPhase 控节奏进度，ambientIdle 控「够不够久」。
+  // 只复位前者的话，用户刚点完字，待机仍按原倒计时立刻启动（实测踩到）。
+  ambientPhase = 0; ambientIdle = 0;
   refreshGlyphPanel(true);
   showLabel(spec.ch, spec.tag, false);
   return true;
@@ -2695,12 +2710,25 @@ function frame(now) {
   // 全库含「丁」「乙」「丂」等与中医无关的字，无人值守时轮播这些会偏离作品主题。
   // 兜底：若数据里没有 curated 标记（旧数据），退回全库，避免巡字直接停摆。
   // 先算好待机状态，再更新手势 —— updateGestures 需要读它
-  ambient = (!hands3d[0] && !hands3d[1] && !virtualHand.active && !gatherLock);
-  if (ambient) {
-    // 一个周期 14 秒：0~1.6s 聚形、1.6~11.2s 保持、11.2~13.0s 散开、13.0~14s 空歇。
-    // 换字发生在周期末尾的散开状态下（见上面对着色器行为的说明）。
+  const noInput = (!hands3d[0] && !hands3d[1] && !virtualHand.active && !gatherLock);
+  if (noInput) {
+    ambientIdle += dt;
+  } else {
+    ambientIdle = 0;           // 有人接管 → 重新计时（同时让 ambient 立即为假）
+  }
+  const wasAmbient = ambient;
+  ambient = noInput && ambientIdle >= AMBIENT_FIRST_IDLE;
+  if (!ambient) {
+    // 有人接管，或尚未够 45 秒 → 复位相位。
+    // 必须连「未够时长」也一起复位：否则 ambientIdle 与 ambientPhase 同步累加，
+    // 待机一启动时 phase 已经是 45(≥14)，首帧就会先换字、再瞬间聚形 —— 比不动更突兀。
+    ambientPhase = 0;
+  } else {
+    if (!wasAmbient) ambientPhase = 0;   // 刚进入待机：从周期起点（散→聚）开始，而不是从中间插入
     ambientPhase += dt;
-    if (ambientPhase >= 14) {
+    if (ambientPhase >= AMBIENT_LOOP_SECS) {
+      // 一周期 14 秒：0~1.6s 聚形、1.6~11.2s 保持、11.2~13.0s 散开、13.0~14s 空歇。
+      // 换字发生在周期末尾的散开状态下（见上面对着色器行为的说明）。
       ambientPhase = 0;
       const pool = AMBIENT_GLYPHS.length ? AMBIENT_GLYPHS : ORACLE_GLYPHS;
       const idx = pool.findIndex(g => g.ch === curGlyph3D.ch);
@@ -2708,8 +2736,6 @@ function frame(now) {
       sampleGlyph3D(pool[glyphIndex]);
       syncGlyphState(pool[glyphIndex], true);   // 巡字换字后，面板选中态跟上
     }
-  } else {
-    ambientPhase = 0;          // 有人接管 → 重臂：下次待机从「聚形」重新开始
   }
   updateGestures(dt, t);
   physics(dt, t);
