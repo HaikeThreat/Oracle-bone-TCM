@@ -1402,7 +1402,22 @@ const FRONT_VIEW_WHILE_FORMING = true;
 // 否则用户还没看清初始字、也没来得及体验手势，画面就自己动起来了。
 // 之后的循环用较短周期（展馆无人值守时一直轮播）。
 const AMBIENT_FIRST_IDLE = 45;   // 首次待机：进页面后连续无输入 45 秒才启动
-const AMBIENT_LOOP_SECS  = 14;   // 启动后每 14 秒一个「聚形→保持→散开」周期
+// 启动后一个完整周期（秒）。相位分配见下（聚形 1.6 → 保持 9.6 → 散开 1.8 → 空歇 2.0）。
+// 「空歇」= 上一个字已散尽、下一个字尚未开始聚形的间隔 —— 按反馈设为约 2 秒，
+// 因为整段空歇是「散开结束 + 换字 + 等下一轮聚形」都算在内的。
+// 【改动这里必须同步改 updateGestures 里的 ambientTarget 分段，并同步下面的注释】
+const AMBIENT_GATHER_SECS   = 1.6;    // 聚形耗时
+const AMBIENT_HOLD_SECS     = 9.6;    // 成形后保持（让人看清笔画）
+const AMBIENT_DISPERSE_SECS = 1.8;    // 散开耗时
+const AMBIENT_GAP_SECS      = 2.0;    // 空歇：散尽后到下一次聚形的间隔
+const AMBIENT_LOOP_SECS  = AMBIENT_GATHER_SECS + AMBIENT_HOLD_SECS + AMBIENT_DISPERSE_SECS + AMBIENT_GAP_SECS;
+// 相位节点（秒）：这几个值同时被 updateGestures 的 ambientTarget 使用
+const AMB_T1 = AMBIENT_GATHER_SECS;                                   // 聚形结束 → 开始保持
+const AMB_T2 = AMB_T1 + AMBIENT_HOLD_SECS;                            // 保持结束 → 开始散开
+const AMB_T3 = AMB_T2 + AMBIENT_DISPERSE_SECS;                        // 散开结束 → 进入空歇
+// 换字时机：空歇开始前一点点（散开刚结束、粒子已离位），
+// 这样新字的聚形发生在空歇【之后】，中间那段空歇就是肉眼看到的「停顿」。
+const AMB_SWITCH_AT = AMB_T3;
 let P = {
   attraction: 2.2,      // 牵引力度
   gatherK: 16.0,        // 聚形弹簧（粒子紧贴捏合进度，落位即成字）
@@ -1436,6 +1451,7 @@ let flashT = 0;
 // 拉过去，表现为「字名在换、粒子纹丝不动」。这里补一条独立的聚散节奏给它。
 let ambientPhase = 0;      // 一个周期内的进度（0..AMBIENT_LOOP_SECS）
 let ambientIdle = 0;       // 连续无输入的累计秒数（有人接管即归零）
+let ambientSwitched = false;   // 本周期是否已换过字（换字点 AMB_SWITCH_AT 每周期只触发一次）
 // 待机自转：成字后缓慢转动，避免「字定在那里像死的」。
 // 之所以要单独一个累加器：用 t*ω 直接算在相位复位时会跳变，这里只累加不归零，
 // 再乘一个跟随周期的淡入淡出权重，得到的是连续运动。
@@ -1488,7 +1504,9 @@ function setBadge(text, color) {
 const gcv = document.createElement('canvas'); gcv.width = gcv.height = 512;
 const gctxOpt = { willReadFrequently: true };
 
-function sampleGlyph3D(spec) {
+// forAmbient=true 表示「待机巡字在换字」而非用户选字：此时不能复位待机计时，
+// 否则巡字换字会把待机循环自己关掉（详见函数末尾注释）。
+function sampleGlyph3D(spec, forAmbient) {
   // 防御：spec 为 undefined 时下一行就会抛 TypeError 并让整个应用崩掉
   // （实测：查库未命中的字被误传到此处即复现）。返回 false 与「字形渲染失败」
   // 同一条错误通路，调用方能据此提示而不是白屏。
@@ -1629,10 +1647,12 @@ function sampleGlyph3D(spec) {
   formedLatch = false; gatherT = 0;
   refreshColors();
   window.__dbg3d = { ch: spec.ch, n: N, maxDim: maxDim };
-  // 手动选字 / 巡字换字都走这里 → 重新计待机时间，避免巡字顶掉用户的选择。
-  // 两个变量都要复位：ambientPhase 控节奏进度，ambientIdle 控「够不够久」。
-  // 只复位前者的话，用户刚点完字，待机仍按原倒计时立刻启动（实测踩到）。
-  ambientPhase = 0; ambientIdle = 0;
+  // 手动选字要重新计待机时间（否则用户刚点完字，待机按原倒计时立刻启动把选择顶掉）。
+  // 注意：待机巡字【也走这个函数】，若在这里无条件复位，巡字换字会把待机自己关掉 ——
+  // ambientIdle 归零 → ambient 变 false → ambientPhase 归零 → 又要从头等 45 秒，
+  // 表现就是「两个字之间隔了 40~50 秒」（实测：待机启动后只换了一个字就熄火）。
+  // 故巡字调用时传 forAmbient=true 跳过复位。
+  if (!forAmbient) { ambientPhase = 0; ambientIdle = 0; }
   refreshGlyphPanel(true);
   showLabel(spec.ch, spec.tag, false);
   return true;
@@ -1965,9 +1985,12 @@ function updateGestures(dt, t) {
   // 若在成形状态下直接换目标，粒子会自己变形过去，看起来像「字自己扭曲」。
   // 手一回到画面 closeness>0 即无条件优先，待机节奏立即让位。
   const ambientTarget = closeness > 0 ? closeness
-    : (ambientPhase > 0 ? (ambientPhase < 1.6 ? ambientPhase / 1.6
-                          : ambientPhase < 11.2 ? 1
-                          : Math.max(0, 1 - (ambientPhase - 11.2) / 1.8)) : 0);
+    : (ambientPhase > 0
+        ? (ambientPhase < AMB_T1 ? ambientPhase / AMBIENT_GATHER_SECS          // 聚形
+          : ambientPhase < AMB_T2 ? 1                                          // 保持
+          : ambientPhase < AMB_T3 ? Math.max(0, 1 - (ambientPhase - AMB_T2) / AMBIENT_DISPERSE_SECS)  // 散开
+          : 0)                                                                 // 空歇（散尽，等下一次聚形）
+        : 0);
   gather = lerp(gather, ambientTarget, Math.min(1, dt * 14));   // 轻滤波（约70ms），几乎零延迟跟手
   // ── 成字状态加滞回：消除"突然卡住" ─────────────────────────────────────
   // 旋转由 gather>=0.98 这个硬门槛控制，而 gather 源自手部关键点、噪声约 ±0.02~0.05。
@@ -2801,7 +2824,7 @@ function frame(now) {
   if (jankWin >= 1) { jankMaxShow = jankMax; jankOverShow = jankOver; jankWin = 0; jankMax = 0; jankOver = 0; }
 
   if (flashT > 0) flashT = Math.max(0, flashT - dt * 1.6);
-  // 待机 14 秒自动巡下一字（展馆无人时轮播）。
+  // 待机自动巡下一字（展馆无人时轮播）。
   // 只在「精选字」里轮播（数据里标了 curated: true 的人工编排字），而不是全库上千个 ——
   // 全库含「丁」「乙」「丂」等与中医无关的字，无人值守时轮播这些会偏离作品主题。
   // 兜底：若数据里没有 curated 标记（旧数据），退回全库，避免巡字直接停摆。
@@ -2815,22 +2838,32 @@ function frame(now) {
   const wasAmbient = ambient;
   ambient = noInput && ambientIdle >= AMBIENT_FIRST_IDLE;
   if (!ambient) {
-    // 有人接管，或尚未够 45 秒 → 复位相位。
+    // 有人接管，或尚未够 AMBIENT_FIRST_IDLE 秒 → 复位相位。
     // 必须连「未够时长」也一起复位：否则 ambientIdle 与 ambientPhase 同步累加，
-    // 待机一启动时 phase 已经是 45(≥14)，首帧就会先换字、再瞬间聚形 —— 比不动更突兀。
+    // 待机一启动时 phase 已经 ≥ 一个周期，首帧就会先换字、再瞬间聚形 —— 比不动更突兀。
     ambientPhase = 0;
+    ambientSwitched = false;
   } else {
-    if (!wasAmbient) ambientPhase = 0;   // 刚进入待机：从周期起点（散→聚）开始，而不是从中间插入
+    if (!wasAmbient) { ambientPhase = 0; ambientSwitched = false; }   // 刚进入待机：从周期起点开始
     ambientPhase += dt;
-    if (ambientPhase >= AMBIENT_LOOP_SECS) {
-      // 一周期 14 秒：0~1.6s 聚形、1.6~11.2s 保持、11.2~13.0s 散开、13.0~14s 空歇。
-      // 换字发生在周期末尾的散开状态下（见上面对着色器行为的说明）。
-      ambientPhase = 0;
+    // 换字发生在【散开刚结束】的位置（AMB_SWITCH_AT）而不是周期末尾：
+    // 这样「散尽 → 换字 → 空歇 AMBIENT_GAP_SECS 秒 → 下一次聚形」，
+    // 中间那段空歇就是肉眼看到的停顿（此前换字在周期末尾，紧接着就聚形，没有停顿）。
+    if (!ambientSwitched && ambientPhase >= AMB_SWITCH_AT) {
+      ambientSwitched = true;
       const pool = AMBIENT_GLYPHS.length ? AMBIENT_GLYPHS : ORACLE_GLYPHS;
       const idx = pool.findIndex(g => g.ch === curGlyph3D.ch);
       glyphIndex = (idx < 0 ? 0 : idx + 1) % pool.length;   // 当前字不在池中（手动选过）→ 从池首接上
-      sampleGlyph3D(pool[glyphIndex]);
+      // 关键：传 forAmbient=true —— 巡字换字不能复位待机计时，否则待机把自己关掉，
+      // 下一个字要再等 AMBIENT_FIRST_IDLE(45s) 才会来（正是"隔 40~50 秒"的成因）。
+      sampleGlyph3D(pool[glyphIndex], true);
       syncGlyphState(pool[glyphIndex], true);   // 巡字换字后，面板选中态跟上
+    }
+    if (ambientPhase >= AMBIENT_LOOP_SECS) {
+      // 一个周期 = 聚形 AMBIENT_GATHER_SECS + 保持 AMBIENT_HOLD_SECS
+      //          + 散开 AMBIENT_DISPERSE_SECS + 空歇 AMBIENT_GAP_SECS
+      ambientPhase = 0;
+      ambientSwitched = false;
     }
   }
   updateGestures(dt, t);
