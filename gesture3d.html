@@ -92,8 +92,9 @@
        <1000px 视口才可能水平相交，max-height 作兜底。 */
     position:fixed; top:16px; left:16px; bottom:16px;
     max-height:calc(100vh - 32px); z-index:20;
-    /* 关闭滚动锚定：列表内容变化时浏览器会自己"稳住"滚动位置，
-       与我们显式保存/恢复 scrollTop 的做法互相打架（实测：显式设 400 被它改回）。 */
+    /* 滚动锚定必须【落在真正的滚动容器 #glyphList 上】才生效（见下），
+       写在面板上是不够的：锚定是按滚动容器各自计算的。
+       这里保留一份作为兜底（面板本身在个别浏览器/嵌套滚动场景下也可能成为容器）。 */
     overflow-anchor:none;
     display:flex; flex-direction:column; width:min(354px, 88vw);
     /* 左内边距保持 14px：22px 圆角在离角 14px 处仅内缩约 1.5px，
@@ -129,7 +130,18 @@
   /* 列表不加左右内边距：这样滚动条右缘正好落在内容区右缘，
      与上方搜索框右缘（同为内容区右缘）对齐成一条竖线。
      条目自身的 padding 已足够留出文字与滚动条的间隙。 */
-  #glyphList { flex:1; overflow-y:auto; }
+  #glyphList {
+    flex:1; overflow-y:auto;
+    /* ① 关闭滚动锚定 —— 必须是【这个滚动容器】上的属性才真正生效。
+       重建列表（innerHTML='' → 逐条 appendChild）期间，浏览器会按锚点自己调整
+       scrollTop，与我们显式保存/恢复 scrollTop 的做法互相打架，
+       表现就是"点一下、列表自己动一下"（实测显式设 400 被改回）。 */
+    overflow-anchor:none;
+    /* ② 滚动条槽位常驻 —— 重建列表的那一瞬间内容为空、滚动条会消失，
+       内容区宽度随之多出 6px（文字整块横向抖一下）；同理 scrollHeight=0 时
+       scrollTop 被钳制成 0。让槽位始终占位，这两个抖动都不再发生。 */
+    scrollbar-gutter:stable;
+  }
   #glyphList::-webkit-scrollbar { width:6px; }
   #glyphList::-webkit-scrollbar-thumb { background:rgba(120,150,190,.3); border-radius:4px; }
   #glyphList::-webkit-scrollbar-track { background:transparent; }
@@ -2510,6 +2522,11 @@ document.getElementById('charInput').addEventListener('keydown', e => {
 // 交互：点条目 → 显示该字形；再点同一条 → 隐藏（切换）。
 const GLYPH_PAGE = 60;
 let glyphShown = 0;
+// 点条目时的滚动诊断日志：只在「恢复被浏览器改写」时写入，
+// 排查"点一下就动一下"时可读 window.__glyphScrollLog 看有没有记录。
+// 正常情况它应始终是空数组 —— 空数组就说明滚动位置没有被任何东西动过。
+const CLICK_SCROLL_LOG = [];
+window.__glyphScrollLog = CLICK_SCROLL_LOG;
 // 列表选中态需要两个独立状态，缺一不可：
 //   glyphIdx      —— 当前是哪一条（索引比对，不用 ch 字符串：初始字来自数据数组，
 //                    只有 ch/code/tag/intro，没有 mode，与楷体字靠字符串区分不可靠）
@@ -2616,7 +2633,16 @@ function refreshGlyphPanel(reset) {
 
   // 内容已填回，此时容器有足够高度，恢复滚动位置才不会被钳制。
   // 放在 appendChild 之后是本修复的关键：此前写在清空之后，值被静默吃掉。
-  if (reset) list.scrollTop = queryChanged ? 0 : keepScroll;
+  if (reset) {
+    const want = queryChanged ? 0 : keepScroll;
+    list.scrollTop = want;
+    if (want !== list.scrollTop) {
+      // 只有在恢复被浏览器改写时才记录（正常情况一次都不该打印）。
+      // 排查「点条目列表会动一下」时，这行能直接指出是不是滚动位置没恢复成功。
+      CLICK_SCROLL_LOG.push({ at: 'restore', want, got: list.scrollTop });
+      console.warn('[glyph] 滚动位置恢复被改写', want, '→', list.scrollTop);
+    }
+  }
 
   // 空结果提示
   const oldEmpty = list.querySelector('#glyphEmpty');
