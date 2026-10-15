@@ -272,10 +272,11 @@
   /* 按钮【保持原高度 29.5px】（用户明确要求不要动它）。
      输入框压矮后 .row 行高变小，按钮若仍 stretch 就会被带着一起矮，
      故 align-self:center 解耦，并用 5px 纵向内边距补回原高度（3px 时是 26px）。 */
-  /* 用户要求：按钮体积稍放大 + 往左移一点点。
-     实测（真身 Edge）：字号 12.5→14px、内边距 14/5→16/6px、translateX -2→-5px
-     → 55×30px 变为 62×34px（约 +13%），右缘距面板 3→6px。 */
-  .row .cbtn { padding:6px 16px; transform:translateX(-5px); align-self:center; font-size:14px; }
+  /* 按钮尺寸（用户要求「介于两者之间」）：
+     原版 55×30px → 一度做到 62×34px（偏大）→ 现取中间值 59×31px。
+     实测（真身 Edge）：字号 13.5px + 内边距 15/5px + translateX(-4px) = 59×31px。
+     另测：字号13+pad15/5 = 58×30.5（几乎与原高相同，偏小，未采用）。 */
+  .row .cbtn { padding:5px 15px; transform:translateX(-4px); align-self:center; font-size:13.5px; }
 
   #stats {
     /* 右上角读数挪到【状态胶囊下方】。top 由 frame() 按胶囊实际下缘动态设置
