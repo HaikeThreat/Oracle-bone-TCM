@@ -37,15 +37,17 @@
   #stateBadge {
     font-size:12px; font-weight:700; padding:4px 12px; border-radius:99px;
     background:rgba(17,34,51,.75); border:1px solid #345; color:#9cf; letter-spacing:1px; transition:all .3s;
-    /* 右上角第一行：胶囊在上、参数在下。不再需要 margin-top 让位 ——
-       topbar 用 align-items:stretch，胶囊下缘即 topbar 下缘，读数接着它往下排
-       （由 frame() 按胶囊实际下缘设置，见 stats 赋值处）。 */
+    /* 右上角第一行：胶囊在上、参数在下。topbar 用 align-items:stretch，
+       胶囊下缘即 topbar 下缘，读数接着它往下排（由 frame() 按胶囊下缘设置）。
+       translateY(-3px)：让胶囊的【中轴线】与左侧标题对齐。
+       这 3px 是实测出来的：标题 h1 行盒 21px（16→37，中线 26.5），
+       胶囊含内边距 27px（16→43，中线 29.5），不修正就偏低 3px。
+       用 transform 而非 margin/top：不参与布局，故 topbar 尺寸与
+       读数位置（跟着胶囊下缘走）都保持原样。 */
+    transform:translateY(-3px);
   }
 
   /* 手势动画窗格（不显示相机画面，仅实时指尖动画）*/
-  /* 手部骨架：右下角。抬到 bottom:88px 而非 16px —— 底部控制条居中、
-     窄视口（<1000px）下其右缘会伸到右下角，贴着 16px 会重叠。
-     控制条高约 58px + bottom:24px，88px 可稳定让开。 */
   /* 手部骨架：右下角。bottom 88 → 78px（按要求下移 10px）。
      与控制条的关系（实测，视口高 800 时逐宽度量过）：
        ≥860px 视口：控制条右缘 ≤689，窗格左缘 ≥694 —— 两者【水平不相交】，
