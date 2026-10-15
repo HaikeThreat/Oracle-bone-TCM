@@ -3013,7 +3013,7 @@ document.getElementById('glyphList').addEventListener('touchmove', markGlyphList
 document.getElementById('glyphList').addEventListener('scroll', e => {
   const el = e.currentTarget;
   syncGlyphThumb(true);             // 自绘滑块（Safari/Firefox 走这条）跟随滚动移动
-  markGlyphListScrolled();          // 滚动条在滚动时浮现（停止 0.9s 后隐去）
+  markGlyphListScrolled();          // 滚动条在滚动时浮现（停止 3s 后隐去）
   if (el.scrollTop + el.clientHeight >= el.scrollHeight - 120) {
     if (glyphRenderedTo < glyphFiltered.length) {
       refreshGlyphPanel(false);   // 只追加：不变量滚动位置（此处曾手动存取 scrollTop，属多余且有害）
