@@ -8,6 +8,8 @@
 > | 项 | 状态 |
 > | --- | --- |
 > | 站点文件 | `/var/www/oracletcm/`（26MB，17 个文件）已就位 |
+> | ⚠ **站点文件里的代码版本** | **落后，必须先传**：服务器那份是 2026-10-15 00:42 上传的；此后本地又改了 8 个提交（`52cd3ba..4ab4304`）。**别把"文件已就位"当成"内容是最新的"** |
+> | 本地待上传产物 | `dist/`（2026-10-15 10:56 重建，16 文件 25.4MB，`gesture3d.html` 与源文件逐字节一致）已就绪 |
 > | nginx 配置 | `/etc/nginx/conf.d/oracletcm.com.conf`，`nginx -t` **零警告** |
 > | 服务器本机自测 | `/`、`gesture3d.html`、`three.min.js`、`hands_solution_simd_wasm_bin.wasm` 全部 **200**，wasm 的 Content-Type 为 `application/wasm` |
 > | gzip | `gesture3d.html` 1,587,069B → **850,945B**（省 46%）；`.wasm` 按 `gzip off` 不压缩 |
@@ -32,6 +34,36 @@
 所以**不要怀疑服务器配置**。
 
 ---
+
+## 步骤 0：先把最新代码传上去（其余步骤的前置）
+
+服务器上那份是 2026-10-15 00:42 的版本，**不含当天随后的 8 个修复**：
+
+```
+4ab4304  右上角胶囊中轴线与标题对齐
+b2f4104  补上唯一缺失的释义 + 卡片字头不再回退宋体
+6002261  待机巡字「两个字之间隔 40~50 秒」（换字把自己关掉了 + 空歇改到散开后）
+081d778  手势控制窗格下移 10px
+987e1d0  右上角对调（胶囊在上、参数在下）
+f794a8f  「点条目列表会动一下」：滚动锚定加错元素 + 重建时滚动条消失
+2bccdc9  字形卡片统一等高 + 简介垂直居中
+58c7536  字形列表密度（简介最多两行、不等高）
+```
+
+```bash
+python3 deploy.py                                   # 本地重建 dist/（幂等）
+rsync -avz --delete dist/ root@47.95.12.207:/var/www/oracletcm/
+```
+
+**验证**：服务器上比对大小（本地 `dist/gesture3d.html` 应为 `1604529` 字节）：
+
+```bash
+ls -la /var/www/oracletcm/gesture3d.html
+grep -c "scrollbar-gutter:stable\|translateY(-3px)\|OracleGlyphFont" /var/www/oracletcm/gesture3d.html
+# 三个都应 ≥1；若为 0 说明还是旧版
+```
+
+之后再按下面步骤 1（DNS）→ 2（证书）→ 3（可选：重跑 install-site.sh）→ 4（四层验证）→ 5（回归既有站点）走。
 
 ## 步骤 1：加 DNS 解析（备案通过后立刻做）
 
