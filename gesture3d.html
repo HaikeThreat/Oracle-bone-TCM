@@ -110,7 +110,7 @@
        写在面板上是不够的：锚定是按滚动容器各自计算的。
        这里保留一份作为兜底（面板本身在个别浏览器/嵌套滚动场景下也可能成为容器）。 */
     overflow-anchor:none;
-    display:flex; flex-direction:column; width:min(354px, 88vw);
+    display:flex; flex-direction:column; width:min(357px, 88vw);   /* 左边位置不变，右边框右移 3px（用户指定 354 → 357） */
     /* 左内边距保持 14px：22px 圆角在离角 14px 处仅内缩约 1.5px，
        不需要为圆角额外退让；加了反而会把输入框挤窄。 */
     padding:14px 0 12px 14px;
