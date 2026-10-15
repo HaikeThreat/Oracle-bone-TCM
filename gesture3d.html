@@ -158,6 +158,10 @@
        ⚠ 这里要区分「槽位」与「滑块」：槽位常驻是防抖手段，滑块该隐就隐。
        曾经因为只做了槽位常驻、滑块一直可见，看起来就像"滚动条永远杵在那儿"。 */
     scrollbar-gutter:stable;
+    /* Safari 与 Firefox 既忽略上面的 ::-webkit-scrollbar 定制、也吞掉 scrollbar-gutter，
+       它们只会照系统设置画原生滚动条 —— 而系统滚动条无法被我们的 .sb-idle 隐藏。
+       故在这些浏览器里把原生滚动条整个关掉，改用下面 #glyphThumb 这条自绘滑块。 */
+    scrollbar-width:none;
   }
   /* 滚动条（用户明确给定的要求，别再改反）：
        · 首次滚动之前 / 默认 → 【显示】
@@ -176,6 +180,16 @@
     transition:background .25s ease;
   }
   #glyphList.sb-idle::-webkit-scrollbar-thumb { background:transparent; }   /* 停 3 秒 → 消失 */
+  /* 自绘滚动条滑块：覆盖在列表右缘，不占布局宽度。
+     存在的意义是给 Safari/Firefox 兜底（它们的原生滚动条没法被 CSS 隐藏）。
+     观感对齐 macOS 原生：6px 宽、圆角、半透明灰蓝。
+     静止显示、滚动时显示、停止 3 秒后淡出 —— 由 syncGlyphThumb() 控制 opacity。 */
+  #glyphThumb {
+    position:absolute; right:10px; width:6px; height:60px;
+    background:rgba(150,170,195,.45); border-radius:3px;
+    opacity:0; transition:opacity .3s ease; pointer-events:none; z-index:3;
+  }
+  #glyphThumb.on { opacity:1; }
   .gitem {
     /* 纵向 padding 8px：条目高度 = 简介行数(1~2 行) + 16px + 边框，
        所以【条目不等高】：简介一行的更紧凑，两行的约 68.9px。
@@ -293,6 +307,7 @@
     <input id="glyphSearch" placeholder="搜索：字 / 拼音 / 释义" autocomplete="off">
   </div>
   <div id="glyphList"></div>
+  <div id="glyphThumb"></div>
   <div class="row">
     <input id="charInput" value="" maxlength="2" placeholder="任意字·楷体">
     <div class="cbtn" id="btnGen">生成</div>
@@ -2924,26 +2939,62 @@ function refreshGlyphPanel(reset) {
   lastActiveFilter = glyphFiltered;
 }
 
-// 滚动条：默认可见（CSS）；滚动时保持可见；停止 3 秒后挂 .sb-idle 隐藏。
-// 槽位由 CSS 的 scrollbar-gutter:stable 常驻，所以显隐不产生任何宽度变化。
-// 用"每次滚动刷新定时器"的写法，避免出现"永不隐藏"（实测踩过）。
+// ── 滚动条：两条腿走路 ──────────────────────────────────────────────
+// ① Chromium（Edge/Chrome）：走 CSS 的 ::-webkit-scrollbar，
+//    #glyphList 默认可见、滚动时保持、停止 3 秒后挂 .sb-idle 隐藏。
+// ② Safari / Firefox：它们【忽略】::-webkit-scrollbar 定制，只画系统原生滚动条，
+//    而系统滚动条无法被 .sb-idle 隐藏（实测：Safari 里就是这个症状）。
+//    故用 scrollbar-width:none 关掉原生滚动条，改由自绘的 #glyphThumb 承担显示。
+//    自绘元素是普通 DOM，任何浏览器都能渲染与淡出，所以这条一定生效。
 const SCROLLBAR_HIDE_MS = 3000;
 let scrollHideTimer = null;
+
+// 同步自绘滑块的位置/高度/可见性
+function syncGlyphThumb(visible) {
+  const list = document.getElementById('glyphList');
+  const thumb = document.getElementById('glyphThumb');
+  if (!list || !thumb) return;
+  const panel = document.getElementById('glyphPanel');
+  const lr = list.getBoundingClientRect();
+  const pr = panel.getBoundingClientRect();
+  const lh = list.clientHeight, sh = list.scrollHeight, maxScroll = sh - lh;
+  if (maxScroll <= 1) { thumb.classList.remove('on'); return; }      // 内容不足一屏 → 不显示
+  const h = Math.max(30, lh * (lh / sh));
+  const top = (lr.top - pr.top) + (list.scrollTop / maxScroll) * (lh - h);
+  thumb.style.height = h.toFixed(1) + 'px';
+  thumb.style.top = top.toFixed(1) + 'px';
+  if (visible === true) thumb.classList.add('on');
+  else if (visible === false) thumb.classList.remove('on');
+}
+
 function markGlyphListScrolled() {
   const list = document.getElementById('glyphList');
-  list.classList.remove('sb-idle');                 // 滚动中 → 确保可见
+  list.classList.remove('sb-idle');                 // ① Chromium：滚动中 → 可见
+  syncGlyphThumb(true);                             // ② Safari/Firefox：自绘滑块显示
   if (scrollHideTimer !== null) clearTimeout(scrollHideTimer);
   scrollHideTimer = setTimeout(() => {
     scrollHideTimer = null;
-    list.classList.add('sb-idle');                  // 停止 3 秒 → 隐藏
+    list.classList.add('sb-idle');                  // ① 停止 3 秒 → 隐藏
+    syncGlyphThumb(false);                          // ② 停止 3 秒 → 淡出
   }, SCROLLBAR_HIDE_MS);
 }
+
+// 列表每次被重建/续载（scrollHeight 变化）都自动同步滑块，不用在各处手动调用 ——
+// 之前就是因为"忘了调"导致滑块停在不该在的位置。
+if (window.ResizeObserver) {
+  const listEl = document.getElementById('glyphList');
+  if (listEl) new ResizeObserver(() => syncGlyphThumb()).observe(listEl);
+}
+// 初始同步：面板打开后先按"可见"摆好位置（默认显示）
+window.addEventListener('load', () => setTimeout(() => syncGlyphThumb(true), 300));
+if (document.readyState === 'complete') setTimeout(() => syncGlyphThumb(true), 300);
 document.getElementById('glyphList').addEventListener('wheel', markGlyphListScrolled, { passive: true });
 document.getElementById('glyphList').addEventListener('touchmove', markGlyphListScrolled, { passive: true });
 
 // 滚动接近底部时追加下一批
 document.getElementById('glyphList').addEventListener('scroll', e => {
   const el = e.currentTarget;
+  syncGlyphThumb(true);             // 自绘滑块（Safari/Firefox 走这条）跟随滚动移动
   markGlyphListScrolled();          // 滚动条在滚动时浮现（停止 0.9s 后隐去）
   if (el.scrollTop + el.clientHeight >= el.scrollHeight - 120) {
     if (glyphRenderedTo < glyphFiltered.length) {
