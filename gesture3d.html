@@ -2556,14 +2556,34 @@ document.getElementById('btnGen').onclick = () => {
   if (!v) return;
   const ch = [...v][0];
   const code = lookupOracleCode(ch);
-  if (code) {
-    sampleGlyph3D({ ch, code, tag: '甲骨文·' + ch, intro: '' });   // 甲骨文字形
+  // 查得到就复用【字库里那条对象本身】（而不是现造一个 {ch, code, tag, intro}）：
+  // 列表高亮现在按对象同一性判断（见 glyphShownSpec），造新对象会导致
+  // 明明显示的是库里的字、列表却不亮。别名（册→冊、麦→麥）也由此自然对上。
+  const libSpec = code ? ORACLE_GLYPHS.find(g => g.code === code) : null;
+  if (libSpec) {
+    sampleGlyph3D(libSpec);
+  } else if (code) {
+    sampleGlyph3D({ ch, code, tag: '甲骨文·' + ch, intro: '' });   // 有码位但不在库中
+    glyphShownSpec = null;      // → 不指向列表任何一条
   } else {
     sampleGlyph3D({ mode: 'text', ch: v });                        // 退回楷体
+    glyphShownSpec = null;      // 楷体字不在列表里 → 不高亮任何条目
   }
-  glyphIdx = -1;                        // 手工输入不指向列表任何一条
   // 不在这里再 refreshGlyphPanel(true)：sampleGlyph3D 内部已刷新过一次，
   // 二次刷新会把「清空 DOM 后被钳制为 0 的 scrollTop」当成原值恢复（同 glyphRow 的坑）。
+  // 面板开着的话，把刚选中的那条滚进视野 —— 库里的字可能排在首屏之外
+  // （如「用」在第 61 条），只高亮不滚动的话用户根本看不见它。
+  // 用手工设 scrollTop 而不是 scrollIntoView：后者可能连带滚动祖先容器，副作用更大。
+  if (libSpec && document.getElementById('glyphPanel').classList.contains('open')) {
+    const list = document.getElementById('glyphList');
+    const card = list.querySelector('.gitem.active');
+    if (card) {
+      const lr = list.getBoundingClientRect(), cr = card.getBoundingClientRect();
+      if (cr.top < lr.top || cr.bottom > lr.bottom) {
+        list.scrollTop += (cr.top - lr.top) - (lr.height - cr.height) / 2;   // 居中显示
+      }
+    }
+  }
   // 不再自动收起：面板改为左侧常驻列表，收起会打断「再点一下隐藏」的连续操作
 };
 document.getElementById('charInput').addEventListener('keydown', e => {
@@ -2582,25 +2602,32 @@ const NO_INTRO_TEXT = '暂无明确释义';
 const CLICK_SCROLL_LOG = [];
 window.__glyphScrollLog = CLICK_SCROLL_LOG;
 // 列表选中态需要两个独立状态，缺一不可：
-//   glyphIdx      —— 当前是哪一条（索引比对，不用 ch 字符串：初始字来自数据数组，
-//                    只有 ch/code/tag/intro，没有 mode，与楷体字靠字符串区分不可靠）
-//   glyphShownNow —— 它此刻是否「显示中」。有了它，首次点击已显示的初始字
-//                   才是「隐藏」，否则会把开局就显示的字误判成需要隐藏。
-let glyphIdx = 0;
+//   glyphShownSpec —— 当前显示的是【哪一条】，直接存数据对象本身（不用索引！）
+//   glyphShownNow  —— 它此刻是否「显示中」。有了它，首次点击已显示的初始字
+//                    才是「隐藏」，否则会把开局就显示的字误判成需要隐藏。
+//
+// ⚠ 这里曾经存的是索引，导致「黄色选中框框住的字是错的」：
+//   syncGlyphState 里算的是 ORACLE_GLYPHS.indexOf(spec)（完整数据数组的序号），
+//   而 glyphRow 渲染时拿到的 idx 是 glyphFiltered 里的【列表位置】。
+//   两者只在没有 hidden 字时才相等 —— 数据里有 3 个 hidden（子 i=38、田 i=56、
+//   一 i=58），于是列表第 38 条往后全部错位（+1，越过「田」再 +1）：
+//   实测点列表第 42 条「泉」→ 高亮落到第 43 条「兑」，前 60 条里 22 条中招。
+//   改用对象同一性比较后，索引口径如何变化都不再影响高亮（数据条目就是原对象引用）。
+let glyphShownSpec = null;
 let glyphShownNow = true;
 // 切换/巡字/楷体输入都经这里同步列表选中态，避免各处各自维护而失步。
-// 用对象同一性找索引（数据数组里的条目就是原对象引用，可靠）；
-// 找不到（如楷体输入）则 -1，不误高亮任何条目。
+// 传 null（如楷体输入）→ 不高亮任何条目。
 function syncGlyphState(spec, shown) {
-  const i = ORACLE_GLYPHS.indexOf(spec);
-  glyphIdx = i;
+  glyphShownSpec = spec || null;
   glyphShownNow = shown;
 }
 let glyphFiltered = [];
 let lastGlyphQuery = null;   // 上次的搜索词：用于区分「筛选变了」与「只是重建列表」
 function glyphRow(g, idx) {
   const it = document.createElement('div');
-  const on = glyphShownNow && idx === glyphIdx;   // 索引唯一，且必须确实处于显示态
+  // 按【对象同一性】判断高亮，而不是按索引：索引在「完整数组」与「筛选后列表」
+  // 两种口径下会错位（见上面 glyphShownSpec 的说明）。
+  const on = glyphShownNow && g === glyphShownSpec;
   it.className = 'gitem' + (on ? ' active' : '');
   it.dataset.ch = g.ch; it.dataset.idx = idx;
 
@@ -2642,7 +2669,7 @@ function glyphRow(g, idx) {
     // 注意不能在这里再补一次 refreshGlyphPanel(true)：sampleGlyph3D 内部已经调过一次，
     // 而二次刷新是在列表重建【之后】捕获 scrollTop —— 那时浏览器已因清空 DOM 把
     // 滚动位置钳制成 0，于是它会把 0 记下来并"恢复"成 0，表现就是点一个字列表跳回顶部。
-    if (glyphShownNow && idx === glyphIdx) {   // 点的是正在显示的那条 → 隐藏
+    if (glyphShownNow && g === glyphShownSpec) {   // 点的是正在显示的那条 → 隐藏
       clearGlyphToAmbient();
       refreshGlyphPanel(true);                 // 隐藏不走 sampleGlyph3D，需自行刷新
     } else {                                   // 否则 → 显示它（内部已刷新并同步选中态）
@@ -2657,7 +2684,7 @@ function glyphRow(g, idx) {
 // 这里赋的值会在下一帧被覆盖，等于没写（曾这样试过，是无效代码）。
 // 字形的粒子、音效等本身仍由手势驱动，与「面板里选中哪一条」是两件事。
 function clearGlyphToAmbient() {
-  glyphIdx = -1; glyphShownNow = false;
+  glyphShownSpec = null; glyphShownNow = false;
   formedLatch = false;
   showLabel('', '', false);                 // 清掉「火 · 甲骨文」标题与释义
 }
@@ -2695,11 +2722,21 @@ function refreshGlyphPanel(reset) {
     ? `匹配 ${glyphFiltered.length} / 共 ${pool.length} 字`
     : `字形库${pool.length}字`;
 
-  const end = Math.min(glyphFiltered.length, glyphShown + GLYPH_PAGE);
+  // 本次要渲染到第几条。分两件事，务必分开：
+  //   glyphShown —— 「用户已加载到第几条」（分页游标，只由续载推进，重建时重置为 0）
+  //   end        —— 「本次 DOM 渲染到第几条」（一次性，不改变游标）
+  // 二者分开的原因：高亮那条可能排在游标之后（实测手工输入「用」，数据里第 65 位，
+  // 而首屏只渲染 60 条 → 卡片不在 DOM 里、高亮无处可落）。
+  // 若用抬高游标的办法补渲染，一旦它跑在游标前面，中间的条目就永远补不上（会空一段）——
+  // 第一版正是这么错的。
+  let end = Math.min(glyphFiltered.length, glyphShown + GLYPH_PAGE);
+  if (glyphShownNow && glyphShownSpec) {
+    const ti = glyphFiltered.indexOf(glyphShownSpec);
+    if (ti >= end) end = Math.min(glyphFiltered.length, ti + 1);
+  }
   const frag = document.createDocumentFragment();
   for (let i = glyphShown; i < end; i++) frag.appendChild(glyphRow(glyphFiltered[i], i));
   list.appendChild(frag);
-  glyphShown = end;
 
   // 内容已填回，此时容器有足够高度，恢复滚动位置才不会被钳制。
   // 放在 appendChild 之后是本修复的关键：此前写在清空之后，值被静默吃掉。
