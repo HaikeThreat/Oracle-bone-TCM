@@ -156,12 +156,21 @@
     font-size:12px; color:#cfe0f4; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   }
   .gitem .gintro {
-    font-size:11px; color:#7d8fa8; margin-top:2px; line-height:1.45;
-    /* 简介最多两行（-webkit-line-clamp:2），行数由文本长度决定 ——
-       这里【不要】再补 min-height 去凑「每条等高」：补上之后短简介也被撑成
-       两行，条目全变 68.9px、列表立刻显松。用户认可的是「最多两行、不等高」
-       这一版（条目高随简介 1~2 行浮动，短的自然更紧凑）。 */
-    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+    font-size:11px; color:#7d8fa8; margin-top:2px;
+    /* 简介区【固定占两行的高度】，但文字本身最多两行（见下面的 span）：
+       高度写死 → 每条卡片等高，列表看起来齐；
+       文字按需 1~2 行 → 短简介不被硬撑出空行。
+       两者必须用「固定 height + 内部 clamp」，不能用 min-height：
+       min-height 只保证下限，短简介仍是一行，卡片照样一高一矮。 */
+    height:calc(2em * 1.45);      /* 两行的高度（em 取本元素字号 11px） */
+    /* 文字块在本区域内垂直居中：无论它是一行还是两行，都居中放。 */
+    display:flex; align-items:center;
+  }
+  .gitem .gintro span {
+    /* -webkit-box 与 flex 不能共存于同一元素，故 clamp 放在内层 span 上。
+       内层只负责「最多两行 + 超长省略号」。 */
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+    overflow:hidden; width:100%;
   }
   .gitem.active .gtag { color:var(--gold); }
   #glyphEmpty { font-size:12px; color:#7d8fa8; text-align:center; padding:16px 0; }
@@ -2532,7 +2541,12 @@ function glyphRow(g, idx) {
   const tag = document.createElement('div');
   tag.className = 'gtag'; tag.textContent = g.tag || '';
   const intro = document.createElement('div');
-  intro.className = 'gintro'; intro.textContent = g.intro || '';
+  intro.className = 'gintro';
+  /* 简介文字放进内层 span：clamp 需要 -webkit-box，而外层要 flex 居中，
+     两个 display 无法共存于同一元素，故分两层。 */
+  const introText = document.createElement('span');
+  introText.textContent = g.intro || '';
+  intro.appendChild(introText);
   meta.appendChild(tag); meta.appendChild(intro);
 
   it.appendChild(ch); it.appendChild(meta);
