@@ -84,15 +84,18 @@
 
   /* 字形面板：左侧竖栏 + 列表式条目（像阅读列表：字形 + 简短介绍），整栏可滚动 */
   #glyphPanel {
-    /* 手部骨架已移到右下角，左侧不再有元素要避让，面板可用满整条左侧高度。
-       但仍要止于底部控制条之上：控制条实测 519px 宽、高 59px、bottom:24px，
-       其左缘在 1100px 视口会伸到 x=291（面板右缘 370）→ 真的水平相交。
-       故用 max-height 留出 140px（24 底距 + 59 条高 + 余量），
-       面板下缘即停在控制条上方，不再压过去。
-       注意这里是 max-height 而非改 bottom：面板本身没有固有高度，
-       必须靠「top + 高度上限」约束，否则它会一直撑到 bottom。 */
+    /* 尺寸变化的来由（按「一屏正好 10 条」反推）：
+         视口 820 时列表可用 = 820 - 2*16(上下留白) - 127(面板固定占位) = 661px
+         要放 10 条 → 行距必须 ≤ 66.1px；原先行距 73.9px（简介最多 3 行）只能放 8~9 条。
+       故两处一起改：面板吃到满高（下缘到 bottom:16）、简介压成 1 行（行距降到约 66）。
+       注意面板没有固有高度，所以尺寸由 top/bottom 决定；max-height 只是保险。
+       与控制条的关系：控制条 519px 宽且居中，其左缘在 ≥1000px 视口都在 x≥381，
+       面板右缘 370，两者水平不相交；<1000px 时才可能压到，故仍留 max-height 兜底。 */
     position:fixed; top:16px; left:16px; bottom:16px;
-    max-height:calc(100vh - 140px); z-index:20;
+    max-height:calc(100vh - 32px); z-index:20;
+    /* 关闭滚动锚定：列表内容变化时浏览器会自己"稳住"滚动位置，
+       与我们显式保存/恢复 scrollTop 的做法互相打架（实测：显式设 400 被它改回）。 */
+    overflow-anchor:none;
     display:flex; flex-direction:column; width:min(354px, 88vw);
     /* 左内边距保持 14px：22px 圆角在离角 14px 处仅内缩约 1.5px，
        不需要为圆角额外退让；加了反而会把输入框挤窄。 */
@@ -132,7 +135,10 @@
   #glyphList::-webkit-scrollbar-thumb { background:rgba(120,150,190,.3); border-radius:4px; }
   #glyphList::-webkit-scrollbar-track { background:transparent; }
   .gitem {
-    display:flex; align-items:center; gap:12px; padding:8px 10px;
+    /* 纵向 padding 10px：与「简介单行」配合，把行距定在约 66px ——
+       视口 820 时列表可用 661px，661/66 ≈ 10 条，正是目标的「一屏 10 字」。
+       （简介若允许 2~3 行，条目会涨到 69px、只能放 8~9 条，故必须单行。） */
+    display:flex; align-items:center; gap:12px; padding:10px 10px;
     margin:0 5px 5px 0;   /* 右侧留 5px：选中框右边线不贴滚动条 */
     border:1px solid transparent; border-left:2px solid var(--line); border-radius:14px;
     background:rgba(255,255,255,.02); cursor:pointer; transition:background .15s, border-color .15s;
@@ -151,7 +157,9 @@
   }
   .gitem .gintro {
     font-size:11px; color:#7d8fa8; margin-top:2px; line-height:1.45;
-    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+    /* 单行截断（原 2 行）：这是把行距压到 66px 的关键 ——
+       简介最多 3 行时条目高达 68.9px，一屏只能放 8~9 条。 */
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   }
   .gitem.active .gtag { color:var(--gold); }
   #glyphEmpty { font-size:12px; color:#7d8fa8; text-align:center; padding:16px 0; }
