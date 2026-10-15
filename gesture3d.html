@@ -172,7 +172,11 @@
                   border-left-color:var(--gold); }
   .gitem .gch {
     flex:none; width:36px; text-align:center; font-size:24px; line-height:1.1;
-    color:#cfe0f4; font-family:"Songti SC","STSong",serif;
+    /* 用甲骨文字体渲染：字形由 PUA 码位（g.code，如 U6140D）取出，见 glyphRow。
+       这里原写的是 Songti —— 于是卡片上的字头大部分"碰巧"对（如「心」的码位
+       U60A96 低位正好是 U+5FC3），而低位对不上的字（如「用」U6140D 低位 140D
+       并非 U+7528）就会掉回宋体、显示成现代汉字，与旁边的甲骨文条目不是一个体系。 */
+    color:#cfe0f4; font-family:OracleGlyphFont,"Songti SC","STSong",serif;
   }
   .gitem.active .gch { color:var(--gold); }
   .gitem .gmeta { flex:1; min-width:0; }
@@ -196,6 +200,8 @@
     display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
     overflow:hidden; width:100%;
   }
+  /* 无释义时的占位文案：比正常释义再淡一档，一眼看出是「暂无」而非漏排 */
+  .gitem .gintro span.gintro-none { color:#5b6b7f; font-style:italic; }
   .gitem.active .gtag { color:var(--gold); }
   #glyphEmpty { font-size:12px; color:#7d8fa8; text-align:center; padding:16px 0; }
   /* 底部楷体输入行固定在面板下沿，与可滚动列表以分隔线区分 */
@@ -348,7 +354,7 @@
   { ch: '卜', code: 'U60C9B', curated: true, py: 'bu', tag: '灼龟问吉凶', intro: '象龟甲灼裂之纹。卜者，灼龟问吉凶——甲骨占卜之本字。' },
   { ch: '岁', code: 'U60DB8', curated: true, py: 'sui', tag: '年谷之成', intro: '象斧钺之形，借为岁星之年——岁者，年谷之成也。' },
   { ch: '狩', code: 'U611E4', curated: true, py: 'shou', tag: '冬猎为狩', intro: '从犬守声。狩者，犬田也——冬猎为狩。' },
-  { ch: '用', code: 'U6140D', curated: true, py: 'yong', tag: '甲骨文·已录入', intro: '' },
+  { ch: '用', code: 'U6140D', curated: true, py: 'yong', tag: '从卜辞「用」字·施行', intro: '甲骨文从卜辞「用」字，字形所象尚无定论（或说象桶形，或说象甬钟）。本义为施行、使用。' },
   { ch: '见', code: 'U6033A', curated: true, py: 'jian', tag: '人目正视·望诊之根', intro: '象人目正视之形。见者，视也——见微知著。' },
   { ch: '豕', code: 'U6089E', curated: true, py: 'shi', tag: '六畜之一', intro: '象豕侧视之形，大腹短尾。豕即猪——六畜之一。' },
   { ch: '二', code: 'U6157F', py: 'er', tag: '上下两横', intro: '指事字。二者，地之数也。' },
@@ -2561,6 +2567,8 @@ document.getElementById('charInput').addEventListener('keydown', e => {
 // 交互：点条目 → 显示该字形；再点同一条 → 隐藏（切换）。
 const GLYPH_PAGE = 60;
 let glyphShown = 0;
+// 字库里若有条目没写释义（数据缺口），卡片上用这句占位，不留空白。
+const NO_INTRO_TEXT = '暂无明确释义';
 // 点条目时的滚动诊断日志：只在「恢复被浏览器改写」时写入，
 // 排查"点一下就动一下"时可读 window.__glyphScrollLog 看有没有记录。
 // 正常情况它应始终是空数组 —— 空数组就说明滚动位置没有被任何东西动过。
@@ -2590,7 +2598,14 @@ function glyphRow(g, idx) {
   it.dataset.ch = g.ch; it.dataset.idx = idx;
 
   const ch = document.createElement('div');
-  ch.className = 'gch'; ch.textContent = g.ch;
+  ch.className = 'gch';
+  /* 字头必须按【PUA 码位】写进去，而不是汉字本身：
+     甲骨文字形存在 U6xxxx 私用区（g.code），字体也按这个码位挂字形。
+     直接写 g.ch（如「用」U+7528）会命中系统字体 → 卡片上显示现代汉字，
+     与 3D 场景、与其它条目都不是同一个体系。
+     实测：多数字的 PUA 低位恰好等于该汉字的码位（心 U60A96 ↔ U+5FC3），
+     所以旧写法看起来"基本正常"，只有低位对不上的字（用 U6140D）露馅。 */
+  ch.textContent = String.fromCodePoint(parseInt(g.code.slice(1), 16));
 
   const meta = document.createElement('div');
   meta.className = 'gmeta';
@@ -2601,7 +2616,16 @@ function glyphRow(g, idx) {
   /* 简介文字放进内层 span：clamp 需要 -webkit-box，而外层要 flex 居中，
      两个 display 无法共存于同一元素，故分两层。 */
   const introText = document.createElement('span');
-  introText.textContent = g.intro || '';
+  // 没有释义的字也要给一句占位文案：卡片简介区是固定两行高的，
+  // 留空会是一块突兀的空白（实测「用」就是这样）。
+  // 用柔和一档的颜色，让人一眼看出这是「暂无」而不是漏排。
+  const rawIntro = (g.intro || '').trim();
+  if (rawIntro) {
+    introText.textContent = rawIntro;
+  } else {
+    introText.textContent = NO_INTRO_TEXT;
+    introText.className = 'gintro-none';
+  }
   intro.appendChild(introText);
   meta.appendChild(tag); meta.appendChild(intro);
 
