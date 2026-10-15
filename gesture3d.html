@@ -168,7 +168,7 @@
        · 滚动中             → 显示
        · 停止 3 秒后         → 消失
      实现：#glyphList 默认 thumb 可见；JS 滚动时摘掉 .sb-idle（可见），
-     停止 3 秒后挂上 .sb-idle（thumb 透明 → 消失）。
+     停止 2.5 秒后挂上 .sb-idle（thumb 透明 → 消失）。
      这是"事后隐藏"而非"滚动时才显示"—— 默认必须是可见的。
      槽位由 scrollbar-gutter 常驻，显隐不产生任何宽度变化/抖动。
      ⚠ 不要加 :hover（列表很大、鼠标常停在上面，加了就永不消失）。 */
@@ -179,11 +179,11 @@
     border-radius:5px;
     transition:background .25s ease;
   }
-  #glyphList.sb-idle::-webkit-scrollbar-thumb { background:transparent; }   /* 停 3 秒 → 消失 */
+  #glyphList.sb-idle::-webkit-scrollbar-thumb { background:transparent; }   /* 停 2.5 秒 → 消失 */
   /* 自绘滚动条滑块：覆盖在列表右缘，不占布局宽度。
      存在的意义是给 Safari/Firefox 兜底（它们的原生滚动条没法被 CSS 隐藏）。
      观感对齐 macOS 原生：6px 宽、圆角、半透明灰蓝。
-     静止显示、滚动时显示、停止 3 秒后淡出 —— 由 syncGlyphThumb() 控制 opacity。 */
+     静止显示、滚动时显示、停止 2.5 秒后淡出 —— 由 syncGlyphThumb() 控制 opacity。 */
   #glyphThumb {
     /* left / top / height 全部由 syncGlyphThumb() 精确设置 —— 定位基准是面板的
        【padding 盒】（面板的 padding 是 14px 0 12px 14px，右内边距为 0，
@@ -2945,12 +2945,12 @@ function refreshGlyphPanel(reset) {
 
 // ── 滚动条：两条腿走路 ──────────────────────────────────────────────
 // ① Chromium（Edge/Chrome）：走 CSS 的 ::-webkit-scrollbar，
-//    #glyphList 默认可见、滚动时保持、停止 3 秒后挂 .sb-idle 隐藏。
+//    #glyphList 默认可见、滚动时保持、停止 2.5 秒后挂 .sb-idle 隐藏。
 // ② Safari / Firefox：它们【忽略】::-webkit-scrollbar 定制，只画系统原生滚动条，
 //    而系统滚动条无法被 .sb-idle 隐藏（实测：Safari 里就是这个症状）。
 //    故用 scrollbar-width:none 关掉原生滚动条，改由自绘的 #glyphThumb 承担显示。
 //    自绘元素是普通 DOM，任何浏览器都能渲染与淡出，所以这条一定生效。
-const SCROLLBAR_HIDE_MS = 3000;
+const SCROLLBAR_HIDE_MS = 2500;   // 用户指定：滚动停止满 2.5 秒隐藏
 let scrollHideTimer = null;
 
 // 同步自绘滑块的位置/高度/可见性
@@ -2992,8 +2992,8 @@ function markGlyphListScrolled() {
   if (scrollHideTimer !== null) clearTimeout(scrollHideTimer);
   scrollHideTimer = setTimeout(() => {
     scrollHideTimer = null;
-    list.classList.add('sb-idle');                  // ① 停止 3 秒 → 隐藏
-    syncGlyphThumb(false);                          // ② 停止 3 秒 → 淡出
+    list.classList.add('sb-idle');                  // ① 停止 2.5 秒 → 隐藏
+    syncGlyphThumb(false);                          // ② 停止 2.5 秒 → 淡出
   }, SCROLLBAR_HIDE_MS);
 }
 
@@ -3013,7 +3013,7 @@ document.getElementById('glyphList').addEventListener('touchmove', markGlyphList
 document.getElementById('glyphList').addEventListener('scroll', e => {
   const el = e.currentTarget;
   syncGlyphThumb(true);             // 自绘滑块（Safari/Firefox 走这条）跟随滚动移动
-  markGlyphListScrolled();          // 滚动条在滚动时浮现（停止 3s 后隐去）
+  markGlyphListScrolled();          // 滚动条在滚动时浮现（停止 2.5s 后隐去）
   if (el.scrollTop + el.clientHeight >= el.scrollHeight - 120) {
     if (glyphRenderedTo < glyphFiltered.length) {
       refreshGlyphPanel(false);   // 只追加：不变量滚动位置（此处曾手动存取 scrollTop，属多余且有害）
