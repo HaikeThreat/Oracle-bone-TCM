@@ -135,10 +135,11 @@
   #glyphList::-webkit-scrollbar-thumb { background:rgba(120,150,190,.3); border-radius:4px; }
   #glyphList::-webkit-scrollbar-track { background:transparent; }
   .gitem {
-    /* 纵向 padding 10px：与「简介单行」配合，把行距定在约 66px ——
-       视口 820 时列表可用 661px，661/66 ≈ 10 条，正是目标的「一屏 10 字」。
-       （简介若允许 2~3 行，条目会涨到 69px、只能放 8~9 条，故必须单行。） */
-    display:flex; align-items:center; gap:12px; padding:10px 10px;
+    /* 纵向 padding 8px：配合「简介固定两行」得到条目高 68.9px，
+       视口 820 时一屏完整显示 9 条。
+       取值依据（实测）：padding 10px → 72.9px、一屏 8 条且显拥挤；
+       padding 6px 以下则局促。8px 是「不挤」与「够多」之间的平衡点。 */
+    display:flex; align-items:center; gap:12px; padding:8px 10px;
     margin:0 5px 5px 0;   /* 右侧留 5px：选中框右边线不贴滚动条 */
     border:1px solid transparent; border-left:2px solid var(--line); border-radius:14px;
     background:rgba(255,255,255,.02); cursor:pointer; transition:background .15s, border-color .15s;
@@ -157,9 +158,11 @@
   }
   .gitem .gintro {
     font-size:11px; color:#7d8fa8; margin-top:2px; line-height:1.45;
-    /* 单行截断（原 2 行）：这是把行距压到 66px 的关键 ——
-       简介最多 3 行时条目高达 68.9px，一屏只能放 8~9 条。 */
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    /* 固定两行：line-clamp 负责「最多两行」，min-height 负责「至少两行」——
+       两者缺一不可。只有 clamp 时，短简介（如「口中齿列分明。齿为骨之余，龈护齿床。」
+       正好一行）会让该条比别人矮一截，列表行高参差不齐。 */
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+    min-height:calc(2em * 1.45);
   }
   .gitem.active .gtag { color:var(--gold); }
   #glyphEmpty { font-size:12px; color:#7d8fa8; text-align:center; padding:16px 0; }
