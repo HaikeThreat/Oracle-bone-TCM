@@ -256,7 +256,11 @@
     border-bottom:1px solid transparent;
     /* 纵向内边距 3px：行高 35 → 31px。再往下减已无效果 ——
        16px 字体的行框本身就约 23px，是高度下限。 */
-    color:var(--gold); font-size:16px; text-align:center; padding:3px 0; outline:none;
+    /* 用户要求：输入框高度减 6px（29.5 → 23.4px），按钮不动。
+       做法：line-height 由 normal(≈23.5px 行框) 收到 1.15(=18.4px)、纵向内边距 3 → 2px；
+       align-self:center 让输入框不再被 flex 拉伸（否则会被撑到与按钮同高，改了看不出变化）。 */
+    color:var(--gold); font-size:16px; text-align:center; padding:2px 0; outline:none;
+    line-height:1.15; align-self:center;
     font-family:"Songti SC","STSong",serif;
   }
   .row input:focus { border-bottom-color:rgba(255,196,107,.45); }
@@ -265,7 +269,10 @@
      margin（无论单边还是双边）都会改变占位，flex 会把差额补给
      flex:1 的输入框，把输入框的框撑宽；transform 不参与布局，
      只挪动绘制位置，输入框宽度与按钮占位都保持原样。 */
-  .row .cbtn { padding:3px 14px; transform:translateX(-2px); }   /* 纵向与输入框同高 */
+  /* 按钮【保持原高度 29.5px】（用户明确要求不要动它）。
+     输入框压矮后 .row 行高变小，按钮若仍 stretch 就会被带着一起矮，
+     故 align-self:center 解耦，并用 5px 纵向内边距补回原高度（3px 时是 26px）。 */
+  .row .cbtn { padding:5px 14px; transform:translateX(-2px); align-self:center; }
 
   #stats {
     /* 右上角读数挪到【状态胶囊下方】。top 由 frame() 按胶囊实际下缘动态设置
