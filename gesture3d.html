@@ -46,7 +46,15 @@
   /* 手部骨架：右下角。抬到 bottom:88px 而非 16px —— 底部控制条居中、
      窄视口（<1000px）下其右缘会伸到右下角，贴着 16px 会重叠。
      控制条高约 58px + bottom:24px，88px 可稳定让开。 */
-  #gestureBox { position:fixed; right:16px; bottom:88px; z-index:10; display:none;
+  /* 手部骨架：右下角。bottom 88 → 78px（按要求下移 10px）。
+     与控制条的关系（实测，视口高 800 时逐宽度量过）：
+       ≥860px 视口：控制条右缘 ≤689，窗格左缘 ≥694 —— 两者【水平不相交】，
+                    仅垂直区间与文字行重叠 5px（88px 时是留 5px 余量）。
+       ≈820px：      窗格左缘 654 < 控制条右缘 669 → 窗格的画布开始压到控制条右端，
+                    但文字行（左缘 678）仍未相交；≤780px 时文字行也相交。
+     故超窄视口（<860px）才可能视觉重叠；日常 ≥1000px 视口不受影响。
+     若日后还要继续下移，注意文字行会先于画布碰到控制条。 */
+  #gestureBox { position:fixed; right:16px; bottom:78px; z-index:10; display:none;
                 flex-direction:column; gap:4px; align-items:flex-end; }
   #gestureCv { width:150px; height:112px; display:block; background:rgba(8,12,20,.62);
                border:1px solid var(--line); border-radius:10px; }
