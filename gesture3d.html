@@ -173,7 +173,12 @@
   .gitem.active { background:rgba(255,196,107,.12); border-color:rgba(255,196,107,.35);
                   border-left-color:var(--gold); }
   .gitem .gch {
-    flex:none; width:36px; text-align:center; font-size:24px; line-height:1.1;
+    /* 字号 24 → 32px（按要求把缩略字放大；列宽与条目占位一概不变）。
+       依据：量过全部 1063 个可见字形，最宽墨迹 0.817em、最高 1.047em ——
+       32px 时最宽 26.2px（列 36px 内）、最高 33.5px（卡片内容高 68.9px 内），
+       横向纵向都留有余量，故放大后不会顶到文字或把条目撑高。
+       原 24px 只画出约 17px 墨迹、槽位却有 36px，正是"空间太大、缩略图太小"的来源。 */
+    flex:none; width:36px; text-align:center; font-size:32px; line-height:1.1;
     /* 用甲骨文字体渲染：字形由 PUA 码位（g.code，如 U6140D）取出，见 glyphRow。
        这里原写的是 Songti —— 于是卡片上的字头大部分"碰巧"对（如「心」的码位
        U60A96 低位正好是 U+5FC3），而低位对不上的字（如「用」U6140D 低位 140D
