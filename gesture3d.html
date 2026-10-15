@@ -1427,14 +1427,16 @@ const FRONT_VIEW_WHILE_FORMING = true;
 // 否则用户还没看清初始字、也没来得及体验手势，画面就自己动起来了。
 // 之后的循环用较短周期（展馆无人值守时一直轮播）。
 const AMBIENT_FIRST_IDLE = 45;   // 首次待机：进页面后连续无输入 45 秒才启动
-// 启动后一个完整周期（秒）。相位分配见下（聚形 1.6 → 保持 9.6 → 散开 1.8 → 空歇 2.0）。
-// 「空歇」= 上一个字已散尽、下一个字尚未开始聚形的间隔 —— 按反馈设为约 2 秒，
-// 因为整段空歇是「散开结束 + 换字 + 等下一轮聚形」都算在内的。
-// 【改动这里必须同步改 updateGestures 里的 ambientTarget 分段，并同步下面的注释】
+// 启动后一个完整周期（秒）= 聚形 1.6 + 保持 12.0 + 散开 1.8 + 空歇 3.0 = 18.4。
+// 「空歇」= 上一个字已散尽、下一个字尚未开始聚形的间隔 ——
+// 整段空歇是「散开结束 + 换字 + 等下一轮聚形」都算在内的。
+// 2026-10-15 按反馈调整：保持 9.6 → 12.0（+2.4s，让笔画看得更久）、空歇 2.0 → 3.0（+1.0s）。
+// 连带影响：一个字的完整生命 13.0 → 15.4s；精选池 67 字转一圈 16.8 → 20.5 分钟。
+// 【改动这里必须同步改 updateGestures 里的 ambientTarget 分段，并同步上面的注释】
 const AMBIENT_GATHER_SECS   = 1.6;    // 聚形耗时
-const AMBIENT_HOLD_SECS     = 9.6;    // 成形后保持（让人看清笔画）
+const AMBIENT_HOLD_SECS     = 12.0;   // 成形后保持（让人看清笔画；同时缓慢自转）
 const AMBIENT_DISPERSE_SECS = 1.8;    // 散开耗时
-const AMBIENT_GAP_SECS      = 2.0;    // 空歇：散尽后到下一次聚形的间隔
+const AMBIENT_GAP_SECS      = 3.0;    // 空歇：散尽后到下一次聚形的间隔
 const AMBIENT_LOOP_SECS  = AMBIENT_GATHER_SECS + AMBIENT_HOLD_SECS + AMBIENT_DISPERSE_SECS + AMBIENT_GAP_SECS;
 // 相位节点（秒）：这几个值同时被 updateGestures 的 ambientTarget 使用
 const AMB_T1 = AMBIENT_GATHER_SECS;                                   // 聚形结束 → 开始保持
