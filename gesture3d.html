@@ -84,13 +84,12 @@
 
   /* 字形面板：左侧竖栏 + 列表式条目（像阅读列表：字形 + 简短介绍），整栏可滚动 */
   #glyphPanel {
-    /* 尺寸变化的来由（按「一屏正好 10 条」反推）：
-         视口 820 时列表可用 = 820 - 2*16(上下留白) - 127(面板固定占位) = 661px
-         要放 10 条 → 行距必须 ≤ 66.1px；原先行距 73.9px（简介最多 3 行）只能放 8~9 条。
-       故两处一起改：面板吃到满高（下缘到 bottom:16）、简介压成 1 行（行距降到约 66）。
-       注意面板没有固有高度，所以尺寸由 top/bottom 决定；max-height 只是保险。
-       与控制条的关系：控制条 519px 宽且居中，其左缘在 ≥1000px 视口都在 x≥381，
-       面板右缘 370，两者水平不相交；<1000px 时才可能压到，故仍留 max-height 兜底。 */
+    /* 面板吃满整条左侧高度（上 16px、下 16px）。
+       注意面板没有固有高度，尺寸由 top/bottom 决定，max-height 只是保险。
+       与控制条的关系：控制条 519px 宽且居中，左缘在 ≥1000px 视口都在 x≥381，
+       面板右缘 370 —— 两者【水平不相交】，垂直方向的区间重合并不产生视觉重叠，
+       故不需要为它留出底部余量（原先留的 140px 已去掉）。
+       <1000px 视口才可能水平相交，max-height 作兜底。 */
     position:fixed; top:16px; left:16px; bottom:16px;
     max-height:calc(100vh - 32px); z-index:20;
     /* 关闭滚动锚定：列表内容变化时浏览器会自己"稳住"滚动位置，
@@ -135,10 +134,10 @@
   #glyphList::-webkit-scrollbar-thumb { background:rgba(120,150,190,.3); border-radius:4px; }
   #glyphList::-webkit-scrollbar-track { background:transparent; }
   .gitem {
-    /* 纵向 padding 8px：配合「简介固定两行」得到条目高 68.9px，
-       视口 820 时一屏完整显示 9 条。
-       取值依据（实测）：padding 10px → 72.9px、一屏 8 条且显拥挤；
-       padding 6px 以下则局促。8px 是「不挤」与「够多」之间的平衡点。 */
+    /* 纵向 padding 8px：条目高度 = 简介行数(1~2 行) + 16px + 边框，
+       所以【条目不等高】：简介一行的更紧凑，两行的约 68.9px。
+       这一版是用户认可的密度（与 09:45 那版一致）。
+       注：padding 10px 时条目 72.9px、一屏 8 条，明显偏松，不要再回去。 */
     display:flex; align-items:center; gap:12px; padding:8px 10px;
     margin:0 5px 5px 0;   /* 右侧留 5px：选中框右边线不贴滚动条 */
     border:1px solid transparent; border-left:2px solid var(--line); border-radius:14px;
@@ -158,11 +157,11 @@
   }
   .gitem .gintro {
     font-size:11px; color:#7d8fa8; margin-top:2px; line-height:1.45;
-    /* 固定两行：line-clamp 负责「最多两行」，min-height 负责「至少两行」——
-       两者缺一不可。只有 clamp 时，短简介（如「口中齿列分明。齿为骨之余，龈护齿床。」
-       正好一行）会让该条比别人矮一截，列表行高参差不齐。 */
+    /* 简介最多两行（-webkit-line-clamp:2），行数由文本长度决定 ——
+       这里【不要】再补 min-height 去凑「每条等高」：补上之后短简介也被撑成
+       两行，条目全变 68.9px、列表立刻显松。用户认可的是「最多两行、不等高」
+       这一版（条目高随简介 1~2 行浮动，短的自然更紧凑）。 */
     display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
-    min-height:calc(2em * 1.45);
   }
   .gitem.active .gtag { color:var(--gold); }
   #glyphEmpty { font-size:12px; color:#7d8fa8; text-align:center; padding:16px 0; }
