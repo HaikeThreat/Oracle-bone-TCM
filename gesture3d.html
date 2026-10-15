@@ -265,7 +265,7 @@
      margin（无论单边还是双边）都会改变占位，flex 会把差额补给
      flex:1 的输入框，把输入框的框撑宽；transform 不参与布局，
      只挪动绘制位置，输入框宽度与按钮占位都保持原样。 */
-  .row .cbtn { padding:3px 14px; transform:translateX(-2px); }   /* 纵向与输入框同高 */
+  .row .cbtn { padding:1px 14px; transform:translateX(-2px); }   /* 用户指定：高度再缩 4px（3 → 1px），比输入框略矮 */
 
   #stats {
     /* 右上角读数挪到【状态胶囊下方】。top 由 frame() 按胶囊实际下缘动态设置
