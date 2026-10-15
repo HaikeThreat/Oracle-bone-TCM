@@ -23,7 +23,10 @@
 
   #topbar {
     position:fixed; top:16px; left:16px; right:16px; z-index:10;
-    display:flex; flex-direction:row; align-items:flex-start; justify-content:space-between; gap:12px;
+    /* align-items:stretch —— 让右上的状态胶囊下缘与 topbar 下缘齐平，
+       这样「胶囊在上、参数在下」的排序里，参数只要接着胶囊下缘往下排即可，
+       不必依赖任何写死的像素值。 */
+    display:flex; flex-direction:row; align-items:stretch; justify-content:space-between; gap:12px;
     text-shadow:0 1px 4px rgba(0,0,0,.8);
     pointer-events:none;   /* 容器横跨全屏，不能挡住下面的交互 */
   }
@@ -34,8 +37,9 @@
   #stateBadge {
     font-size:12px; font-weight:700; padding:4px 12px; border-radius:99px;
     background:rgba(17,34,51,.75); border:1px solid #345; color:#9cf; letter-spacing:1px; transition:all .3s;
-    margin: 0;
-    /* 与右上角读数的上下间距由 frame() 每帧按 stats 实际高度设置（见 stats 赋值处）*/
+    /* 右上角第一行：胶囊在上、参数在下。不再需要 margin-top 让位 ——
+       topbar 用 align-items:stretch，胶囊下缘即 topbar 下缘，读数接着它往下排
+       （由 frame() 按胶囊实际下缘设置，见 stats 赋值处）。 */
   }
 
   /* 手势动画窗格（不显示相机画面，仅实时指尖动画）*/
@@ -207,9 +211,13 @@
      只挪动绘制位置，输入框宽度与按钮占位都保持原样。 */
   .row .cbtn { padding:3px 14px; transform:translateX(-2px); }   /* 纵向与输入框同高 */
 
-  #stats { position:fixed; right:16px; top:16px; z-index:10; font-size:11px;
-           color:#8fa3bd; text-align:right; line-height:1.7; font-family:Menlo,monospace;
-           text-shadow:0 1px 4px rgba(0,0,0,.8); }
+  #stats {
+    /* 右上角读数挪到【状态胶囊下方】。top 由 frame() 按胶囊实际下缘动态设置
+       （诊断展开时 stats 会由 1 行变 3 行，且胶囊宽度随状态文字变化），
+       此处只给初始值兜底，避免首帧闪现在胶囊位置上。 */
+    position:fixed; right:16px; top:52px; z-index:10; font-size:11px;
+    color:#8fa3bd; text-align:right; line-height:1.7; font-family:Menlo,monospace;
+    text-shadow:0 1px 4px rgba(0,0,0,.8); }
   #stats b { color:#cfe0f4; }
 </style>
 </head>
@@ -2760,7 +2768,7 @@ let jankWin = 0, jankMax = 0, jankOver = 0, jankMaxShow = 0, jankOverShow = 0;
 // 右上角诊断项（检测帧率 / 相机 / 顿挫）默认隐藏；Ctrl(⌘)+Shift+D 切换
 let statsDiag = false;
 let statsSig = '';           // 右上角读数的内容签名：不变则不重建 DOM（见 frame()）
-let badgeMt = -1;            // 状态胶囊当前 margin-top 缓存（避免每帧写 DOM 触发重排）
+let statsTop = -1;           // 右上角读数当前 top 缓存（同上；它排在胶囊下方，位置由胶囊下缘算出）
 addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'D' || e.key === 'd')) {
     statsDiag = !statsDiag;
@@ -2874,14 +2882,15 @@ function frame(now) {
       + diagLine + jankLine
       + `</span>`;
   }
-  // 状态胶囊靠 margin-top 让开右上角读数。诊断展开后 stats 由 1 行变 3 行，
-  // 固定数值会与胶囊重叠 → 这里按 stats 的实际高度动态让位。
-  // 只在数值真正变化时才写 DOM：badge 上有 transition:all，每帧写会无谓重排。
+  // 右上角：状态胶囊在上、读数（stats）在下 —— 顺序与原先相反。
+  // stats 是 position:fixed，不参与 topbar 的 flex 排版，所以它的 top 必须算：
+  // 取胶囊实际下缘（诊断展开、状态文字变长都会改变它）再加 8px 间距。
+  // 只在数值真正变化时才写 DOM：胶囊上有 transition:all，每帧写会无谓重排。
   const badgeEl = document.getElementById('stateBadge');
   if (badgeEl) {
-    const statsBm = document.getElementById('stats').getBoundingClientRect().bottom;
-    const wantMt = Math.max(0, Math.round(statsBm - 16 + 14));
-    if (wantMt !== badgeMt) { badgeMt = wantMt; badgeEl.style.marginTop = wantMt + 'px'; }
+    const statsEl = document.getElementById('stats');
+    const wantTop = Math.round(badgeEl.getBoundingClientRect().bottom + 8);
+    if (wantTop !== statsTop) { statsTop = wantTop; statsEl.style.top = wantTop + 'px'; }
   }
 }
 
