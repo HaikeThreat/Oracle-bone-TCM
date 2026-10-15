@@ -185,8 +185,12 @@
      观感对齐 macOS 原生：6px 宽、圆角、半透明灰蓝。
      静止显示、滚动时显示、停止 3 秒后淡出 —— 由 syncGlyphThumb() 控制 opacity。 */
   #glyphThumb {
-    position:absolute; right:10px; width:6px; height:60px;
-    background:rgba(150,170,195,.45); border-radius:3px;
+    /* left / top / height 全部由 syncGlyphThumb() 精确设置 —— 定位基准是面板的
+       【padding 盒】（面板的 padding 是 14px 0 12px 14px，右内边距为 0，
+       所以 right:0 就等于贴着内容区右缘）。之前写死 right:10px 时被推到了
+       面板圆角外面，是错的。 */
+    position:absolute; left:0; top:0; width:8px; height:0;
+    background:rgba(165,180,200,.55); border-radius:4px;
     opacity:0; transition:opacity .3s ease; pointer-events:none; z-index:3;
   }
   #glyphThumb.on { opacity:1; }
@@ -2957,12 +2961,22 @@ function syncGlyphThumb(visible) {
   const panel = document.getElementById('glyphPanel');
   const lr = list.getBoundingClientRect();
   const pr = panel.getBoundingClientRect();
+  const cs = getComputedStyle(panel);
   const lh = list.clientHeight, sh = list.scrollHeight, maxScroll = sh - lh;
   if (maxScroll <= 1) { thumb.classList.remove('on'); return; }      // 内容不足一屏 → 不显示
-  const h = Math.max(30, lh * (lh / sh));
-  const top = (lr.top - pr.top) + (list.scrollTop / maxScroll) * (lh - h);
+  if (lr.height < 20) { thumb.classList.remove('on'); return; }      // 面板收起中 → 不显示
+
+  // 滑块高度：可视比例 × 列表高（不小于 28px，与原生观感相近）
+  const h = Math.max(28, lh * (lh / sh));
+  // 纵向：先算相对列表顶部的行程，再换算成相对【面板 margin 盒】的坐标 ——
+  // 只在这里减一次偏移，避免"偏移被重复叠加"（之前就是这里错的）。
+  const travel = (list.scrollTop / maxScroll) * (lh - h);
+  const mTop = pr.top - (parseFloat(cs.marginTop) || 0);
+  const mLeft = pr.left - (parseFloat(cs.marginLeft) || 0);
+  thumb.style.top = (lr.top - mTop + travel).toFixed(1) + 'px';
+  // 横向：贴在列表【padding 盒】右缘内侧（面板右内边距为 0，故等于 right:0 的效果）
+  thumb.style.left = (lr.right - mLeft - 11).toFixed(1) + 'px';   // 压在列表右缘内侧（覆盖式，像 macOS 那样浮在内容之上）
   thumb.style.height = h.toFixed(1) + 'px';
-  thumb.style.top = top.toFixed(1) + 'px';
   if (visible === true) thumb.classList.add('on');
   else if (visible === false) thumb.classList.remove('on');
 }
