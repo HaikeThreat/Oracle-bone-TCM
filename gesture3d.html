@@ -254,9 +254,12 @@
        焦点态只留一道细下划线，便于看出光标位置。 */
     flex:1; min-width:0; background:transparent; border:0; border-radius:0;
     border-bottom:1px solid transparent;
-    /* 纵向内边距 3px：行高 35 → 31px。再往下减已无效果 ——
-       16px 字体的行框本身就约 23px，是高度下限。 */
+    /* 输入框占地高度 = padding(3+3) + 行框。16px 字体默认行框约 23.5px → 整行 29.5px。
+       用户要求再缩 3~4px：line-height 由 normal(≈1.47) 收到 1.1，
+       行框降到约 18.6px → 整行 24.6px（实测 -4.9px）。
+       注意 line-height:1.0 反而无效（浏览器按字体度量取整回 23.5px），1.1 是实测有效的下限区间。 */
     color:var(--gold); font-size:16px; text-align:center; padding:3px 0; outline:none;
+    line-height:1.1;
     font-family:"Songti SC","STSong",serif;
   }
   .row input:focus { border-bottom-color:rgba(255,196,107,.45); }
@@ -265,7 +268,7 @@
      margin（无论单边还是双边）都会改变占位，flex 会把差额补给
      flex:1 的输入框，把输入框的框撑宽；transform 不参与布局，
      只挪动绘制位置，输入框宽度与按钮占位都保持原样。 */
-  .row .cbtn { padding:1px 14px; transform:translateX(-2px); }   /* 用户指定：高度再缩 4px（3 → 1px），比输入框略矮 */
+  .row .cbtn { padding:3px 14px; transform:translateX(-2px); }   /* 纵向与输入框同高（按钮高度由行高撑出，改它无效） */
 
   #stats {
     /* 右上角读数挪到【状态胶囊下方】。top 由 frame() 按胶囊实际下缘动态设置
