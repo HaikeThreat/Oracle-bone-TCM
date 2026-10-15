@@ -159,29 +159,21 @@
        曾经因为只做了槽位常驻、滑块一直可见，看起来就像"滚动条永远杵在那儿"。 */
     scrollbar-gutter:stable;
   }
-  /* 滚动条：滚动中清晰可见，停止 3 秒后隐去。
-     槽位由上面的 scrollbar-gutter 常驻 —— 显隐不产生任何宽度变化/抖动。
-
-     状态机（刻意做成"默认可见"）：
-       · 默认：thumb 可见（rgba(120,150,190,.3)）
-       · #glyphList.sb-idle：thumb 透明 —— 由 JS 在「用户滚动过、且已停 3 秒」后挂上
-     为什么默认是可见而不是透明：若写成"默认透明 + 滚动时才可见"，一旦那个时刻
-     class 没挂上（实测在真实浏览器里出现过这种时序问题），滑块就【永久不可见】——
-     用户看到的正是"滚动条直接没了"。默认可见则最坏情况只是"没自动隐藏"，
-     不会出现"没有了"这种不可接受的退路。
-
-     ⚠ 另外两条也是踩过的坑：
-       1) 必须显式写 width:6px 与 transparent 的兜底规则，缺了会整根消失；
-       2) 判据只能是"正在滚动"，【不要加 :hover】—— 列表是 330×780 的大区域，
-          滚完鼠标常停在上面，:hover 会让滑块永不隐去。 */
+  /* 滚动条：滚动中清晰可见，停止 3 秒后消失。
+     实现就是两行：
+       · 默认 thumb 透明（静止时看不见）
+       · #glyphList.scrolled 时 thumb 可见 —— JS 在滚动时挂上、停止 3 秒后摘掉
+     槽位由上面的 scrollbar-gutter 常驻，所以显隐不会引起任何宽度变化/抖动。
+     ⚠ 不要再加 :hover（列表很大，鼠标常停在上面，加了就永不消失），
+       也不要改成"默认可见"（那会变成常驻显示）。 */
   #glyphList::-webkit-scrollbar { width:6px; }
   #glyphList::-webkit-scrollbar-track { background:transparent; }
   #glyphList::-webkit-scrollbar-thumb {
-    background:rgba(120,150,190,.3);              /* 默认可见（安全退路） */
+    background:transparent;                       /* 静止 → 看不见 */
     border-radius:4px;
     transition:background .25s ease;
   }
-  #glyphList.sb-idle::-webkit-scrollbar-thumb { background:transparent; }   /* 闲置 → 隐去 */
+  #glyphList.scrolled::-webkit-scrollbar-thumb { background:rgba(120,150,190,.42); }   /* 滚动中 → 可见 */
   .gitem {
     /* 纵向 padding 8px：条目高度 = 简介行数(1~2 行) + 16px + 边框，
        所以【条目不等高】：简介一行的更紧凑，两行的约 68.9px。
@@ -2930,23 +2922,15 @@ function refreshGlyphPanel(reset) {
   lastActiveFilter = glyphFiltered;
 }
 
-// 滚动条显隐：滚动时（以及刚滚过时）可见，停止 3 秒后进入"闲置隐藏"。
-// 状态机：未滚动过 → 不做任何事（保持 CSS 默认的"可见"，这是安全退路）；
-//         滚动过 → 摘掉 .sb-idle（可见）；停止 3 秒 → 挂上 .sb-idle（隐去）。
-// 用"默认可见 + 事后隐藏"而不是"默认隐藏 + 滚动时显示"，是因为后者一旦时序失灵
-// 就会永久看不见滑块（用户实测遇到："滚动条直接没了"）。
+// 滚动条：滚动时挂 .scrolled（CSS 让滑块可见），停止 3 秒后摘掉（滑块消失）。
 // 槽位由 CSS 的 scrollbar-gutter:stable 常驻，所以显隐不产生任何宽度变化。
 const SCROLLBAR_HIDE_MS = 3000;
 let scrollHideTimer = null;
-let glyphListScrolledOnce = false;      // 首次滚动之前不隐藏，避免与面板首次显示打架
 function markGlyphListScrolled() {
   const list = document.getElementById('glyphList');
-  glyphListScrolledOnce = true;
-  list.classList.remove('sb-idle');     // 滚动中（含刚滚过）→ 可见
+  list.classList.add('scrolled');
   clearTimeout(scrollHideTimer);
-  scrollHideTimer = setTimeout(() => {
-    if (glyphListScrolledOnce) list.classList.add('sb-idle');   // 停 3 秒 → 隐去
-  }, SCROLLBAR_HIDE_MS);
+  scrollHideTimer = setTimeout(() => list.classList.remove('scrolled'), SCROLLBAR_HIDE_MS);
 }
 document.getElementById('glyphList').addEventListener('wheel', markGlyphListScrolled, { passive: true });
 document.getElementById('glyphList').addEventListener('touchmove', markGlyphListScrolled, { passive: true });
