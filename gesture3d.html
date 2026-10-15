@@ -2479,7 +2479,8 @@ document.getElementById('btnGen').onclick = () => {
     sampleGlyph3D({ mode: 'text', ch: v });                        // 退回楷体
   }
   glyphIdx = -1;                        // 手工输入不指向列表任何一条
-  refreshGlyphPanel(true);
+  // 不在这里再 refreshGlyphPanel(true)：sampleGlyph3D 内部已刷新过一次，
+  // 二次刷新会把「清空 DOM 后被钳制为 0 的 scrollTop」当成原值恢复（同 glyphRow 的坑）。
   // 不再自动收起：面板改为左侧常驻列表，收起会打断「再点一下隐藏」的连续操作
 };
 document.getElementById('charInput').addEventListener('keydown', e => {
@@ -2506,6 +2507,7 @@ function syncGlyphState(spec, shown) {
   glyphShownNow = shown;
 }
 let glyphFiltered = [];
+let lastGlyphQuery = null;   // 上次的搜索词：用于区分「筛选变了」与「只是重建列表」
 function glyphRow(g, idx) {
   const it = document.createElement('div');
   const on = glyphShownNow && idx === glyphIdx;   // 索引唯一，且必须确实处于显示态
@@ -2526,12 +2528,15 @@ function glyphRow(g, idx) {
   it.appendChild(ch); it.appendChild(meta);
   it.onclick = () => {
     // 切换语义：点已经显示的那条 → 隐藏（散回星云）；否则 → 显示它。
+    // 注意不能在这里再补一次 refreshGlyphPanel(true)：sampleGlyph3D 内部已经调过一次，
+    // 而二次刷新是在列表重建【之后】捕获 scrollTop —— 那时浏览器已因清空 DOM 把
+    // 滚动位置钳制成 0，于是它会把 0 记下来并"恢复"成 0，表现就是点一个字列表跳回顶部。
     if (glyphShownNow && idx === glyphIdx) {   // 点的是正在显示的那条 → 隐藏
       clearGlyphToAmbient();
-    } else {                                   // 否则 → 显示它
-      sampleGlyph3D(g);                        // sampleGlyph3D 内部会同步选中态
+      refreshGlyphPanel(true);                 // 隐藏不走 sampleGlyph3D，需自行刷新
+    } else {                                   // 否则 → 显示它（内部已刷新并同步选中态）
+      sampleGlyph3D(g);
     }
-    refreshGlyphPanel(true);
   };
   return it;
 }
@@ -2551,11 +2556,24 @@ function refreshGlyphPanel(reset) {
   const cnt = document.getElementById('glyphCount');
   const box = document.getElementById('glyphSearch');
   const q = ((box && box.value) || '').trim().toLowerCase();
+  // 注意：只有 reset（整表重建）才需要记住并恢复滚动位置。
+  // 续载(false) 只追加条目、不清空 DOM，绝不能在这里捕获 scrollTop ——
+  // 否则会把「上一步清空 DOM 导致的钳制值 0」记下来并在之后恢复成 0。
+  const keepScroll = reset ? list.scrollTop : null;
+
+  // 搜索词真正变化时才允许「回到顶部」。
+  // 否则刷新一律保留滚动位置：点条目/选字/打开面板都会走这里，
+  // 若无条件 list.scrollTop = 0，用户点第 30 条就会被拽回第 1 条
+  // —— 表现就是「选中项突然逃走」（实测 scrollTop 200/400/600 全被清成 0）。
+  const queryChanged = (typeof lastGlyphQuery === 'string') && q !== lastGlyphQuery;
+  lastGlyphQuery = q;
 
   if (reset) {
     glyphShown = 0;
-    list.innerHTML = '';
-    list.scrollTop = 0;
+    list.innerHTML = '';          // 清空后 scrollHeight 变 0，浏览器随即把 scrollTop 钳制到 0
+    // ⚠ 不能在这里恢复滚动位置：此刻列表是空的（scrollHeight=0），
+    //   赋值 scrollTop 会被浏览器钳制成 0（实测 setter 收到 400 但读回是 0）。
+    //   必须等下面 appendChild 把内容填回去之后再恢复（见函数末尾）。
   }
   const pool = ORACLE_GLYPHS.filter(g => !g.hidden);   // hidden 的字保留在字体中，不出现在面板
   glyphFiltered = q
@@ -2572,6 +2590,10 @@ function refreshGlyphPanel(reset) {
   list.appendChild(frag);
   glyphShown = end;
 
+  // 内容已填回，此时容器有足够高度，恢复滚动位置才不会被钳制。
+  // 放在 appendChild 之后是本修复的关键：此前写在清空之后，值被静默吃掉。
+  if (reset) list.scrollTop = queryChanged ? 0 : keepScroll;
+
   // 空结果提示
   const oldEmpty = list.querySelector('#glyphEmpty');
   if (oldEmpty) oldEmpty.remove();
@@ -2587,12 +2609,11 @@ document.getElementById('glyphList').addEventListener('scroll', e => {
   const el = e.currentTarget;
   if (el.scrollTop + el.clientHeight >= el.scrollHeight - 120) {
     if (glyphShown < glyphFiltered.length) {
-      const keep = el.scrollTop;
-      refreshGlyphPanel(false);
-      el.scrollTop = keep;
+      refreshGlyphPanel(false);   // 只追加：不变量滚动位置（此处曾手动存取 scrollTop，属多余且有害）
     }
   }
 });
+// 搜索输入：清空列表并回到顶部（由 lastGlyphQuery 变化在 refreshGlyphPanel 内触发）
 document.getElementById('glyphSearch').addEventListener('input', () => refreshGlyphPanel(true));
 // 每次打开面板回到第一页（避免上次翻到很后、再打开是空滚动位置）
 document.getElementById('btnGlyphs').addEventListener('click', () => refreshGlyphPanel(true));
