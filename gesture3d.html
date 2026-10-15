@@ -2551,6 +2551,74 @@ function lookupOracleCode(input) {
   return oracleCharMap.get(ch) || null;
 }
 
+// 点击路径上的「跳跃捕手」：记录点击前后的像素位置，并在列表 DOM 被重建时主动测量一次。
+// 为什么需要它：排查「点一下列表就跳」时，只看最终 scrollTop 会漏诊 ——
+// 跳变可能是重建瞬间发生的、也可能压根不是滚动（而是重绘/回流）。
+// 默认关闭；URL 加 ?debugclick=1 或在控制台执行 window.__glyphJumpWatch(true) 打开。
+// 打开后每次点击都会在控制台打印一行实测数据；真的发生位移时会额外打印 ⚠ 警告。
+const JUMP_LOG = [];
+function panelGeom() {
+  const l = document.getElementById('glyphList');
+  if (!l) return null;
+  const items = l.querySelectorAll('.gitem');
+  if (!items.length) return null;               // 面板关着或列表为空，量了也没意义
+  const first = items[0].getBoundingClientRect();
+  const a = l.querySelector('.gitem.active');
+  return {
+    scrollTop: +l.scrollTop.toFixed(1),
+    scrollHeight: l.scrollHeight,
+    count: items.length,
+    firstY: +first.top.toFixed(2),
+    firstBottom: +first.bottom.toFixed(2),
+    activeCh: a ? a.dataset.ch : null,
+    activeY: a ? +a.getBoundingClientRect().top.toFixed(2) : null
+  };
+}
+function diffGeom(a, b) {
+  if (!a || !b) return null;
+  return {
+    scrollTop: +(b.scrollTop - a.scrollTop).toFixed(2),
+    firstY: +(b.firstY - a.firstY).toFixed(2),
+    count: b.count - a.count
+  };
+}
+// 列表 DOM 被重建时（innerHTML='' + appendChild）触发，用于测量重建本身造成的位移
+const jumpObserver = new MutationObserver(() => {
+  if (!window.__jumpWatch) return;
+  const after = panelGeom();
+  const d = diffGeom(window.__jumpBase, after);
+  if (d && (Math.abs(d.scrollTop) > 0.5 || Math.abs(d.firstY) > 0.5)) {
+    JUMP_LOG.push({ at: 'dom-rebuild', ...d });
+    console.warn('[glyph] ⚠ 列表重建时发生了位移', d, { before: window.__jumpBase, after });
+  }
+});
+function verifyGlyphPanelStability(tag) {
+  if (!window.__jumpWatch) return;
+  const l = document.getElementById('glyphList');
+  const before = panelGeom();
+  if (!before) return;                     // 面板关着/为空：不测量也不观察，避免误报
+  const firstNode = l.firstElementChild;   // 用于判断本轮 refresh 是否重建了 DOM
+  window.__jumpBase = before;
+  jumpObserver.disconnect();
+  jumpObserver.takeRecords();
+  jumpObserver.observe(l, { childList: true });
+  const hasFirst = !!firstNode;
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const after = panelGeom();
+    const rebuilt = hasFirst && l.firstElementChild !== firstNode;
+    const d = diffGeom(before, after);
+    if (d && (Math.abs(d.scrollTop) > 0.5 || Math.abs(d.firstY) > 0.5)) {
+      JUMP_LOG.push({ at: tag, rebuilt, ...d });
+      console.warn(`[glyph] ⚠ 点击「${tag}」后列表位移`, d, { rebuilt, before, after });
+    } else {
+      console.log(`[glyph] 点击「${tag}」后无位移（重建=${rebuilt}）`, { before, after });
+    }
+  }));
+}
+window.__glyphJumpLog = JUMP_LOG;
+window.__glyphJumpWatch = (on) => { window.__jumpWatch = on !== false; return window.__jumpWatch ? '跳跃捕手已开启' : '已关闭'; };
+if (/[?&]debugclick=1/.test(location.search)) window.__jumpWatch = true;
+
 document.getElementById('btnGen').onclick = () => {
   const v = document.getElementById('charInput').value.trim();
   if (!v) return;
@@ -2665,6 +2733,7 @@ function glyphRow(g, idx) {
 
   it.appendChild(ch); it.appendChild(meta);
   it.onclick = () => {
+    verifyGlyphPanelStability(g.ch);   // 记录本次点击前后的像素位置（仅 debugclick 开启时输出）
     // 切换语义：点已经显示的那条 → 隐藏（散回星云）；否则 → 显示它。
     // 注意不能在这里再补一次 refreshGlyphPanel(true)：sampleGlyph3D 内部已经调过一次，
     // 而二次刷新是在列表重建【之后】捕获 scrollTop —— 那时浏览器已因清空 DOM 把
