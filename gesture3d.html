@@ -151,14 +151,26 @@
        scrollTop，与我们显式保存/恢复 scrollTop 的做法互相打架，
        表现就是"点一下、列表自己动一下"（实测显式设 400 被改回）。 */
     overflow-anchor:none;
-    /* ② 滚动条槽位常驻 —— 重建列表的那一瞬间内容为空、滚动条会消失，
-       内容区宽度随之多出 6px（文字整块横向抖一下）；同理 scrollHeight=0 时
-       scrollTop 被钳制成 0。让槽位始终占位，这两个抖动都不再发生。 */
+    /* ② 滚动条【槽位】常驻（注意：只是槽位占位，滑块视觉上会隐去 —— 见下面规则）。
+       重建列表的那一瞬间内容为空、滚动条会消失，内容区宽度随之多出 6px
+       （文字整块横向抖一下）；同理 scrollHeight=0 时 scrollTop 被钳制成 0。
+       槽位始终占位，这两个抖动就都不会发生。
+       ⚠ 这里要区分「槽位」与「滑块」：槽位常驻是防抖手段，滑块该隐就隐。
+       曾经因为只做了槽位常驻、滑块一直可见，看起来就像"滚动条永远杵在那儿"。 */
     scrollbar-gutter:stable;
   }
-  #glyphList::-webkit-scrollbar { width:6px; }
-  #glyphList::-webkit-scrollbar-thumb { background:rgba(120,150,190,.3); border-radius:4px; }
+  /* 滚动条：闲置时隐去，滚动中或鼠标悬停时才浮现。
+     用【背景色】切换显隐，不用 opacity —— 实测 opacity 对 ::-webkit-scrollbar-thumb
+     不可靠（设了 opacity:0 仍照原样画出），而背景色是所有 WebKit 内核都认的。
+     槽位由上面的 scrollbar-gutter 占位，所以显隐不会引起任何宽度变化/抖动。 */
+  #glyphList::-webkit-scrollbar { width:6px; background:transparent; }
   #glyphList::-webkit-scrollbar-track { background:transparent; }
+  #glyphList::-webkit-scrollbar-thumb {
+    background:transparent;                       /* 闲置：完全看不见 */
+    border-radius:4px; transition:background .25s ease;
+  }
+  #glyphList.scrolled::-webkit-scrollbar-thumb,
+  #glyphList:hover::-webkit-scrollbar-thumb { background:rgba(120,150,190,.42); }
   .gitem {
     /* 纵向 padding 8px：条目高度 = 简介行数(1~2 行) + 16px + 边框，
        所以【条目不等高】：简介一行的更紧凑，两行的约 68.9px。
@@ -2905,9 +2917,23 @@ function refreshGlyphPanel(reset) {
   lastActiveFilter = glyphFiltered;
 }
 
+// 滚动条显隐：滚动期间（以及悬停时）显示，停下来约 0.9 秒后隐去。
+// 用 class 而不是直接改样式：#glyphList.scrolled::-webkit-scrollbar-thumb 里控制 opacity。
+// 注意槽位由 scrollbar-gutter:stable 常驻，所以这个显隐不会造成任何宽度变化。
+let scrollHideTimer = null;
+function markGlyphListScrolled() {
+  const list = document.getElementById('glyphList');
+  list.classList.add('scrolled');
+  clearTimeout(scrollHideTimer);
+  scrollHideTimer = setTimeout(() => list.classList.remove('scrolled'), 900);
+}
+document.getElementById('glyphList').addEventListener('wheel', markGlyphListScrolled, { passive: true });
+document.getElementById('glyphList').addEventListener('touchmove', markGlyphListScrolled, { passive: true });
+
 // 滚动接近底部时追加下一批
 document.getElementById('glyphList').addEventListener('scroll', e => {
   const el = e.currentTarget;
+  markGlyphListScrolled();          // 滚动条在滚动时浮现（停止 0.9s 后隐去）
   if (el.scrollTop + el.clientHeight >= el.scrollHeight - 120) {
     if (glyphRenderedTo < glyphFiltered.length) {
       refreshGlyphPanel(false);   // 只追加：不变量滚动位置（此处曾手动存取 scrollTop，属多余且有害）
