@@ -39,7 +39,11 @@
   }
 
   /* 手势动画窗格（不显示相机画面，仅实时指尖动画）*/
-  #gestureBox { position:fixed; left:16px; bottom:16px; z-index:10; display:none; flex-direction:column; gap:4px; }
+  /* 手部骨架：右下角。抬到 bottom:88px 而非 16px —— 底部控制条居中、
+     窄视口（<1000px）下其右缘会伸到右下角，贴着 16px 会重叠。
+     控制条高约 58px + bottom:24px，88px 可稳定让开。 */
+  #gestureBox { position:fixed; right:16px; bottom:88px; z-index:10; display:none;
+                flex-direction:column; gap:4px; align-items:flex-end; }
   #gestureCv { width:150px; height:112px; display:block; background:rgba(8,12,20,.62);
                border:1px solid var(--line); border-radius:10px; }
   #gstateLabel { font-size:11px; letter-spacing:1px; color:#7d8fa8; padding-left:2px;
@@ -80,14 +84,15 @@
 
   /* 字形面板：左侧竖栏 + 列表式条目（像阅读列表：字形 + 简短介绍），整栏可滚动 */
   #glyphPanel {
-    /* 位置与高度上限的关系（视口 820 时实测）：
-         面板下缘 = min(top + max-height, 100vh - bottom)
-         左下角手势窗格上缘固定 672（bottom:16px + 高 132），面板必须止于其上方。
-       当前 top:42 + max-height:calc(100vh - 212px) → 高 608px、下缘 650，
-       距窗格 22px（留一点视觉余量，不贴脸）。
-       上下限是一体的：改 max-height 必须保证 top + max-height ≤ 672，
-       否则会盖住窗格（曾踩过，重叠 72px）。 */
-    position:fixed; top:42px; left:16px; bottom:76px; max-height:calc(100vh - 212px); z-index:20;
+    /* 手部骨架已移到右下角，左侧不再有元素要避让，面板可用满整条左侧高度。
+       但仍要止于底部控制条之上：控制条实测 519px 宽、高 59px、bottom:24px，
+       其左缘在 1100px 视口会伸到 x=291（面板右缘 370）→ 真的水平相交。
+       故用 max-height 留出 140px（24 底距 + 59 条高 + 余量），
+       面板下缘即停在控制条上方，不再压过去。
+       注意这里是 max-height 而非改 bottom：面板本身没有固有高度，
+       必须靠「top + 高度上限」约束，否则它会一直撑到 bottom。 */
+    position:fixed; top:16px; left:16px; bottom:16px;
+    max-height:calc(100vh - 140px); z-index:20;
     display:flex; flex-direction:column; width:min(354px, 88vw);
     /* 左内边距保持 14px：22px 圆角在离角 14px 处仅内缩约 1.5px，
        不需要为圆角额外退让；加了反而会把输入框挤窄。 */
