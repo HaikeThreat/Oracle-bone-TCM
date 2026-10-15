@@ -110,7 +110,7 @@
        写在面板上是不够的：锚定是按滚动容器各自计算的。
        这里保留一份作为兜底（面板本身在个别浏览器/嵌套滚动场景下也可能成为容器）。 */
     overflow-anchor:none;
-    display:flex; flex-direction:column; width:min(354px, 88vw);
+    display:flex; flex-direction:column; width:min(357px, 88vw);   /* 用户指定：右边框右移 3px（左不变） */
     /* 左内边距保持 14px：22px 圆角在离角 14px 处仅内缩约 1.5px，
        不需要为圆角额外退让；加了反而会把输入框挤窄。 */
     padding:14px 0 12px 14px;
@@ -200,7 +200,7 @@
        这一版是用户认可的密度（与 09:45 那版一致）。
        注：padding 10px 时条目 72.9px、一屏 8 条，明显偏松，不要再回去。 */
     display:flex; align-items:center; gap:12px; padding:8px 10px;
-    margin:0 5px 5px 0;   /* 右侧留 5px：选中框右边线不贴滚动条 */
+    margin:0 8px 5px 0;   /* 右侧留 8px（原 5px）：让金色选中框与自绘滑块之间有间隙，不再粘在一起 */
     border:1px solid transparent; border-left:2px solid var(--line); border-radius:14px;
     background:rgba(255,255,255,.02); cursor:pointer; transition:background .15s, border-color .15s;
   }
@@ -2977,7 +2977,9 @@ function syncGlyphThumb(visible) {
   // 横向：贴在列表【padding 盒】右缘内侧（面板右内边距为 0，故等于 right:0 的效果）
   // 让滑块【整个落在面板内部】：右缘对齐列表 padding 盒右缘（也就是滚动条槽的外侧边），
   // 这样它不会再压到面板边框线上、也就不会被面板的 overflow:hidden 裁掉半边。
-  thumb.style.left = (lr.right - mLeft - 8).toFixed(1) + 'px';
+  // 滑块位置：右缘距列表右缘 1px —— 与金色选中框留出间隙，同时完整落在面板内部
+  // （右移过头会被面板的 overflow:hidden 裁掉，实测踩过；故留 1px 余量）。
+  thumb.style.left = (lr.right - mLeft - 7).toFixed(1) + 'px';
   thumb.style.height = h.toFixed(1) + 'px';
   if (visible === true) thumb.classList.add('on');
   else if (visible === false) thumb.classList.remove('on');
