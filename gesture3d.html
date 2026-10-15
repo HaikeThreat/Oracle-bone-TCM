@@ -104,8 +104,8 @@
        面板右缘 370 —— 两者【水平不相交】，垂直方向的区间重合并不产生视觉重叠，
        故不需要为它留出底部余量（原先留的 140px 已去掉）。
        <1000px 视口才可能水平相交，max-height 作兜底。 */
-    position:fixed; top:16px; left:16px; bottom:16px;
-    max-height:calc(100vh - 32px); z-index:20;
+    position:fixed; top:16px; left:16px; bottom:12px;   /* 下边距 16 → 12px：面板高度 +4px（一点点） */
+    max-height:calc(100vh - 28px); z-index:20;   /* 与 上16 / 下12 对应 */
     /* 滚动锚定必须【落在真正的滚动容器 #glyphList 上】才生效（见下），
        写在面板上是不够的：锚定是按滚动容器各自计算的。
        这里保留一份作为兜底（面板本身在个别浏览器/嵌套滚动场景下也可能成为容器）。 */
