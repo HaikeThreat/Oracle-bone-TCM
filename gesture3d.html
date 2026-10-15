@@ -2975,7 +2975,9 @@ function syncGlyphThumb(visible) {
   const mLeft = pr.left - (parseFloat(cs.marginLeft) || 0);
   thumb.style.top = (lr.top - mTop + travel).toFixed(1) + 'px';
   // 横向：贴在列表【padding 盒】右缘内侧（面板右内边距为 0，故等于 right:0 的效果）
-  thumb.style.left = (lr.right - mLeft - 5).toFixed(1) + 'px';   // 按用户指定向右移：离列表右缘 5px 处起
+  // 让滑块【整个落在面板内部】：右缘对齐列表 padding 盒右缘（也就是滚动条槽的外侧边），
+  // 这样它不会再压到面板边框线上、也就不会被面板的 overflow:hidden 裁掉半边。
+  thumb.style.left = (lr.right - mLeft - 6).toFixed(1) + 'px';
   thumb.style.height = h.toFixed(1) + 'px';
   if (visible === true) thumb.classList.add('on');
   else if (visible === false) thumb.classList.remove('on');
