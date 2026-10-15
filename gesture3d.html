@@ -1519,7 +1519,9 @@ const gctxOpt = { willReadFrequently: true };
 
 // forAmbient=true 表示「待机巡字在换字」而非用户选字：此时不能复位待机计时，
 // 否则巡字换字会把待机循环自己关掉（详见函数末尾注释）。
-function sampleGlyph3D(spec, forAmbient) {
+// skipPanel=true 表示调用方自己会用轻量路径更新列表高亮（点击条目就是如此），
+// 这里就不要再整表重建 —— 那一下 innerHTML='' 再填回是可见的，用户会感到「列表动了一下」。
+function sampleGlyph3D(spec, forAmbient, skipPanel) {
   // 防御：spec 为 undefined 时下一行就会抛 TypeError 并让整个应用崩掉
   // （实测：查库未命中的字被误传到此处即复现）。返回 false 与「字形渲染失败」
   // 同一条错误通路，调用方能据此提示而不是白屏。
@@ -1666,7 +1668,9 @@ function sampleGlyph3D(spec, forAmbient) {
   // 表现就是「两个字之间隔了 40~50 秒」（实测：待机启动后只换了一个字就熄火）。
   // 故巡字调用时传 forAmbient=true 跳过复位。
   if (!forAmbient) { ambientPhase = 0; ambientIdle = 0; }
-  refreshGlyphPanel(true);
+  // skipPanel：点击条目时由 refreshGlyphPanelForSelection() 走轻量路径只挪高亮，
+  // 这里就不重建整表了（重建会让列表清空重画一下，观感像"列表动了一下"）。
+  if (!skipPanel) refreshGlyphPanel(true);
   showLabel(spec.ch, spec.tag, false);
   return true;
 }
@@ -2629,29 +2633,17 @@ document.getElementById('btnGen').onclick = () => {
   // 明明显示的是库里的字、列表却不亮。别名（册→冊、麦→麥）也由此自然对上。
   const libSpec = code ? ORACLE_GLYPHS.find(g => g.code === code) : null;
   if (libSpec) {
-    sampleGlyph3D(libSpec);
+    sampleGlyph3D(libSpec, false, true);       // skipPanel：列表高亮交给下面的轻量路径
   } else if (code) {
-    sampleGlyph3D({ ch, code, tag: '甲骨文·' + ch, intro: '' });   // 有码位但不在库中
+    sampleGlyph3D({ ch, code, tag: '甲骨文·' + ch, intro: '' }, false, true);   // 有码位但不在库中
     glyphShownSpec = null;      // → 不指向列表任何一条
   } else {
-    sampleGlyph3D({ mode: 'text', ch: v });                        // 退回楷体
+    sampleGlyph3D({ mode: 'text', ch: v }, false, true);                        // 退回楷体
     glyphShownSpec = null;      // 楷体字不在列表里 → 不高亮任何条目
   }
-  // 不在这里再 refreshGlyphPanel(true)：sampleGlyph3D 内部已刷新过一次，
-  // 二次刷新会把「清空 DOM 后被钳制为 0 的 scrollTop」当成原值恢复（同 glyphRow 的坑）。
-  // 面板开着的话，把刚选中的那条滚进视野 —— 库里的字可能排在首屏之外
-  // （如「用」在第 61 条），只高亮不滚动的话用户根本看不见它。
-  // 用手工设 scrollTop 而不是 scrollIntoView：后者可能连带滚动祖先容器，副作用更大。
-  if (libSpec && document.getElementById('glyphPanel').classList.contains('open')) {
-    const list = document.getElementById('glyphList');
-    const card = list.querySelector('.gitem.active');
-    if (card) {
-      const lr = list.getBoundingClientRect(), cr = card.getBoundingClientRect();
-      if (cr.top < lr.top || cr.bottom > lr.bottom) {
-        list.scrollTop += (cr.top - lr.top) - (lr.height - cr.height) / 2;   // 居中显示
-      }
-    }
-  }
+  // 只挪高亮、不重建列表；面板开着时再把该条滚进视野 ——
+  // 库里的字可能排在首屏之外（如「用」在第 61 条），只高亮不滚动的话用户根本看不见它。
+  refreshGlyphPanelForSelection(true);   // force：手工输入的字可能整条在视野外，要滚出来
   // 不再自动收起：面板改为左侧常驻列表，收起会打断「再点一下隐藏」的连续操作
 };
 document.getElementById('charInput').addEventListener('keydown', e => {
@@ -2661,7 +2653,8 @@ document.getElementById('charInput').addEventListener('keydown', e => {
 // 全库上千条，一次性建 DOM 会明显卡顿，故按滚动分批追加（每次 GLYPH_PAGE 条）。
 // 交互：点条目 → 显示该字形；再点同一条 → 隐藏（切换）。
 const GLYPH_PAGE = 60;
-let glyphShown = 0;
+let glyphShown = 0;        // DOM 里已有的行数（渲染事实）
+let glyphRenderedTo = 0;   // 已把前多少条交给 DOM（续载从这里接；正常与 glyphShown 相等）
 // 字库里若有条目没写释义（数据缺口），卡片上用这句占位，不留空白。
 const NO_INTRO_TEXT = '暂无明确释义';
 // 点条目时的滚动诊断日志：只在「恢复被浏览器改写」时写入，
@@ -2691,6 +2684,9 @@ function syncGlyphState(spec, shown) {
 }
 let glyphFiltered = [];
 let lastGlyphQuery = null;   // 上次的搜索词：用于区分「筛选变了」与「只是重建列表」
+// lastActiveFilter 记录「当前 DOM 是哪一次筛选结果渲染出来的」（存数组引用，比较用 ===）。
+// updateActiveGlyphRow 靠它判断能否安全地只改高亮、不重建列表。
+let lastActiveFilter = null;
 function glyphRow(g, idx) {
   const it = document.createElement('div');
   // 按【对象同一性】判断高亮，而不是按索引：索引在「完整数组」与「筛选后列表」
@@ -2740,9 +2736,10 @@ function glyphRow(g, idx) {
     // 滚动位置钳制成 0，于是它会把 0 记下来并"恢复"成 0，表现就是点一个字列表跳回顶部。
     if (glyphShownNow && g === glyphShownSpec) {   // 点的是正在显示的那条 → 隐藏
       clearGlyphToAmbient();
-      refreshGlyphPanel(true);                 // 隐藏不走 sampleGlyph3D，需自行刷新
-    } else {                                   // 否则 → 显示它（内部已刷新并同步选中态）
-      sampleGlyph3D(g);
+      refreshGlyphPanelForSelection();            // 只把高亮撤掉，不重建列表
+    } else {                                      // 否则 → 显示它
+      sampleGlyph3D(g, false, true);              // 第三个参数：列表已由下面的轻量路径处理
+      refreshGlyphPanelForSelection();            // 只挪高亮，不重建列表（避免那一下清空重画）
     }
   };
   return it;
@@ -2756,6 +2753,80 @@ function clearGlyphToAmbient() {
   glyphShownSpec = null; glyphShownNow = false;
   formedLatch = false;
   showLabel('', '', false);                 // 清掉「火 · 甲骨文」标题与释义
+}
+
+// 只更新「哪一条高亮」，不重建列表 —— 供点击条目时使用。
+//
+// 为什么需要它：原来点一下就会走 refreshGlyphPanel(true)，把 60 条 DOM 全部
+// innerHTML='' 再逐条 appendChild。虽然实测 scrollTop 与行位置都不变，
+// 但那一下清空重画本身是可见的（列表闪一下/重绘），用户描述为「列表突然动一下，像打地鼠」。
+// 高亮的本质只是两行 DOM 的 class 切换，根本不需要重建整表。
+//
+// 安全兜底：只有当「列表确实是最近一次筛选的结果、每行身份都对得上」时才走轻量路径，
+// 否则退回整表重建 —— 宁可重建，也不能出现高亮错位（那正是上一轮修掉的问题）。
+function updateActiveGlyphRow() {
+  const list = document.getElementById('glyphList');
+  const filterUnchanged = (lastActiveFilter === glyphFiltered);
+  const renderedEnough = !!list.firstElementChild && glyphShown >= Math.min(glyphFiltered.length, GLYPH_PAGE);
+  const idx = (glyphShownNow && glyphShownSpec) ? glyphFiltered.indexOf(glyphShownSpec) : -1;
+  const inRange = idx < 0 || idx < glyphShown;   // 高亮那条必须已渲染在 DOM 里
+
+  if (filterUnchanged && renderedEnough && inRange) {
+    const want = (idx >= 0) ? glyphFiltered[idx] : null;
+    let found = false;
+    for (const row of list.children) {
+      const spec = glyphFiltered[+row.dataset.idx];
+      const on = !!want && spec === want;
+      // ⚠ 先记"找到了"，再看要不要改写 class。
+      //   曾经只在需要改写时才置位，于是「目标行已经高亮、无需改动」被判成
+      //   "目标不在 DOM 里" → 白走一次整表重建，还丢掉了调用方要的 force 滚动
+      //   （表现为：手工输入后高亮了，但卡片在视野外、没滚出来）。
+      if (on) found = true;
+      const cls = 'gitem' + (on ? ' active' : '');
+      if (row.className !== cls) row.className = cls;   // 只写真正需要改的行
+    }
+    if (want && !found) return false;    // 目标行确实不在 DOM 里 → 交给整表重建
+    ensureActiveGlyphVisible();
+    return true;
+  }
+  return false;
+}
+
+// 把高亮那条滚进视野。
+//
+// force=false（点击条目走这里）：只要目标【露出来一点】就一动不动。
+//   能被点到的卡片本来就看得见，点了就"跑掉"正是用户抱怨的「像打地鼠」。
+//   这条规则为排查该问题收紧过两次：
+//     第一版「不完整可见就居中」→ 点最下面那条（常只露一半）会滚掉半个列表
+//       （实测：点第 10 条「目」已露 42px，scrollTop 0→383，卡片 y 830→447）；
+//     第二版「贴边对齐的最小滚动」→ 位移降到 27px，但仍在动；
+//     本版「露一点就不动」→ 位移 0px。
+// force=true（手工输入选字走这里）：卡片可能整条都在视野之外（如「用」排在第 61 位），
+//   必须滚出来，否则用户看不到自己刚选的字。
+// 用手工设 scrollTop 而不是 scrollIntoView —— 后者可能连带滚动祖先容器。
+function ensureActiveGlyphVisible(force) {
+  const list = document.getElementById('glyphList');
+  const card = list.querySelector('.gitem.active');
+  if (!card || !document.getElementById('glyphPanel').classList.contains('open')) return;
+  const lr = list.getBoundingClientRect(), cr = card.getBoundingClientRect();
+  const EPS = 0.5;
+  const below = cr.bottom > lr.bottom + EPS, above = cr.top < lr.top - EPS;
+  if (!below && !above) return;             // 完整可见 → 无论如何都不动
+  if (!force && cr.bottom > lr.top + EPS && cr.top < lr.bottom - EPS) return;   // 露着一点 → 不动
+  if (below) list.scrollTop += cr.bottom - lr.bottom;    // 贴下缘（最小滚动）
+  else list.scrollTop -= lr.top - cr.top;                // 贴上缘（最小滚动）
+}
+
+// 选中项变化后刷新列表高亮。
+//   forceScroll=true（手工输入选字）→ 目标可能整条在视野外，必须滚出来；
+//   forceScroll=false（点击条目）  → 只挪高亮，绝不滚动（点了就"跑掉"正是用户抱怨的跳动）。
+//
+// ⚠ 滚动这一步必须放在 if 之外：曾经写在「轻量路径成功」的分支里，
+//   而手工输入时目标往往排在已渲染范围之外（实测 idx=61 > glyphShown=60）→
+//   轻量路径判 false → 走整表重建 → 滚动那步被整个跳过，结果高亮了却看不见。
+function refreshGlyphPanelForSelection(forceScroll) {
+  if (!updateActiveGlyphRow()) refreshGlyphPanel(true);   // 轻量不行就整表重建
+  ensureActiveGlyphVisible(forceScroll);
 }
 
 function refreshGlyphPanel(reset) {
@@ -2777,6 +2848,7 @@ function refreshGlyphPanel(reset) {
 
   if (reset) {
     glyphShown = 0;
+    glyphRenderedTo = 0;
     list.innerHTML = '';          // 清空后 scrollHeight 变 0，浏览器随即把 scrollTop 钳制到 0
     // ⚠ 不能在这里恢复滚动位置：此刻列表是空的（scrollHeight=0），
     //   赋值 scrollTop 会被浏览器钳制成 0（实测 setter 收到 400 但读回是 0）。
@@ -2791,21 +2863,21 @@ function refreshGlyphPanel(reset) {
     ? `匹配 ${glyphFiltered.length} / 共 ${pool.length} 字`
     : `字形库${pool.length}字`;
 
-  // 本次要渲染到第几条。分两件事，务必分开：
-  //   glyphShown —— 「用户已加载到第几条」（分页游标，只由续载推进，重建时重置为 0）
-  //   end        —— 「本次 DOM 渲染到第几条」（一次性，不改变游标）
-  // 二者分开的原因：高亮那条可能排在游标之后（实测手工输入「用」，数据里第 65 位，
-  // 而首屏只渲染 60 条 → 卡片不在 DOM 里、高亮无处可落）。
-  // 若用抬高游标的办法补渲染，一旦它跑在游标前面，中间的条目就永远补不上（会空一段）——
-  // 第一版正是这么错的。
-  let end = Math.min(glyphFiltered.length, glyphShown + GLYPH_PAGE);
+  // 列表渲染边界。两个量务必分清（混淆过一次，导致点击总是走兜底重建）：
+  //   glyphShown       —— 「DOM 里已有多少行」（渲染事实，写 DOM 后立刻更新）
+  //   glyphRenderedTo  —— 「已把前多少条交给 DOM」（下次续载从这里接）
+  // 正常两者相等；当高亮那条排在已加载范围之后时，会把渲染范围一次性拉长到它，
+  // 此时两者仍相等 —— 正是靠"渲染范围永远从 0 起、连续不跳"来保证不会空出一段。
+  let end = Math.min(glyphFiltered.length, glyphRenderedTo + GLYPH_PAGE);
   if (glyphShownNow && glyphShownSpec) {
     const ti = glyphFiltered.indexOf(glyphShownSpec);
-    if (ti >= end) end = Math.min(glyphFiltered.length, ti + 1);
+    if (ti >= end) end = Math.min(glyphFiltered.length, ti + 1);   // 补渲染到高亮那条
   }
   const frag = document.createDocumentFragment();
-  for (let i = glyphShown; i < end; i++) frag.appendChild(glyphRow(glyphFiltered[i], i));
+  for (let i = glyphRenderedTo; i < end; i++) frag.appendChild(glyphRow(glyphFiltered[i], i));
   list.appendChild(frag);
+  glyphRenderedTo = end;
+  glyphShown = end;
 
   // 内容已填回，此时容器有足够高度，恢复滚动位置才不会被钳制。
   // 放在 appendChild 之后是本修复的关键：此前写在清空之后，值被静默吃掉。
@@ -2828,13 +2900,16 @@ function refreshGlyphPanel(reset) {
     d.id = 'glyphEmpty'; d.textContent = '没有匹配的字';
     list.appendChild(d);
   }
+
+  // 记下「当前 DOM 是这一次筛选结果渲染的」，供 updateActiveGlyphRow 判断能否只改高亮。
+  lastActiveFilter = glyphFiltered;
 }
 
 // 滚动接近底部时追加下一批
 document.getElementById('glyphList').addEventListener('scroll', e => {
   const el = e.currentTarget;
   if (el.scrollTop + el.clientHeight >= el.scrollHeight - 120) {
-    if (glyphShown < glyphFiltered.length) {
+    if (glyphRenderedTo < glyphFiltered.length) {
       refreshGlyphPanel(false);   // 只追加：不变量滚动位置（此处曾手动存取 scrollTop，属多余且有害）
     }
   }
