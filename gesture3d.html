@@ -159,18 +159,22 @@
        曾经因为只做了槽位常驻、滑块一直可见，看起来就像"滚动条永远杵在那儿"。 */
     scrollbar-gutter:stable;
   }
-  /* 滚动条：闲置时隐去，滚动中或鼠标悬停时才浮现。
+  /* 滚动条：只在【滚动期间】浮现，停止约 0.9s 后隐去。
      用【背景色】切换显隐，不用 opacity —— 实测 opacity 对 ::-webkit-scrollbar-thumb
      不可靠（设了 opacity:0 仍照原样画出），而背景色是所有 WebKit 内核都认的。
-     槽位由上面的 scrollbar-gutter 占位，所以显隐不会引起任何宽度变化/抖动。 */
+     槽位由上面的 scrollbar-gutter 占位，所以显隐不会引起任何宽度变化/抖动。
+
+     ⚠ 这里【故意不加 :hover】：
+       列表是个 330×780 的大区域，滚完轮后鼠标通常还停在上面，:hover 会一直成立，
+       于是滚动条永远不隐去 —— 实测就是这个原因导致「等半天也没消失」。
+       现在的判据只有「正在滚动」，鼠标停着不动不会让它一直亮着。 */
   #glyphList::-webkit-scrollbar { width:6px; background:transparent; }
   #glyphList::-webkit-scrollbar-track { background:transparent; }
   #glyphList::-webkit-scrollbar-thumb {
     background:transparent;                       /* 闲置：完全看不见 */
     border-radius:4px; transition:background .25s ease;
   }
-  #glyphList.scrolled::-webkit-scrollbar-thumb,
-  #glyphList:hover::-webkit-scrollbar-thumb { background:rgba(120,150,190,.42); }
+  #glyphList.scrolled::-webkit-scrollbar-thumb { background:rgba(120,150,190,.42); }
   .gitem {
     /* 纵向 padding 8px：条目高度 = 简介行数(1~2 行) + 16px + 边框，
        所以【条目不等高】：简介一行的更紧凑，两行的约 68.9px。
