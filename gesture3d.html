@@ -159,23 +159,29 @@
        曾经因为只做了槽位常驻、滑块一直可见，看起来就像"滚动条永远杵在那儿"。 */
     scrollbar-gutter:stable;
   }
-  /* 滚动条：保持【可见】—— 这是用户能稳定看到、也能拖拽的形态。
-     槽位常驻（scrollbar-gutter）是为了消除「重建瞬间滚动条消失 → 内容宽 6px 变化 → 文字抖」，
-     滑块本身不该跟着隐藏：它既是"还能往下滚"的唯一提示，也是可拖拽的操作柄。
+  /* 滚动条：滚动中清晰可见，停止 3 秒后隐去。
+     槽位由上面的 scrollbar-gutter 常驻 —— 显隐不产生任何宽度变化/抖动。
 
-     ⚠ 教训（两次改错的过程记录，别再犯）：
-       第一版：只做了槽位常驻、滑块一直可见 → 用户说"滚动条怎么不自动隐藏"。
-       第二版：加 .scrolled + :hover 控制显隐 → 列表是 330×780 大区域，滚完鼠标还停在上面，
-               :hover 一直成立 → 永不隐去。
-       第三版：只留 .scrolled → 停止 0.9s 后滑块消失，视觉上"滚动条直接没了"，用户明确反对。
-       而且这三版的"效果验证"都不可靠 —— 新版无头 Chromium 不渲染 ::-webkit-scrollbar
-       （实测连 14px、橙色强制显示的滚动条都画不出来），我在无头环境里看到的"有/没有"
-       跟真实浏览器不是一回事。结论：不可见的隐藏逻辑 + 不可靠的验证手段 = 不该做。
-     如需再谈"自动隐藏"，前提是先能用真实浏览器截图验证效果。 */
+     状态机（刻意做成"默认可见"）：
+       · 默认：thumb 可见（rgba(120,150,190,.3)）
+       · #glyphList.sb-idle：thumb 透明 —— 由 JS 在「用户滚动过、且已停 3 秒」后挂上
+     为什么默认是可见而不是透明：若写成"默认透明 + 滚动时才可见"，一旦那个时刻
+     class 没挂上（实测在真实浏览器里出现过这种时序问题），滑块就【永久不可见】——
+     用户看到的正是"滚动条直接没了"。默认可见则最坏情况只是"没自动隐藏"，
+     不会出现"没有了"这种不可接受的退路。
+
+     ⚠ 另外两条也是踩过的坑：
+       1) 必须显式写 width:6px 与 transparent 的兜底规则，缺了会整根消失；
+       2) 判据只能是"正在滚动"，【不要加 :hover】—— 列表是 330×780 的大区域，
+          滚完鼠标常停在上面，:hover 会让滑块永不隐去。 */
   #glyphList::-webkit-scrollbar { width:6px; }
   #glyphList::-webkit-scrollbar-track { background:transparent; }
-  #glyphList::-webkit-scrollbar-thumb { background:rgba(120,150,190,.3); border-radius:4px; }
-  #glyphList::-webkit-scrollbar-thumb:hover { background:rgba(120,150,190,.5); }
+  #glyphList::-webkit-scrollbar-thumb {
+    background:rgba(120,150,190,.3);              /* 默认可见（安全退路） */
+    border-radius:4px;
+    transition:background .25s ease;
+  }
+  #glyphList.sb-idle::-webkit-scrollbar-thumb { background:transparent; }   /* 闲置 → 隐去 */
   .gitem {
     /* 纵向 padding 8px：条目高度 = 简介行数(1~2 行) + 16px + 边框，
        所以【条目不等高】：简介一行的更紧凑，两行的约 68.9px。
@@ -2924,15 +2930,23 @@ function refreshGlyphPanel(reset) {
   lastActiveFilter = glyphFiltered;
 }
 
-// 滚动条显隐：滚动期间（以及悬停时）显示，停下来约 0.9 秒后隐去。
-// 用 class 而不是直接改样式：#glyphList.scrolled::-webkit-scrollbar-thumb 里控制 opacity。
-// 注意槽位由 scrollbar-gutter:stable 常驻，所以这个显隐不会造成任何宽度变化。
+// 滚动条显隐：滚动时（以及刚滚过时）可见，停止 3 秒后进入"闲置隐藏"。
+// 状态机：未滚动过 → 不做任何事（保持 CSS 默认的"可见"，这是安全退路）；
+//         滚动过 → 摘掉 .sb-idle（可见）；停止 3 秒 → 挂上 .sb-idle（隐去）。
+// 用"默认可见 + 事后隐藏"而不是"默认隐藏 + 滚动时显示"，是因为后者一旦时序失灵
+// 就会永久看不见滑块（用户实测遇到："滚动条直接没了"）。
+// 槽位由 CSS 的 scrollbar-gutter:stable 常驻，所以显隐不产生任何宽度变化。
+const SCROLLBAR_HIDE_MS = 3000;
 let scrollHideTimer = null;
+let glyphListScrolledOnce = false;      // 首次滚动之前不隐藏，避免与面板首次显示打架
 function markGlyphListScrolled() {
   const list = document.getElementById('glyphList');
-  list.classList.add('scrolled');
+  glyphListScrolledOnce = true;
+  list.classList.remove('sb-idle');     // 滚动中（含刚滚过）→ 可见
   clearTimeout(scrollHideTimer);
-  scrollHideTimer = setTimeout(() => list.classList.remove('scrolled'), 900);
+  scrollHideTimer = setTimeout(() => {
+    if (glyphListScrolledOnce) list.classList.add('sb-idle');   // 停 3 秒 → 隐去
+  }, SCROLLBAR_HIDE_MS);
 }
 document.getElementById('glyphList').addEventListener('wheel', markGlyphListScrolled, { passive: true });
 document.getElementById('glyphList').addEventListener('touchmove', markGlyphListScrolled, { passive: true });
