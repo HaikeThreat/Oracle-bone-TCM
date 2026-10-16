@@ -1444,6 +1444,11 @@ const ST = { AMBIENT:'待机 · 气韵流转', FLOW:'风起 · 气随手动', GA
 // MediaPipe 手部模型档位：1=full（关键点更准）0=lite（推理显著更快）。
 // 推理在主线程同步跑，直接影响手势旋转的顺滑度：卡就设 0，捏合判定变钝就回 1。
 const MODEL_COMPLEXITY = 1;
+// 单次推理的超时上限。MediaPipe 的 send() 在模型/WASM 资源请求挂起时会永远 pending
+// （既不 resolve 也不 reject），若无限等待，feedLoop 会永久卡死、只有刷新页面才能恢复。
+// 正常推理约 30~60ms（本机实测 435ms 含首次初始化），10 秒是极宽松的上限：
+// 慢设备不会误判，真挂起则 10 秒内被发现并自动重试。
+const SEND_TIMEOUT_MS = 10000;
 // ── 手势转动幅度（位置跟随模式）────────────────────────────────────────────
 // 嫌字转得不够就调大 *_RANGE；嫌一动就过头就调大 *_SPAN（手要摆更远才吃满）。
 // 注意 *_RANGE 是"最大转角"（整体幅度），*_SPAN 是"多灵敏"（摆多远到满角）。
@@ -2302,13 +2307,44 @@ async function feedLoop() {
         lastMediaTime = video.currentTime;
         lastSendAt = nowMs;
         try {
-          await cam.hands.send({ image: video });
-          if (cam.sendFails) { cam.sendFails = 0; cam.handsErr = null; }   // 恢复后自动清错误
+          // 挂起保护：MediaPipe 的 send() 在「模型/WASM 资源请求挂起」时会永远 pending，
+          // 既不 resolve 也不 reject。旧代码直接 await 它 → feedLoop 永久卡死在这一行，
+          // 表现为 handsErr 为 null（因为没抛异常）而 resultsN 一直为 0，
+          // 12 秒后 UI 报「模型初始化失败 · 看控制台/刷新」—— 只有刷新页面才能恢复。
+          //
+          // 用「不重叠 + 以 send 实际结果为准」而非 Promise.race：
+          // race 超时后原始 send() 仍在飞，循环会立刻再发一次 → 两次推理重叠，
+          // 而 MediaPipe 的 send() 不支持重入。这里改为：超时只登记状态、不重发，
+          // 且错误与恢复一律由 sendP 自身的结局决定（迟到的成功也会被正确识别）。
+          const sendP = cam.hands.send({ image: video });
+          const verdict = await Promise.race([
+            sendP.then(() => 'ok', e => { cam._sendErr = e; return 'err'; }),
+            new Promise(r => setTimeout(() => r('timeout'), SEND_TIMEOUT_MS))
+          ]);
+          if (verdict === 'ok') {
+            if (cam.sendFails) { cam.sendFails = 0; cam.handsErr = null; }   // 恢复后自动清错误
+          } else if (verdict === 'err') {
+            throw cam._sendErr;
+          } else {
+            // 超时：登记状态并等这一帧落地，绝不再发一次（否则重叠）。
+            // 循环头会跳过后续帧，因此不会雪崩式叠加推理。
+            cam.sendFails = (cam.sendFails || 0) + 1;
+            cam.handsErr = '推理超过 ' + (SEND_TIMEOUT_MS / 1000) + ' 秒未返回 —— '
+              + '模型资源可能仍在下载，画面已就绪，会自行恢复';
+            const late = await Promise.race([
+              sendP.then(() => 'ok', () => 'err'),
+              new Promise(r => setTimeout(() => r('timeout'), SEND_TIMEOUT_MS))
+            ]);
+            if (late === 'ok') { cam.sendFails = 0; cam.handsErr = null; }    // 迟到但成功了
+            else if (late === 'err') throw cam._sendErr;
+            // late === 'timeout'：仍在飞，下一轮循环会再走这里（继续等，不重发）
+          }
         } catch (e) {
           cam.sendFails = (cam.sendFails || 0) + 1;
           cam.handsErr = (e && e.message) ? String(e.message) : String(e);
-          if (cam.sendFails <= 3) console.warn('[hands] send 失败 (' + cam.sendFails + '):', cam.handsErr);
-          await new Promise(r => setTimeout(r, 400));   // 失败节流，不热旋转
+          console.warn('[hands] send 失败 (' + cam.sendFails + '):', cam.handsErr);
+          // 退避重试：头几次快（可能只是资源还没到位），之后放慢，避免热旋转白烧 CPU
+          await new Promise(r => setTimeout(r, Math.min(400 * cam.sendFails, 4000)));
         }
       }
     }
