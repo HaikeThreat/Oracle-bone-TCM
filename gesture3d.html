@@ -297,6 +297,13 @@
     text-shadow:0 1px 4px rgba(0,0,0,.8); }
   #stats b { color:#cfe0f4; }
 
+  /* 触屏设备关掉毛玻璃：backdrop-filter 每帧都要对运动中的画布做实时模糊取样，
+     是手机 GPU 的显著固定开销（弱 GPU 上尤其明显）。关掉只损失一点磨砂观感，
+     rgba 底色仍在，视觉几乎无差。 */
+  @media (pointer: coarse) {
+    #bar, #glyphPanel { backdrop-filter:none; -webkit-backdrop-filter:none; }
+  }
+
   /* ── 竖屏精简（手机为主）───────────────────────────────────────────────
      竖屏下横向空间紧张（手机尤甚）：
      ① 五色预设圆点（#swatches）隐藏 —— 取色棒（#btnPicker）保留：
@@ -1473,8 +1480,12 @@ window.onerror = function(msg, src, line) {
 // ── 全局状态 ──────────────────────────────────────────────────────────────
 const ST = { AMBIENT:'待机 · 气韵流转', FLOW:'风起 · 气随手动', GATHER:'聚形 · 气聚成字', DISPERSE:'气散 · 化入星云' };
 // MediaPipe 手部模型档位：1=full（关键点更准）0=lite（推理显著更快）。
-// 推理在主线程同步跑，直接影响手势旋转的顺滑度：卡就设 0，捏合判定变钝就回 1。
-const MODEL_COMPLEXITY = 1;
+// 推理在主线程同步跑，直接决定帧率与聚形动画的流畅度——手机实测 full 太吃力
+// （观感是整体"慢放"）。触屏设备（手机/平板，pointer:coarse）自动用 lite，
+// 桌面保持 full；若平板上想要 full 的精度，把下面一行固定成 1 即可。
+const IS_TOUCHY = window.matchMedia ? matchMedia('(pointer: coarse)').matches
+                : (('ontouchstart' in window) || (navigator.maxTouchPoints || 0) > 0);
+const MODEL_COMPLEXITY = IS_TOUCHY ? 0 : 1;
 // 单次推理的超时上限。MediaPipe 的 send() 在模型/WASM 资源请求挂起时会永远 pending
 // （既不 resolve 也不 reject），若无限等待，feedLoop 会永久卡死、只有刷新页面才能恢复。
 // 正常推理约 30~60ms（本机实测 435ms 含首次初始化），10 秒是极宽松的上限：
@@ -3269,7 +3280,7 @@ function frame(now) {
   // 先算好待机状态，再更新手势 —— updateGestures 需要读它
   const noInput = (!hands3d[0] && !hands3d[1] && !virtualHand.active && !gatherLock);
   if (noInput) {
-    ambientIdle += dt;
+    ambientIdle += Math.min(rawDt, 0.25);   // 用真实间隔：慢设备上「45 秒待机」才不会被帧率拉长
   } else {
     ambientIdle = 0;           // 有人接管 → 重新计时（同时让 ambient 立即为假）
   }
@@ -3283,7 +3294,7 @@ function frame(now) {
     ambientSwitched = false;
   } else {
     if (!wasAmbient) { ambientPhase = 0; ambientSwitched = false; }   // 刚进入待机：从周期起点开始
-    ambientPhase += dt;
+    ambientPhase += Math.min(rawDt, 0.25);  // 同上：巡播节奏按真实时间走
     // 换字发生在【散开刚结束】的位置（AMB_SWITCH_AT）而不是周期末尾：
     // 这样「散尽 → 换字 → 空歇 AMBIENT_GAP_SECS 秒 → 下一次聚形」，
     // 中间那段空歇就是肉眼看到的停顿（此前换字在周期末尾，紧接着就聚形，没有停顿）。
@@ -3304,8 +3315,19 @@ function frame(now) {
       ambientSwitched = false;
     }
   }
-  updateGestures(dt, t);
-  physics(dt, t);
+  // 仿真追赶（治「手机上手势动画像 0.75 倍速播放」）：
+  // dt 截断到 1/30 是为数值稳定，但帧间隔超过 33ms 时（手机推理占住主线程，
+  // 实测 40~80ms/帧），每帧只按 33ms 推进 → 聚形/转动整体慢于真实时间。
+  // 解决：把这一帧的真实间隔拆成多个 ≤1/30 的子步逐个推进——
+  // 单步稳定性不变，动画按真实时间走。上限 100ms：更大的停顿（切后台回来等）
+  // 不追帧，避免一次补太多步形成雪崩。
+  let simLeft = Math.min(rawDt, 0.1);
+  while (simLeft > 1e-6) {
+    const step = Math.min(simLeft, 1 / 30);
+    updateGestures(step, t);
+    physics(step, t);
+    simLeft -= step;
+  }
 
   // 聚形成功闪光：粒子尺寸脉冲；呼吸：整体缩放微振荡
   points.material.size = 0.055 * (1 + flashT * 0.9);
