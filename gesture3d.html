@@ -1449,6 +1449,46 @@ const MODEL_COMPLEXITY = 1;
 // 正常推理约 30~60ms（本机实测 435ms 含首次初始化），10 秒是极宽松的上限：
 // 慢设备不会误判，真挂起则 10 秒内被发现并自动重试。
 const SEND_TIMEOUT_MS = 10000;
+// ── 手势模型资源源（就近择优）─────────────────────────────────────────────
+// 背景：大陆访问 GitHub Pages 时，wasm/模型等「大二进制」被 CDN 限速到 ~10 KB/s
+// （实测 90 秒只下到 0.7~1.3MB，6MB 的 wasm 要十几分钟，手机直接加载不出来）。
+// 而公共 npm 镜像与 jsDelivr 可跑满带宽（本机实测 5.6 MB/s 与 1.5 MB/s），
+// 且与本地 libs/ 是同一 npm 包、逐字节一致（@mediapipe/hands@0.4.1675469240，
+// md5 已核对）——只换「送货地址」，模型本身零变化。
+// 启动手势前对三个源各发一个 550B 小文件探测（赛跑式，谁先连通用谁）：
+//   离线 / 局域网部署 → 本地 libs/ 秒赢，行为与从前完全一致；
+//   大陆联网 → npmmirror 秒赢；海外 → jsDelivr 兜底。
+// 三个源全探测失败时回落到本地，交给原有错误路径提示。
+const HANDS_SOURCES = [
+  'https://registry.npmmirror.com/@mediapipe/hands/0.4.1675469240/files/',
+  'https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/',
+  'libs/'
+];
+let handsSrc = null;                    // 探测结果缓存：整个会话复用，开关摄像头不重探
+function pickHandsSource() {
+  if (handsSrc) return Promise.resolve(handsSrc);
+  return new Promise(resolve => {
+    let settled = false, failed = 0;
+    const settle = base => {
+      if (settled) return;
+      settled = true; handsSrc = base;
+      console.info('[hands] 模型资源源:', base);
+      resolve(base);
+    };
+    for (const base of HANDS_SOURCES) {
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), 4000);
+      const url = base + 'hands.binarypb' + (base === 'libs/' ? '?v=' + ASSET_V : '');
+      fetch(url, { cache: 'no-store', signal: ctl.signal }).then(r => {
+        clearTimeout(timer);
+        r.ok ? settle(base) : (++failed === HANDS_SOURCES.length && settle('libs/'));
+      }).catch(() => {
+        clearTimeout(timer);
+        ++failed === HANDS_SOURCES.length && settle('libs/');
+      });
+    }
+  });
+}
 // ── 手势转动幅度（位置跟随模式）────────────────────────────────────────────
 // 嫌字转得不够就调大 *_RANGE；嫌一动就过头就调大 *_SPAN（手要摆更远才吃满）。
 // 注意 *_RANGE 是"最大转角"（整体幅度），*_SPAN 是"多灵敏"（摆多远到满角）。
@@ -2234,6 +2274,7 @@ async function toggleCamera() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia)
       throw new Error('当前环境不支持摄像头（请改用 http://localhost 访问）');
     if (!window.Hands) throw new Error('MediaPipe 未加载（libs/hands.js 缺失或加载失败）');
+    const srcP = pickHandsSource();                 // 与摄像头授权并行探测资源源，省掉等待
 
     cam.stream = await Promise.race([
       // 帧率优先：手势「跟手」程度直接由相机帧率决定（检测节拍 ≈ 相机帧率）。
@@ -2256,8 +2297,9 @@ async function toggleCamera() {
     await video.play();
 
     if (!cam.hands) {
+      const base = await srcP;                                // 就近择优：离线/局域网→本地 libs/；大陆→npmmirror；海外→jsDelivr
       cam.hands = new Hands({
-        locateFile: f => `libs/${f}?v=${ASSET_V}`              // 本地化，无 CDN；带版本号以配合 libs/ 长缓存
+        locateFile: f => base + f + (base === 'libs/' ? `?v=${ASSET_V}` : '')   // npm 源包版本号即缓存指纹，无需 ?v
       });
       // modelComplexity：1=full（手部关键点更准）0=lite（推理便宜一大截）。
       // 推理在主线程同步执行，每次约几十毫秒，期间渲染被掐住 → 手势旋转顿挫。

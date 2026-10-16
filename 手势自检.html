@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>手势模型自检 · 甲骨文中医密码</title>
+<style>
+  html, body { margin:0; background:#0a0e14; color:#c9d6e6;
+    font:14px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+  .wrap { max-width:820px; margin:0 auto; padding:20px 16px 60px; }
+  h1 { font-size:17px; color:#ffc46b; margin:0 0 4px; letter-spacing:1px; }
+  .sub { color:#5d6f86; font-size:12px; margin-bottom:16px; }
+  #log { background:#060a11; border:1px solid #1a2433; border-radius:8px;
+    padding:12px; white-space:pre-wrap; word-break:break-word; min-height:200px; }
+  .ok   { color:#5cff9d; }
+  .bad  { color:#ff7a6b; }
+  .warn { color:#ffab4a; }
+  .dim  { color:#5d6f86; }
+  .head { color:#8fa8c8; }
+  #video { position:fixed; right:8px; bottom:8px; width:160px; border-radius:6px;
+    border:1px solid #1a2433; opacity:.85; }
+  #sum { margin-top:14px; padding:12px; border-radius:8px; border:1px solid #1a2433;
+    background:#060a11; display:none; }
+  .kv { display:flex; gap:10px; }
+  .kv b { min-width:132px; color:#8fa8c8; font-weight:400; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>手势模型自检</h1>
+  <div class="sub">把本页的完整文字截图/复制发回即可定位问题。无需打开控制台。</div>
+  <div id="log"></div>
+  <div id="sum"></div>
+</div>
+<video id="video" playsinline muted></video>
+
+<script>
+const L = document.getElementById('log');
+let bad = 0, warn = 0;
+const t0 = performance.now();
+const ms = () => (performance.now() - t0).toFixed(0).padStart(5) + 'ms';
+
+function line(cls, msg) {
+  const d = document.createElement('div');
+  d.className = cls || '';
+  d.textContent = ms() + '  ' + msg;
+  L.appendChild(d);
+  // 末尾优先展示
+  d.scrollIntoView({ block: 'end' });
+}
+const ok   = m => line('ok',   '✔ ' + m);
+const fail = m => { bad++;  line('bad',  '✘ ' + m); };
+const wm   = m => { warn++; line('warn', '⚠ ' + m); };
+const info = m => line('dim',  '· ' + m);
+const head = m => line('head', '── ' + m + ' ──');
+
+function summarize(verdict) {
+  const s = document.getElementById('sum');
+  s.style.display = 'block';
+  s.innerHTML = '<div class="kv"><b>结论</b><span class="' +
+    (bad ? 'bad' : (warn ? 'warn' : 'ok')) + '">' + verdict + '</span></div>' +
+    '<div class="kv"><b>失败项</b><span>' + bad + '</span></div>' +
+    '<div class="kv"><b>警告项</b><span>' + warn + '</span></div>' +
+    '<div class="kv"><b>UA</b><span>' + navigator.userAgent + '</span></div>' +
+    '<div class="kv"><b>页面地址</b><span>' + location.href + '</span></div>';
+}
+
+window.addEventListener('error', e => fail('未捕获错误：' + (e.message || e)));
+window.addEventListener('unhandledrejection', e =>
+  fail('未处理的 Promise 拒绝：' + (e.reason && e.reason.message ? e.reason.message : e.reason)));
+
+(async () => {
+  head('1. 安全上下文（摄像头前提）');
+  info('isSecureContext = ' + window.isSecureContext);
+  info('protocol = ' + location.protocol + '   host = ' + location.host);
+  if (window.isSecureContext) ok('是安全上下文');
+  else fail('不是安全上下文 —— 摄像头 API 会被浏览器移除。' +
+    'localhost/127.0.0.1 才是安全上下文；局域网 IP（如 192.168.x.x）明文 HTTP 不是');
+
+  head('2. 摄像头 API');
+  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) ok('navigator.mediaDevices 存在');
+  else fail('navigator.mediaDevices 不存在（多因非安全上下文）');
+
+  head('3. WebGL（Three.js 与 MediaPipe 都依赖）');
+  try {
+    const c = document.createElement('canvas');
+    const gl = c.getContext('webgl2') || c.getContext('webgl') || c.getContext('experimental-webgl');
+    if (!gl) throw new Error('三种 context 全部为 null');
+    const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+    ok('WebGL 可用：' + (gl.getParameter(gl.VERSION) || '?'));
+    info('渲染器 = ' + (dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : '（未暴露）'));
+  } catch (e) { fail('WebGL 不可用：' + e.message + ' —— 新手势无法运行'); }
+
+  head('4. WebAssembly 与 SIMD');
+  try {
+    if (typeof WebAssembly !== 'object') throw new Error('WebAssembly 不存在');
+    ok('WebAssembly 可用');
+    // MediaPipe 的 simd wasm 需要 SIMD 支持；不支持时应回落到非 simd 版
+    const simd = WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,5,1,96,0,1,123,3,2,1,0,10,10,1,8,0,65,0,253,15,253,98,11]));
+    if (simd) ok('WASM SIMD 受支持（会用 simd 版 wasm）');
+    else wm('WASM SIMD 不支持 —— 应回落到非 simd 版 wasm，需确认该文件存在');
+  } catch (e) { fail('WASM 检测异常：' + e.message); }
+
+  head('5. 模型资源可达性（逐一 HEAD 探测）');
+  const files = ['libs/hands.js', 'libs/hands.binarypb', 'libs/hand_landmark_full.tflite',
+    'libs/hands_solution_packed_assets.data', 'libs/hands_solution_packed_assets_loader.js',
+    'libs/hands_solution_simd_wasm_bin.js', 'libs/hands_solution_simd_wasm_bin.wasm'];
+  for (const f of files) {
+    try {
+      const r = await fetch(f + '?v=1', { method: 'HEAD' });
+      const ct = r.headers.get('content-type') || '?';
+      if (r.ok) ok(f + '  ' + r.status + '  ' + ct);
+      else fail(f + '  → HTTP ' + r.status);
+    } catch (e) { fail(f + '  → 请求失败：' + e.message); }
+  }
+
+  head('6. 打开摄像头');
+  let stream = null;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
+    const v = document.getElementById('video');
+    v.srcObject = stream;
+    await v.play();
+    ok('摄像头已开：' + v.videoWidth + '×' + v.videoHeight +
+       ' @ ' + (v.getVideoPlaybackQuality ? v.getVideoPlaybackQuality().totalVideoFrames : '?') + ' 帧');
+  } catch (e) { fail('摄像头打开失败：' + (e.name || '') + ' ' + e.message); }
+
+  head('7. 加载 MediaPipe 运行时（hands.js）');
+  try {
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'libs/hands.js?v=1';
+      s.onload = res;
+      s.onerror = () => rej(new Error('script onerror（文件缺失或加载被中断）'));
+      document.head.appendChild(s);
+    });
+    if (window.Hands) ok('window.Hands 已就绪');
+    else fail('脚本加载了但没有 window.Hands —— 文件内容可能不完整');
+  } catch (e) { fail('hands.js 加载失败：' + e.message); }
+
+  head('8. 模型资源源择优（与主页面同款：本地 / npmmirror / jsDelivr）');
+  const SOURCE_LIST = [
+    'libs/',
+    'https://registry.npmmirror.com/@mediapipe/hands/0.4.1675469240/files/',
+    'https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/'
+  ];
+  let picked = '';
+  for (const b of SOURCE_LIST) {
+    const t0s = performance.now();
+    try {
+      const r = await fetch(b + 'hands.binarypb' + (b === 'libs/' ? '?v=1' : ''), { cache: 'no-store' });
+      if (!r.ok) { wm(b + ' 探测 HTTP ' + r.status); continue; }
+      ok(b + ' 探测 ' + Math.round(performance.now() - t0s) + 'ms' + (picked ? '' : ' ← 选中'));
+      if (!picked) picked = b;
+    } catch (e) { wm(b + ' 探测失败：' + e.message); }
+  }
+  if (!picked) { fail('三个源全部探测失败'); picked = 'libs/'; }
+
+  head('9. 初始化模型（这一步最可能暴露真因）');
+  let hands = null;
+  try {
+    hands = new window.Hands({ locateFile: f => picked + f + (picked === 'libs/' ? '?v=1' : '') });
+    hands.setOptions({ maxNumHands: 2, modelComplexity: 1,
+      minDetectionConfidence: 0.6, minTrackingConfidence: 0.5 });
+    ok('new Hands() 未抛异常');
+  } catch (e) {
+    fail('new Hands() 抛异常：' + (e && e.stack ? e.stack : e));
+    summarize('模型构造即失败 —— 见第 9 步错误详情');
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    return;
+  }
+
+  head('10. 推理（send 一帧，最多等 45 秒）');
+  if (!stream) {
+    wm('没有摄像头画面，改用一个 640×480 的合成视频帧做推理');
+  }
+  const src = stream ? document.getElementById('video')
+    : Object.assign(document.createElement('canvas'), { width: 640, height: 480 });
+  if (!stream) { const g = src.getContext('2d');
+    g.fillStyle = '#808080'; g.fillRect(0, 0, 640, 480); }
+
+  let results = 0;
+  hands.onResults(() => { results++; });
+  const tSend = performance.now();
+  try {
+    await Promise.race([
+      hands.send({ image: src }),
+      new Promise((_, rej) => setTimeout(() =>
+        rej(new Error('等待 45 秒仍未完成 —— send() 的 Promise 一直处于 pending，'
+          + '说明 WASM/模型在内部卡住（典型是某个资源请求挂起）')), 45000))
+    ]);
+    const dt = (performance.now() - tSend).toFixed(0);
+    ok('send() 完成，用时 ' + dt + 'ms，onResults 回调触发 ' + results + ' 次');
+    if (results === 0) fail('send() 没报错，但 onResults 从未触发 —— 这正是主页面「模型初始化失败」的成因');
+    else ok('模型推理链路完整可用');
+  } catch (e) {
+    fail('send() 失败：' + (e && e.message ? e.message : e));
+    if (e && e.stack) info(e.stack.split('\n').slice(0, 4).join(' | '));
+  }
+
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  head('自检结束');
+  summarize(bad === 0 && warn === 0 ? '全部通过 —— 手势模型在这台设备上应当可用'
+    : (bad === 0 ? '有警告但无失败项' : '有 ' + bad + ' 项失败 —— 这就是原因'));
+})();
+</script>
+</body>
+</html>
