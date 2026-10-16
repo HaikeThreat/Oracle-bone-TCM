@@ -21,7 +21,13 @@
     -webkit-tap-highlight-color:transparent; overscroll-behavior:none; }
   input { -webkit-user-select:text; user-select:text; }   /* 本页表单控件只有 input；将来加入其它可编辑控件时补进选择器 */
   body { font-family: "PingFang SC","Microsoft YaHei",sans-serif; color:#cfe0f4; }
-  #stage { position:fixed; inset:0; width:100%; height:100%; display:block; }
+  /* touch-action:none 是触屏适配的关键：不设的话浏览器会把手指拖动当成
+     「滚动尝试」抢走手势、并派发 pointercancel —— 表现为按住能聚形、
+     一拖就断、旋转完全失灵（安卓/华为等 Chromium 系必现，实测 pointermove
+     只到手 1 次随即被 cancel）。只禁在画布上；面板与按钮保持系统默认
+     （字形列表要能原生滚动） */
+  #stage { position:fixed; inset:0; width:100%; height:100%; display:block;
+           touch-action:none; }
 
   /* ── 真甲骨文字体（AYJGW.ttf 子集化 15 字）── */
   @font-face {
