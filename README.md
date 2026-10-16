@@ -82,7 +82,7 @@ host 为 `localhost`（以及 `127.0.0.0/8`、`::1/128`）的源被视为「潜�
 
 | 路径 | 说明 |
 | --- | --- |
-| `index.html` | 站点入口，跳转到 `gesture3d.html`（静态托管的目录入口必须是 index.html，否则根地址 404） |
+| `index.html` | 站点入口：预载 `gesture3d.html` 并显示进度后自动进入（含常驻「直接进入」兜底按钮；静态托管的目录入口必须是 index.html，否则根地址 404） |
 | `gesture3d.html` | 作品主页面。字体子集与字库全部内嵌，自包含 |
 | `libs/` | Three.js r152 与 MediaPipe Hands 本地运行时（约 28MB，首次访问付一次，之后走长缓存） |
 | `data/` | 字表数据库（1530 行已释甲骨文）与人工编排条目 |
