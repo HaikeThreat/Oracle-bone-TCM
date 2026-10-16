@@ -100,13 +100,15 @@
 
   /* 内置色板（取色降级链第③级 / 长按取色棒唤出）：range 输入在任何内核上都可靠 */
   #pickerPop { position:fixed; bottom:92px; left:50%; transform:translateX(-50%); z-index:30;
-    display:none; align-items:center; gap:12px; padding:10px 16px;
+    display:none; align-items:center; justify-content:center; flex-wrap:wrap; gap:10px 12px; padding:10px 14px;
+    max-width:calc(100vw - 20px);   /* 窄屏防裁切：html/body 是 overflow:hidden，越界的部分没有任何手段可达 */
     background:var(--panel); border:1px solid var(--line); border-radius:14px;
     backdrop-filter:blur(10px); box-shadow:0 8px 32px rgba(0,0,0,.5); }
+  #pickerPop.open { display:flex; }
   #pickerSw { width:20px; height:20px; border-radius:50%; flex:none;
     border:2px solid rgba(255,255,255,.3); background:#ffcf7a; }
   #pickerPop .pk { display:flex; align-items:center; gap:6px; font-size:12px; color:#8fa3bd; white-space:nowrap; }
-  #pickerPop input[type=range] { width:110px; accent-color:#ffc46b; }
+  #pickerPop input[type=range] { width:min(110px, 26vw); accent-color:#ffc46b; }
   .sw { width:22px; height:22px; border-radius:50%; cursor:pointer; border:2px solid rgba(255,255,255,.25);
         transition:.15s; }
   .sw:hover { transform:scale(1.15); }
@@ -2589,6 +2591,9 @@ function setColor(hex, el) {
   if (el) el.classList.add('on');
   if (!curColor) return;
   curColor.set(hex);
+  // 复位预览染色：色板拖动时用 material.color 做即时预览，任何正式上色都应把它归白，
+  // 否则顶点色会与残留的材质色叠乘
+  if (points && points.material) points.material.color.set(0xffffff);
   refreshColors();
 }
 function refreshColors() {                      // 颜色变化 → O(N) 重算顶点色
@@ -3190,10 +3195,12 @@ document.getElementById('colorInput').addEventListener('input', e => setColor(e.
 // 旧实现只靠 <label for> 把点击转发给隐形 <input type=color>：部分非苹果内核
 // （安卓各家浏览器、鸿蒙 WebView）要么不支持 type=color、要么支持但点了不弹任何
 // 界面 —— 表现就是「点击毫无反应」。现按能力逐级降级：
-//   ① EyeDropper API（桌面 Chrome/Edge、安卓 Chrome 等）：真正的屏幕吸管；
-//   ② 原生 <input type=color>（Safari / iPadOS / Firefox 等，行为与从前一致）；
+//   ① EyeDropper API（桌面 Chrome/Edge 等 Chromium 桌面环境；安卓/WebView 视机型
+//      而定，多数没有）：真正的屏幕吸管；
+//   ② 原生 <input type=color>（Safari / iPadOS / Firefox / 安卓等，行为与从前一致）；
 //   ③ 都没有 → 弹内置色板（色相/明度两条滑杆 + 实时预览），任何设备都能用。
-// 另设逃生门：任意设备「长按取色棒」也能唤出内置色板。
+// 另设逃生门：任意设备「长按取色棒」也能唤出内置色板（对「type=color 假支持、
+// 点了不弹界面」的内核这是唯一可靠通道——JS 无法探测"对话框是否真的弹出"）。
 const pickerBtn = document.getElementById('btnPicker');
 const pickerInp = document.getElementById('colorInput');
 const pickerPop = document.getElementById('pickerPop');
@@ -3206,34 +3213,70 @@ const pickerSw  = document.getElementById('pickerSw');
 const CAN_COLOR = (() => { const i = document.createElement('input'); i.type = 'color'; return i.type === 'color'; })();
 let pickerMode = window.EyeDropper ? 'eye' : (CAN_COLOR ? 'native' : 'pop');
 
-function applyPickerColor(v) {      // 走 colorInput 既有的 input 监听 → setColor（同一条应用管线）
+function applyPickerColor(v) {      // 直接走主管线（不再经合成 input 事件——那条链路无冒泡/无 inputType，过窄易断）
   pickerInp.value = v;
-  pickerInp.dispatchEvent(new Event('input'));
+  setColor(v, null);
 }
-function hslToHex(h, s, l) {        // 自算 hex，不依赖任何引擎的颜色字符串解析
+function hslToHex(h, s, l) {        // 自算 hex（标准 CSS 数学，与色板预览一致），不依赖引擎解析
   s /= 100; l /= 100;
   const k = n => (n + h / 30) % 12;
   const a = s * Math.min(l, 1 - l);
   const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1));
   const to = x => Math.round(255 * x).toString(16).padStart(2, '0');
-  return '#' + to(f(0)) + to(f(8)) + to(f(4));
+  const R = to(f(0)), G = to(f(8)), B = to(f(4));   // f(0)/f(8)/f(4) 依次对应 R/G/B
+  return '#' + R + G + B;
 }
-function pickerPopColor() { return hslToHex(+pickerHue.value, 72, +pickerLum.value); }
+function hexToHsl(hex) {            // 仅用于：打开色板时把滑杆初始化到当前颜色
+  const r = parseInt(hex.slice(1, 3), 16) / 255,
+        g = parseInt(hex.slice(3, 5), 16) / 255,
+        b = parseInt(hex.slice(5, 7), 16) / 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  let h = 0;
+  if (d > 0) {
+    if (mx === r) h = ((g - b) / d) % 6; else if (mx === g) h = (b - r) / d + 2; else h = (r - g) / d + 4;
+    h *= 60; if (h < 0) h += 360;
+  }
+  const l = (mx + mn) / 2;
+  return { h, s: d === 0 ? 0 : (d / (1 - Math.abs(2 * l - 1))) * 100, l: l * 100 };
+}
+let pickerSat = 72;                 // 打开色板时从当前颜色取回；滑杆不暴露饱和度
+function pickerPopColor() { return hslToHex(+pickerHue.value, pickerSat, +pickerLum.value); }
 function showPickerPop(show) {
-  pickerPop.style.display = show ? 'flex' : 'none';
-  if (show && curColor) pickerSw.style.background = '#' + curColor.getHexString();
+  if (show && curColor) {
+    // 滑杆必须初始化到当前颜色：否则第一次碰滑杆会用陈旧默认值把当前配色顶掉
+    const hsl = hexToHsl('#' + curColor.getHexString());
+    pickerHue.value = Math.round(hsl.h);
+    pickerLum.value = Math.round(hsl.l);
+    pickerSat = Math.max(20, hsl.s);
+    pickerSw.style.background = '#' + curColor.getHexString();
+  }
+  pickerPop.classList.toggle('open', !!show);
 }
-pickerHue.addEventListener('input', () => { pickerSw.style.background = pickerPopColor(); applyPickerColor(pickerPopColor()); });
-pickerLum.addEventListener('input', () => { pickerSw.style.background = pickerPopColor(); applyPickerColor(pickerPopColor()); });
+function pickerPreview() {          // 拖动中：只做即时预览（材质染色），不触发 7000 粒子的全量重算
+  const v = pickerPopColor();
+  pickerSw.style.background = v;
+  if (points && points.material) points.material.color.set(v);
+}
+function pickerCommit() {           // 松手（change）：正式上色；setColor 里会把预览染色复位
+  setColor(pickerPopColor(), null);
+}
+pickerHue.addEventListener('input', pickerPreview);
+pickerLum.addEventListener('input', pickerPreview);
+pickerHue.addEventListener('change', pickerCommit);
+pickerLum.addEventListener('change', pickerCommit);
 
 let pickerHoldT = null, pickerHeld = false;
 pickerBtn.addEventListener('pointerdown', () => {
   pickerHeld = false;
-  pickerHoldT = setTimeout(() => { pickerHeld = true; showPickerPop(true); }, 650);
+  pickerHoldT = setTimeout(() => { pickerHeld = true; showPickerPop(!pickerPop.classList.contains('open')); }, 650);
 });
 for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) pickerBtn.addEventListener(ev, () => clearTimeout(pickerHoldT));
 pickerBtn.addEventListener('click', e => {
-  e.preventDefault();               // 不走 label 的隐式转发，统一由这里分发（转发在部分安卓内核上不可靠）
+  // 关键：native 分支里 pickerInp.click() 的合成点击会【冒泡回本处理器】——
+  // 若在这里 preventDefault，会把 input「弹出取色器」的激活行为一并取消，按钮变死。
+  // 故对「目标就是 input 的点击」直接放行，绝不拦截（键盘回车路径同样受益）。
+  if (e.target === pickerInp) return;
+  e.preventDefault();               // 其余情况：不走 label 的隐式转发，统一由这里分发
   if (pickerHeld) return;           // 刚才是一次长按 → 色板已唤出，吞掉随后的 click
   if (pickerMode === 'eye') {
     // 取消（AbortError）静默；其它失败（引擎有 API 但系统不支持屏幕取色）→ 落回内置色板，
@@ -3244,14 +3287,14 @@ pickerBtn.addEventListener('click', e => {
       });
     } catch (err) { showPickerPop(true); }
   } else if (pickerMode === 'native') {
-    pickerInp.click();              // 显式编程点击比 label 转发可靠
+    pickerInp.click();              // 显式编程点击；其合成事件冒泡上来时上面的守卫会放行
   } else {
-    showPickerPop(pickerPop.style.display !== 'flex');
+    showPickerPop(!pickerPop.classList.contains('open'));
   }
 });
 // 点击别处收起色板（capture：不被画布上停止冒泡的处理器影响）
 document.addEventListener('pointerdown', e => {
-  if (pickerPop.style.display === 'flex' && !pickerPop.contains(e.target) && !pickerBtn.contains(e.target))
+  if (pickerPop.classList.contains('open') && !pickerPop.contains(e.target) && !pickerBtn.contains(e.target))
     showPickerPop(false);
 }, true);
 
