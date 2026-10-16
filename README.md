@@ -6,6 +6,9 @@
 
 **完全离线可运行 · 无任何 CDN 依赖 · 无摄像头也能玩**
 
+**在线试玩：[haikethreat.github.io/Oracle-bone-TCM](https://haikethreat.github.io/Oracle-bone-TCM/)** —— GitHub Pages 托管，免备案。
+首屏约 680KB（1~3 秒可看自动巡字）；「手势控制」需再下 6MB 模型，点按钮才触发，见下文[方式一](#方式一github-pages)。
+
 ## 这是什么
 
 《智解甲骨·中医密码》—— Three.js 7000 粒子点云 + MediaPipe 手势追踪的单文件网页交互作品。摄像头手势：
@@ -108,8 +111,45 @@ python3 build_glyphs.py --db 其它.json --curated 其它.json   # 换数据源
 
 ### 方式一：GitHub Pages
 
-仓库 **Settings → Pages → Deploy from a branch** 选 `main` / `(root)`。
+**线上地址：<https://haikethreat.github.io/Oracle-bone-TCM/>**（2026-10-16 实测已上线）
+
+配置：仓库 **Settings → Pages → Deploy from a branch** 选 `main` / `(root)`。
 资源全部使用相对路径，已实测子路径（`用户名.github.io/仓库名/`）下可正常运行。
+`Enforce HTTPS` 是默认域名下的**强制项**，会自动勾选 —— 正好满足摄像头对安全上下文的要求。
+
+#### 首屏与手势是两条独立的下载路径（重要）
+
+页面用 JS 注入只急加载 `three.min.js`（633KB）+ `hands.js`（45KB），**手势模型是点击才加载**的：
+
+| 功能 | 需要下载 | 大陆实测 |
+| --- | --- | --- |
+| 打开页面 / 待机自动巡字 / 输入框生成 | 约 **680KB** | ✅ 1~3 秒 |
+| 点「🎥 手势控制」 | 再加约 **16MB** 模型 | ⚠️ 见下 |
+
+#### 已知坑：Pages 上 6MB 的 `.wasm` 吞吐极不稳定（2026-10-16 实测）
+
+同一宿主的对照测试结果非常反直觉：
+
+| 文件 | 大小 | 实测速度 |
+| --- | --- | --- |
+| `three.min.js` | 633KB | **314 KB/s**（2 秒完成） |
+| `hand_landmark_full.tflite` | 5.4MB | **703 KB/s** ✅ |
+| `hands_solution_simd_wasm_bin.wasm` | 6.0MB | **11 ~ 83 KB/s** ❌ |
+
+同一个文件在不同时刻测出 11 / 41 / 62 / 66 / 83 KB/s —— 而**同一宿主的 tflite 却有 703 KB/s**。
+所以这**不是**「GitHub Pages 被墙」，也不是配置问题，而是这条 6MB 二进制路径被限速
+（`.wasm` 已被 gzip，压缩比有限，疑似触发 CDN 流式压缩瓶颈）。
+
+**影响可控**：手势是懒加载 + 有鼠标回退，所以「作品自己会演」的部分完全不受影响。
+若要让手势在大陆也可用，把 `modelComplexity` 由 `1`（full，5.4MB）改为 `0`（lite，2.1MB），
+下载量砍掉 61%——代价是手部关键点精度下降、「捏合」判定可能变迟钝（源码此处已有注释说明）。
+
+#### 其他 Pages 事实（便于日后排查）
+
+- `.wasm` 的 `Content-Type` 为 **`application/wasm`** ✅（不会让 MediaPipe 走慢速回退）
+- **含 `.wasm` 在内全部走 gzip**：`gesture3d.html` 1,624,785B → **869,479B**（省 46.5%）
+- `Cache-Control: max-age=600` —— Pages 固定值，**后台改不了**；页面靠顶部 `ASSET_V` 破缓存
+- HTTP 强制 301 跳 HTTPS；108/110/111 三个边缘 IP 内容一致
 
 ### 方式二：自建服务器（阿里云等）
 

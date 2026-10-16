@@ -2,6 +2,11 @@
 
 面向**自建服务器**（阿里云 ECS 等）。GitHub Pages 不需要这些。
 
+> **免备案通道已在用**：<https://haikethreat.github.io/Oracle-bone-TCM/>
+> （2026-10-16 上线）。本目录全部脚本都是给「备案后的正式站点」用的，
+> 与 Pages 互不影响 —— 需要临时把链接发出去时，直接用 Pages 那条即可，
+> 详见 [`POST-FILING.md`](POST-FILING.md) 的「临时通道」一节与仓库根 README。
+
 ## 顺序
 
 ```bash
