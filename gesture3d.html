@@ -286,6 +286,27 @@
     color:#8fa3bd; text-align:right; line-height:1.7; font-family:Menlo,monospace;
     text-shadow:0 1px 4px rgba(0,0,0,.8); }
   #stats b { color:#cfe0f4; }
+
+  /* ── 竖屏精简（手机为主）───────────────────────────────────────────────
+     竖屏下横向空间紧张（手机尤甚）：
+     ① 五色预设圆点（#swatches）隐藏 —— 取色棒（#btnPicker）保留：
+        取色棒才是「任意颜色」的功能入口，圆点只是快捷方式；
+     ② 右上角参数读数（#stats：fps/particles/glyph）隐藏。
+     顺带收紧控制条间距与内边距，保证 340px 级窄屏下
+     各按钮不会被挤出屏幕右缘。
+     桌面与横屏完全不受影响；竖屏下按 Ctrl(⌘)+Shift+D 进入诊断模式时，
+     #stats 会加 .diag 类强制显示（见 frame() 里的同步逻辑）。 */
+  @media (orientation: portrait) and (max-width: 900px) {
+    /* 用 #bar #swatches（而非 #swatches）：压制 #bar .group 的 display:flex，
+       特异性 (2,0,0) > (1,1,0) */
+    #bar #swatches { display:none; }
+    #stats { display:none; }
+    #stats.diag { display:block; }
+    #bar { gap:8px; padding:8px 12px; }
+    #bar .cbtn { font-size:12px; padding:6px 11px; }
+    #bar .group { gap:6px; }
+    #bar .sep { height:18px; }
+  }
 </style>
 </head>
 <body>
@@ -3329,6 +3350,9 @@ function frame(now) {
       + `<span id="statsDiag" style="display:${statsDiag ? 'block' : 'none'}">`
       + diagLine + jankLine
       + `</span>`;
+    // 竖屏下 #stats 被媒体查询隐藏；诊断模式（Ctrl/⌘+Shift+D）开启时
+    // 加 .diag 类强制显示 —— 沿用「状态只在 frame() 里改」的既有约定
+    document.getElementById('stats').classList.toggle('diag', statsDiag);
   }
   // 右上角：状态胶囊在上、读数（stats）在下 —— 顺序与原先相反。
   // stats 是 position:fixed，不参与 topbar 的 flex 排版，所以它的 top 必须算：
