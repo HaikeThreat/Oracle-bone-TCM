@@ -97,6 +97,16 @@
   }
   .cbtn:hover { border-color:var(--gold); color:var(--gold); }
   .cbtn.on { border-color:var(--gold); color:var(--gold); background:rgba(255,196,107,.12); }
+
+  /* 内置色板（取色降级链第③级 / 长按取色棒唤出）：range 输入在任何内核上都可靠 */
+  #pickerPop { position:fixed; bottom:92px; left:50%; transform:translateX(-50%); z-index:30;
+    display:none; align-items:center; gap:12px; padding:10px 16px;
+    background:var(--panel); border:1px solid var(--line); border-radius:14px;
+    backdrop-filter:blur(10px); box-shadow:0 8px 32px rgba(0,0,0,.5); }
+  #pickerSw { width:20px; height:20px; border-radius:50%; flex:none;
+    border:2px solid rgba(255,255,255,.3); background:#ffcf7a; }
+  #pickerPop .pk { display:flex; align-items:center; gap:6px; font-size:12px; color:#8fa3bd; white-space:nowrap; }
+  #pickerPop input[type=range] { width:110px; accent-color:#ffc46b; }
   .sw { width:22px; height:22px; border-radius:50%; cursor:pointer; border:2px solid rgba(255,255,255,.25);
         transition:.15s; }
   .sw:hover { transform:scale(1.15); }
@@ -307,7 +317,7 @@
      是手机 GPU 的显著固定开销（弱 GPU 上尤其明显）。关掉只损失一点磨砂观感，
      rgba 底色仍在，视觉几乎无差。 */
   @media (pointer: coarse) {
-    #bar, #glyphPanel { backdrop-filter:none; -webkit-backdrop-filter:none; }
+    #bar, #glyphPanel, #pickerPop { backdrop-filter:none; -webkit-backdrop-filter:none; }
   }
 
   /* ── 竖屏精简（手机为主）───────────────────────────────────────────────
@@ -353,10 +363,17 @@
   <div class="cbtn" id="btnGlyphs">字形 ▾</div>
   <div class="sep"></div>
   <div class="group" id="swatches"></div>
-  <label class="cbtn" id="btnPicker" for="colorInput" aria-label="自定义颜色（吸管取色）" style="position:relative; padding:7px 10px">
+  <label class="cbtn" id="btnPicker" aria-label="自定义颜色（吸管取色）；长按可打开内置色板" style="position:relative; padding:7px 10px">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none"><path d="m2 22 1-1h3l9-9"/><path d="M3 21v-3l9-9"/><path d="m15 6 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3l.4.4Z"/></svg>
-    <input type="color" id="colorInput" value="#ffcf7a" style="position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; border:0; padding:0;">
+    <input type="color" id="colorInput" value="#ffcf7a" style="position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; border:0; padding:0; pointer-events:none;">
   </label>
+</div>
+
+<!-- 内置色板：取色按钮能力降级链的第③级；任意设备「长按取色棒」也能唤出 -->
+<div id="pickerPop">
+  <span id="pickerSw"></span>
+  <label class="pk">色相<input id="pickerHue" type="range" min="0" max="360" value="34"></label>
+  <label class="pk">明度<input id="pickerLum" type="range" min="35" max="85" value="62"></label>
 </div>
 
 <div id="glyphPanel">
@@ -3168,6 +3185,75 @@ document.getElementById('glyphSearch').addEventListener('input', () => refreshGl
 // 每次打开面板回到第一页（避免上次翻到很后、再打开是空滚动位置）
 document.getElementById('btnGlyphs').addEventListener('click', () => refreshGlyphPanel(true));
 document.getElementById('colorInput').addEventListener('input', e => setColor(e.target.value, null));
+
+// ── 取色按钮：能力降级链（修「非苹果设备点击取色棒无反应」）────────────────
+// 旧实现只靠 <label for> 把点击转发给隐形 <input type=color>：部分非苹果内核
+// （安卓各家浏览器、鸿蒙 WebView）要么不支持 type=color、要么支持但点了不弹任何
+// 界面 —— 表现就是「点击毫无反应」。现按能力逐级降级：
+//   ① EyeDropper API（桌面 Chrome/Edge、安卓 Chrome 等）：真正的屏幕吸管；
+//   ② 原生 <input type=color>（Safari / iPadOS / Firefox 等，行为与从前一致）；
+//   ③ 都没有 → 弹内置色板（色相/明度两条滑杆 + 实时预览），任何设备都能用。
+// 另设逃生门：任意设备「长按取色棒」也能唤出内置色板。
+const pickerBtn = document.getElementById('btnPicker');
+const pickerInp = document.getElementById('colorInput');
+const pickerPop = document.getElementById('pickerPop');
+const pickerHue = document.getElementById('pickerHue');
+const pickerLum = document.getElementById('pickerLum');
+const pickerSw  = document.getElementById('pickerSw');
+// 能力检测用 type 反射（规范：不支持的类型会回落为 'text'）。
+// 不能用 value==='#' 探测：Chromium/WebKit 对非法颜色值会静默回落 #000000，
+// 那样连支持原生取色器的浏览器都会被误判为"不支持"。
+const CAN_COLOR = (() => { const i = document.createElement('input'); i.type = 'color'; return i.type === 'color'; })();
+let pickerMode = window.EyeDropper ? 'eye' : (CAN_COLOR ? 'native' : 'pop');
+
+function applyPickerColor(v) {      // 走 colorInput 既有的 input 监听 → setColor（同一条应用管线）
+  pickerInp.value = v;
+  pickerInp.dispatchEvent(new Event('input'));
+}
+function hslToHex(h, s, l) {        // 自算 hex，不依赖任何引擎的颜色字符串解析
+  s /= 100; l /= 100;
+  const k = n => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1));
+  const to = x => Math.round(255 * x).toString(16).padStart(2, '0');
+  return '#' + to(f(0)) + to(f(8)) + to(f(4));
+}
+function pickerPopColor() { return hslToHex(+pickerHue.value, 72, +pickerLum.value); }
+function showPickerPop(show) {
+  pickerPop.style.display = show ? 'flex' : 'none';
+  if (show && curColor) pickerSw.style.background = '#' + curColor.getHexString();
+}
+pickerHue.addEventListener('input', () => { pickerSw.style.background = pickerPopColor(); applyPickerColor(pickerPopColor()); });
+pickerLum.addEventListener('input', () => { pickerSw.style.background = pickerPopColor(); applyPickerColor(pickerPopColor()); });
+
+let pickerHoldT = null, pickerHeld = false;
+pickerBtn.addEventListener('pointerdown', () => {
+  pickerHeld = false;
+  pickerHoldT = setTimeout(() => { pickerHeld = true; showPickerPop(true); }, 650);
+});
+for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) pickerBtn.addEventListener(ev, () => clearTimeout(pickerHoldT));
+pickerBtn.addEventListener('click', e => {
+  e.preventDefault();               // 不走 label 的隐式转发，统一由这里分发（转发在部分安卓内核上不可靠）
+  if (pickerHeld) return;           // 刚才是一次长按 → 色板已唤出，吞掉随后的 click
+  if (pickerMode === 'eye') {
+    // 取消（AbortError）静默；其它失败（引擎有 API 但系统不支持屏幕取色）→ 落回内置色板，
+    // 保证「点了永远有反应」这条底线
+    try {
+      new EyeDropper().open().then(r => applyPickerColor(r.sRGBHex)).catch(err => {
+        if (!err || err.name !== 'AbortError') showPickerPop(true);
+      });
+    } catch (err) { showPickerPop(true); }
+  } else if (pickerMode === 'native') {
+    pickerInp.click();              // 显式编程点击比 label 转发可靠
+  } else {
+    showPickerPop(pickerPop.style.display !== 'flex');
+  }
+});
+// 点击别处收起色板（capture：不被画布上停止冒泡的处理器影响）
+document.addEventListener('pointerdown', e => {
+  if (pickerPop.style.display === 'flex' && !pickerPop.contains(e.target) && !pickerBtn.contains(e.target))
+    showPickerPop(false);
+}, true);
 
 // ── 玉石音效 ──────────────────────────────────────────────────────────────
 let AC = null;
