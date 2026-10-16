@@ -19,7 +19,7 @@
   html, body { width:100%; height:100%; overflow:hidden; background:#04060a;
     -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
     -webkit-tap-highlight-color:transparent; overscroll-behavior:none; }
-  input, textarea { -webkit-user-select:text; user-select:text; }
+  input { -webkit-user-select:text; user-select:text; }   /* 本页表单控件只有 input；将来加入其它可编辑控件时补进选择器 */
   body { font-family: "PingFang SC","Microsoft YaHei",sans-serif; color:#cfe0f4; }
   #stage { position:fixed; inset:0; width:100%; height:100%; display:block; }
 
@@ -312,13 +312,12 @@
      顺带收紧控制条间距与内边距，保证 340px 级窄屏下
      各按钮不会被挤出屏幕右缘。
      桌面与横屏完全不受影响；竖屏下按 Ctrl(⌘)+Shift+D 进入诊断模式时，
-     #stats 会加 .diag 类强制显示（见 frame() 里的同步逻辑）。 */
+     frame() 会用内联 display 临时强制显示（见 stats 重建处）。 */
   @media (orientation: portrait) and (max-width: 900px) {
     /* 用 #bar #swatches（而非 #swatches）：压制 #bar .group 的 display:flex，
        特异性 (2,0,0) > (1,1,0) */
     #bar #swatches { display:none; }
     #stats { display:none; }
-    #stats.diag { display:block; }
     #bar { gap:8px; padding:8px 12px; }
     #bar .cbtn { font-size:12px; padding:6px 11px; }
     #bar .group { gap:6px; }
@@ -375,8 +374,10 @@
      一旦被 immutable 缓存就再也刷不掉。 -->
 <script>const ASSET_V = '1';</script>
 <script>
+  // 资源 URL 拼装的唯一定义：libs/ 源带 ?v= 破长缓存；npm 源由包版本号固化缓存指纹
+  const libUrl = (base, f) => base + f + (base === 'libs/' ? '?v=' + ASSET_V : '');
   for (const f of ['three.min.js', 'hands.js']) {
-    document.write('<script src="libs/' + f + '?v=' + ASSET_V + '"><\/script>');
+    document.write('<script src="' + libUrl('libs/', f) + '"><\/script>');
   }
 </script>
 <!-- 字库数据：由 build_glyphs.py 生成，勿手改 -->
@@ -1501,34 +1502,39 @@ const SEND_TIMEOUT_MS = 10000;
 //   离线 / 局域网部署 → 本地 libs/ 秒赢，行为与从前完全一致；
 //   大陆联网 → npmmirror 秒赢；海外 → jsDelivr 兜底。
 // 三个源全探测失败时回落到本地，交给原有错误路径提示。
+const HANDS_VER = '0.4.1675469240';      // 与 libs/ 内文件逐字节同源的 npm 包版本（md5 已核对）
 const HANDS_SOURCES = [
-  'https://registry.npmmirror.com/@mediapipe/hands/0.4.1675469240/files/',
-  'https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/',
+  'https://registry.npmmirror.com/@mediapipe/hands/' + HANDS_VER + '/files/',
+  'https://cdn.jsdelivr.net/npm/@mediapipe/hands@' + HANDS_VER + '/',
   'libs/'
 ];
-let handsSrc = null;                    // 探测结果缓存：整个会话复用，开关摄像头不重探
+let handsSrc = null;                     // 探测结果缓存：整个会话复用，开关摄像头不重探
 function pickHandsSource() {
   if (handsSrc) return Promise.resolve(handsSrc);
   return new Promise(resolve => {
-    let settled = false, failed = 0;
+    let settled = false;
+    const running = [];
     const settle = base => {
       if (settled) return;
       settled = true; handsSrc = base;
+      for (const r of running) {            // 胜者已定：中止其余探测，不再空耗请求与计时器
+        clearTimeout(r.timer);
+        if (r.base !== base) r.ctl.abort();
+      }
       console.info('[hands] 模型资源源:', base);
       resolve(base);
     };
-    for (const base of HANDS_SOURCES) {
+    // 每个源产出一个「成功或失败都收场」的探测；全部失败才回落本地（settle 幂等）。
+    // 探测不用 no-store：URL 已版本固化，缓存条目正好被随后的 locateFile 加载复用。
+    const probes = HANDS_SOURCES.map(base => new Promise(done => {
       const ctl = new AbortController();
       const timer = setTimeout(() => ctl.abort(), 4000);
-      const url = base + 'hands.binarypb' + (base === 'libs/' ? '?v=' + ASSET_V : '');
-      fetch(url, { cache: 'no-store', signal: ctl.signal }).then(r => {
-        clearTimeout(timer);
-        r.ok ? settle(base) : (++failed === HANDS_SOURCES.length && settle('libs/'));
-      }).catch(() => {
-        clearTimeout(timer);
-        ++failed === HANDS_SOURCES.length && settle('libs/');
-      });
-    }
+      running.push({ base, ctl, timer });
+      fetch(libUrl(base, 'hands.binarypb'), { signal: ctl.signal })
+        .then(r => { clearTimeout(timer); if (r.ok) settle(base); done(); })
+        .catch(() => { clearTimeout(timer); done(); });
+    }));
+    Promise.all(probes).then(() => settle('libs/'));
   });
 }
 // ── 手势转动幅度（位置跟随模式）────────────────────────────────────────────
@@ -2341,7 +2347,7 @@ async function toggleCamera() {
     if (!cam.hands) {
       const base = await srcP;                                // 就近择优：离线/局域网→本地 libs/；大陆→npmmirror；海外→jsDelivr
       cam.hands = new Hands({
-        locateFile: f => base + f + (base === 'libs/' ? `?v=${ASSET_V}` : '')   // npm 源包版本号即缓存指纹，无需 ?v
+        locateFile: f => libUrl(base, f)                      // 与探测共用同一 URL 拼装（libs/ 才带 ?v）
       });
       // modelComplexity：1=full（手部关键点更准）0=lite（推理便宜一大截）。
       // 推理在主线程同步执行，每次约几十毫秒，期间渲染被掐住 → 手势旋转顿挫。
@@ -3260,7 +3266,14 @@ addEventListener('keydown', e => {
 function frame(now) {
   requestAnimationFrame(frame);
   const rawDt = (now - lastT) / 1000;           // 真实帧间隔（不截断）
-  const dt = Math.min(rawDt, 1 / 30);           // 物理用：截断避免大步长炸开
+  // 本帧的三种时间口径（只在这里定义一次，避免各消费点各写各的魔数）：
+  //   realDt —— 「按真实时间走」的统一钳位（待机计时、自转、星尘、仿真追赶共用）；
+  //             上限 0.1s：切后台回来等大停顿不一次补太多
+  //   MAX_STEP —— 仿真单步稳定上限（dt 截断与子步拆分共用同一约束）
+  //   dt —— 平滑滤波/读数用（帧率鲁棒即可）
+  const realDt = Math.min(rawDt, 0.1);
+  const MAX_STEP = 1 / 30;
+  const dt = Math.min(rawDt, MAX_STEP);
   lastT = now;
   fps = lerp(fps, 1 / Math.max(dt, 1e-4), 0.05);
   const t = now / 1000;
@@ -3272,7 +3285,7 @@ function frame(now) {
   jankWin += rawDt;
   if (jankWin >= 1) { jankMaxShow = jankMax; jankOverShow = jankOver; jankWin = 0; jankMax = 0; jankOver = 0; }
 
-  if (flashT > 0) flashT = Math.max(0, flashT - dt * 1.6);
+  if (flashT > 0) flashT = Math.max(0, flashT - realDt * 1.6);   // 闪光衰减按真实时间
   // 待机自动巡下一字（展馆无人时轮播）。
   // 只在「精选字」里轮播（数据里标了 curated: true 的人工编排字），而不是全库上千个 ——
   // 全库含「丁」「乙」「丂」等与中医无关的字，无人值守时轮播这些会偏离作品主题。
@@ -3280,7 +3293,7 @@ function frame(now) {
   // 先算好待机状态，再更新手势 —— updateGestures 需要读它
   const noInput = (!hands3d[0] && !hands3d[1] && !virtualHand.active && !gatherLock);
   if (noInput) {
-    ambientIdle += Math.min(rawDt, 0.25);   // 用真实间隔：慢设备上「45 秒待机」才不会被帧率拉长
+    ambientIdle += realDt;   // 按真实时间：慢设备上「45 秒待机」才不会被帧率拉长
   } else {
     ambientIdle = 0;           // 有人接管 → 重新计时（同时让 ambient 立即为假）
   }
@@ -3294,7 +3307,7 @@ function frame(now) {
     ambientSwitched = false;
   } else {
     if (!wasAmbient) { ambientPhase = 0; ambientSwitched = false; }   // 刚进入待机：从周期起点开始
-    ambientPhase += Math.min(rawDt, 0.25);  // 同上：巡播节奏按真实时间走
+    ambientPhase += realDt;  // 同上：巡播节奏按真实时间走
     // 换字发生在【散开刚结束】的位置（AMB_SWITCH_AT）而不是周期末尾：
     // 这样「散尽 → 换字 → 空歇 AMBIENT_GAP_SECS 秒 → 下一次聚形」，
     // 中间那段空歇就是肉眼看到的停顿（此前换字在周期末尾，紧接着就聚形，没有停顿）。
@@ -3318,21 +3331,21 @@ function frame(now) {
   // 仿真追赶（治「手机上手势动画像 0.75 倍速播放」）：
   // dt 截断到 1/30 是为数值稳定，但帧间隔超过 33ms 时（手机推理占住主线程，
   // 实测 40~80ms/帧），每帧只按 33ms 推进 → 聚形/转动整体慢于真实时间。
-  // 解决：把这一帧的真实间隔拆成多个 ≤1/30 的子步逐个推进——
-  // 单步稳定性不变，动画按真实时间走。上限 100ms：更大的停顿（切后台回来等）
-  // 不追帧，避免一次补太多步形成雪崩。
-  let simLeft = Math.min(rawDt, 0.1);
-  while (simLeft > 1e-6) {
-    const step = Math.min(simLeft, 1 / 30);
+  // 解决：把本帧的 realDt 拆成 n 个等长子步（每步 ≤ MAX_STEP）逐个推进——
+  // 单步稳定性不变、动画按真实时间走。等分而非「整步+零头」：掉帧边缘
+  // （如 33.4ms）不会为零头（0.07ms）多跑一趟完整 O(N) 仿真。
+  // 60fps 时 n=1，与从前逐帧行为一致。
+  const n = Math.max(1, Math.ceil(realDt / MAX_STEP));
+  const step = realDt / n;
+  for (let i = 0; i < n; i++) {
     updateGestures(step, t);
     physics(step, t);
-    simLeft -= step;
   }
 
   // 聚形成功闪光：粒子尺寸脉冲；呼吸：整体缩放微振荡
   points.material.size = 0.055 * (1 + flashT * 0.9);
   points.scale.setScalar(1 + 0.0035 * Math.sin(t * 1.7));
-  starfield.rotation.y += dt * 0.008;
+  starfield.rotation.y += realDt * 0.008;
 
   points.geometry.attributes.position.array.set(pos.subarray(0, N * 3));
   points.geometry.attributes.position.needsUpdate = true;
@@ -3355,7 +3368,7 @@ function frame(now) {
   // 也不会在换字那一下突然跳角度。
   if (ambient) {
     const rotW = gather >= 0.98 ? 1 : Math.max(0, (gather - 0.85) / 0.13);
-    ambientYaw += dt * 0.26 * rotW;              // 约 24 秒转一圈，慢到能看清笔画
+    ambientYaw += realDt * 0.26 * rotW;          // 约 24 秒转一圈（按真实时间，慢设备不打折）
     points.rotation.y = ambientYaw;
     points.rotation.x = Math.sin(t * 0.35) * 0.085 * rotW;   // 轻微俯仰浮动，减少呆板
   }
@@ -3377,14 +3390,15 @@ function frame(now) {
   const statsSigNow = [fpsShow, N, curGlyph3D.ch, statsDiag ? 1 : 0, diagLine, jankLine].join('\u0001');
   if (statsSigNow !== statsSig) {
     statsSig = statsSigNow;
-    document.getElementById('stats').innerHTML =
+    const statsEl = document.getElementById('stats');
+    statsEl.innerHTML =
       `fps <b>${fpsShow}</b> · particles <b>${N}</b> · glyph <b>${curGlyph3D.ch}</b>`
       + `<span id="statsDiag" style="display:${statsDiag ? 'block' : 'none'}">`
       + diagLine + jankLine
       + `</span>`;
-    // 竖屏下 #stats 被媒体查询隐藏；诊断模式（Ctrl/⌘+Shift+D）开启时
-    // 加 .diag 类强制显示 —— 沿用「状态只在 frame() 里改」的既有约定
-    document.getElementById('stats').classList.toggle('diag', statsDiag);
+    // 竖屏下 #stats 被媒体查询隐藏；诊断模式（Ctrl/⌘+Shift+D）用内联 display 强制显示
+    // —— 与相邻 #statsDiag 的内联 style、下方 statsEl.style.top 保持同一套机制
+    statsEl.style.display = statsDiag ? 'block' : '';
   }
   // 右上角：状态胶囊在上、读数（stats）在下 —— 顺序与原先相反。
   // stats 是 position:fixed，不参与 topbar 的 flex 排版，所以它的 top 必须算：

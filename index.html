@@ -6,16 +6,17 @@
 <title>甲骨文 · 中医密码</title>
 <!-- 站点入口：真正的作品在 gesture3d.html。
      之所以单列一个入口页而不是把作品改名 index.html：
-     ① 静态托管的目录入口必须是 index.html，否则访问根地址会 404；
+     ① 静态托管的目录入口必须是 index.html，否则根地址会 404；
      ② 保持 gesture3d.html 这个文件名不变，已有链接与文档都不用改。
 
      2026-10-16 晚改版：由「meta refresh 秒跳」改为「先下载、带进度、再进入」。
      原因：作品首页是 1.6MB 单文件；慢网络（大陆访问 Pages、弱网手机）下直接秒跳，
      浏览器会一直停在入口页等新页面，观感就是「卡死」，而用户看不到任何进展。
-     现在改为：fetch 作品页并实时显示进度 → 完成后 location.replace（命中 HTTP 缓存，秒开）。
+     现在改为：fetch 作品页并实时显示进度（「已接收 x.x MB」+ 近似比例条）→ 完成后
+     location.replace（命中 HTTP 缓存，秒开）。
      兜底设计（各失效模式都覆盖）：
        ● 「直接进入」链接一开始就常驻——任何时刻都可手动进入，不依赖 JS；
-       ● 12 秒无下载进展（或总时长超 45 秒）→ 状态栏提示并强调该按钮；
+       ● 12 秒无下载进展（或总时长超 45 秒）→ 状态栏提示并强调该按钮（单一心跳检查）；
        ● fetch 失败 → 提示并强调该按钮（点它走普通链接跳转，如同旧行为）。 -->
 <link rel="canonical" href="gesture3d.html">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%3E%3Crect%20width='64'%20height='64'%20fill='%2304060a'/%3E%3Ctext%20x='32'%20y='47'%20font-size='40'%20text-anchor='middle'%20fill='%23ffc46b'%20font-family='Kaiti%20SC,STKaiti,serif'%3E%E7%94%B2%3C/text%3E%3C/svg%3E">
@@ -50,28 +51,25 @@
 <script>
 (function () {
   'use strict';
-  var TARGET = 'gesture3d.html';
-  // gesture3d.html 解压后的字节数：仅用于进度估算。该文件日后改动时此值可以不改——
-  // 偏差只影响百分比的精度，逻辑上用「收尾」状态兜底，不会出现数字顶死的观感。
-  var EXPECT = 1631349;
+  var goEl = document.getElementById('go');
+  var TARGET = goEl.querySelector('a').getAttribute('href');   // 目标文件名只从按钮 href 取，标记与脚本唯一真值
   var statusEl = document.getElementById('status');
   var barEl = document.getElementById('bar');
-  var goEl = document.getElementById('go');
-  var settled = false;
+  // 进度条比例的参考字节数：只影响条子长度（近似即可）；进度文字显示的是已接收的 MB 数，
+  // 因此 gesture3d.html 日后改动无需同步维护此值。
+  var EXPECT = 1633734;
+  var SLOW_MSG = '网络较慢，仍在下载…也可点「直接进入」';
+  var settled = false, warned = false, lastMB = '';
 
-  function setProgress(got) {
-    var ratio = got / EXPECT, pct = ratio * 100;
-    // 治本「卡在 99%」的观感：① 95% 以上保留一位小数，最后 1% 也能看到数字在动；
-    // ② 数据超过 EXPECT 后统一切换为「正在收尾…」，不再让百分比顶死在某个数字上。
-    barEl.style.width = Math.min(99.5, pct) + '%';
-    if (ratio >= 1) statusEl.textContent = '正在收尾…';
-    else if (pct >= 95) statusEl.textContent = '正在准备… ' + pct.toFixed(1) + '%';
-    else statusEl.textContent = '正在准备… ' + Math.floor(pct) + '%';
-  }
   function trouble(msg) {
     if (settled) return;
     statusEl.textContent = msg;
     goEl.classList.add('urge');
+  }
+  function slowNet() {
+    if (warned) return;                 // 每会话只提示一次；按钮点亮后持续有效
+    warned = true;
+    trouble(SLOW_MSG);
   }
   function enter() {
     if (settled) return;
@@ -79,34 +77,35 @@
     barEl.style.width = '100%';
     location.replace(TARGET);
   }
+  function render(got) {
+    // 按 0.1MB 粒度更新：文案只在数字变化时写 DOM（一次下载通常 ≤16 次写），
+    // 天然合并了对 DOM/样式的高频写入；进度条随之步进。
+    var mb = (got / 1048576).toFixed(1);
+    if (mb === lastMB) return;
+    lastMB = mb;
+    statusEl.textContent = '正在准备… ' + mb + ' MB';
+    barEl.style.width = Math.min(99.5, got * 100 / EXPECT) + '%';
+  }
 
-  // 无进展 12 秒 → 提示并点亮按钮；总时长 45 秒仍未完成 → 同样提示
-  // （后者应对「有微量进展但极慢」的拖尾：按块重置的计时永远不触发的情形）
-  var stall = setTimeout(function () {
-    trouble('网络较慢，仍在下载…也可点「直接进入」');
-  }, 12000);
-  setTimeout(function () {
-    if (!settled) trouble('网络较慢，仍在下载…也可点「直接进入」');
-  }, 45000);
+  // 慢网提示：单一 3 秒心跳检查两个条件（距最近一次进展 >12s，或总时长 >45s），
+  // 不再每收到一块就重挂定时器（一次下载可少几十次无谓的建/销）。
+  var startedAt = Date.now(), lastProgressAt = startedAt;
+  setInterval(function () {
+    if (settled) return;
+    if (Date.now() - lastProgressAt > 12000 || Date.now() - startedAt > 45000) slowNet();
+  }, 3000);
 
   fetch(TARGET)
     .then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
-      if (!(r.body && r.body.getReader)) return null;      // 旧内核无流式读取：跳过进度，等完即进
+      if (!(r.body && r.body.getReader)) return r.arrayBuffer();   // 旧内核无流式读取：等完再进
       var reader = r.body.getReader(), got = 0;
       var pump = function () {
         return reader.read().then(function (res) {
-          if (res.done) {
-            barEl.style.width = '100%';
-            statusEl.textContent = '准备完成，正在进入…';
-            return;
-          }
+          if (res.done) { statusEl.textContent = '准备完成，正在进入…'; return; }
           got += res.value.length;
-          setProgress(got);
-          clearTimeout(stall);
-          stall = setTimeout(function () {
-            trouble('网络较慢，仍在下载…也可点「直接进入」');
-          }, 12000);
+          lastProgressAt = Date.now();
+          render(got);
           return pump();
         });
       };
