@@ -9,7 +9,17 @@
 <style>
   :root { --panel: rgba(14,18,26,.78); --line: rgba(120,160,220,.25); --gold:#ffc46b; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { width:100%; height:100%; overflow:hidden; background:#04060a; }
+  /* 移动端系统行为治理：
+     ① 长按不再弹出「拷贝/查询」菜单与放大镜 —— user-select:none 禁文本选择、
+        -webkit-touch-callout:none 禁 iOS 长按呼出；输入框单独豁免（见下下条），
+        保证「任意字」输入框与搜索框里仍能选中/编辑文本；
+     ② -webkit-tap-highlight-color:transparent —— 去掉点按时的灰色闪块；
+     ③ overscroll-behavior:none —— 禁止 iOS Safari 的下拉刷新/橡皮筋回弹，
+        防止页面被误拖刷新（Safari 16+ 支持）。 */
+  html, body { width:100%; height:100%; overflow:hidden; background:#04060a;
+    -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
+    -webkit-tap-highlight-color:transparent; overscroll-behavior:none; }
+  input, textarea { -webkit-user-select:text; user-select:text; }
   body { font-family: "PingFang SC","Microsoft YaHei",sans-serif; color:#cfe0f4; }
   #stage { position:fixed; inset:0; width:100%; height:100%; display:block; }
 
