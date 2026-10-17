@@ -16,6 +16,7 @@
 """
 import argparse
 import base64
+import io
 import json
 import os
 import re
@@ -190,18 +191,19 @@ def main():
     assert not miss, f"子集缺字: {miss}"
     # 同时产出 WOFF2：无损、体积约为 TTF 的 60%，整页 gzip 后传输量约省 19%。
     # 需要 brotli（pip install brotli）；缺失时自动退回 TTF，构建不失败。
-    tmp_woff2 = "/tmp/oracle_subset_build.woff2"
-    use_woff2 = False
+    # 字体三要素（字节 / mime / format 串）作为一体输出，回写时一次性替换，避免三者错配。
+    font_mime, font_fmt = "font/truetype", "truetype"
     try:
         f.flavor = "woff2"
-        f.save(tmp_woff2)
-        use_woff2 = True
+        buf = io.BytesIO()
+        f.save(buf)
+        font_bytes = buf.getvalue()
+        font_mime, font_fmt = "font/woff2", "woff2"
     except Exception as e:
         print("WOFF2 转换失败（缺 brotli？），退回 TTF：", e)
-    font_file = tmp_woff2 if use_woff2 else tmp
-    b64 = base64.b64encode(open(font_file, "rb").read()).decode()
-    print(f"字体子集 {os.path.getsize(font_file) / 1024:.0f} KB（base64 {len(b64) / 1024:.0f} KB，"
-          f"{'woff2' if use_woff2 else 'ttf'}），校验通过")
+        font_bytes = open(tmp, "rb").read()
+    b64 = base64.b64encode(font_bytes).decode()
+    print(f"字体子集 {len(font_bytes) / 1024:.0f} KB（base64 {len(b64) / 1024:.0f} KB，{font_fmt}），校验通过")
 
     # ── 5. 回写页面
     # 5a. 数组 → window.ORACLE_GLYPHS_INLINE（放在主脚本之前）
@@ -259,12 +261,14 @@ def main():
         )
     print(f"字头别名表 {len(alias)} 条")
 
-    # 5b. 字体 base64（woff2 时同步改 mime 与 format，两步都幂等）
-    html, n2 = re.subn(r"(base64,)[A-Za-z0-9+/=]+(\))", lambda m: m.group(1) + b64 + m.group(2), html, count=1)
-    assert n2 == 1, "字体 base64 替换失败"
-    if use_woff2:
-        html = html.replace("data:font/truetype;charset=utf-8;base64,", "data:font/woff2;base64,")
-        html = html.replace('format("truetype")', 'format("woff2")')
+    # 5b. 字体 src 整体替换（字节 + mime + format 一次换完，两个方向都不会错配）
+    charset = "" if font_fmt == "woff2" else ";charset=utf-8"
+    src = f'src: url(data:{font_mime}{charset};base64,{b64}) format("{font_fmt}")'
+    html, n2 = re.subn(
+        r'src: url\(data:font/[^)]*base64,[A-Za-z0-9+/=]+\)\s*format\("[^"]+"\)',
+        src, html, count=1,
+    )
+    assert n2 == 1, "字体 src 替换失败"
 
     # 5c. 面板静态计数初值
     visible = sum(1 for e in uniq if not e.get("hidden"))

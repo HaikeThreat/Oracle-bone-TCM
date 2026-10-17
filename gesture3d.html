@@ -3228,17 +3228,16 @@ const hueBar = document.getElementById('hueBar');
 const hueDot = document.getElementById('hueDot');
 const pickerSw  = document.getElementById('pickerSw');
 const hexLabel  = document.getElementById('hexLabel');
-// 能力检测用 type 反射（规范：不支持的类型会回落为 'text'）。
+// 能力检测用 type 反射（规范：不支持的类型会回落为 'text'；直接读真实 input 的 type）。
 // 不能用 value==='#' 探测：Chromium/WebKit 对非法颜色值会静默回落 #000000，
 // 那样连支持原生取色器的浏览器都会被误判为"不支持"。
-const CAN_COLOR = (() => { const i = document.createElement('input'); i.type = 'color'; return i.type === 'color'; })();
 // 华为 ArkWeb / HuaweiBrowser：原生取色链路实测不可用（见上方⓪），直接走内置色板；
 // 其余设备保持原生优先。普通元素（label/按钮）的 click 在该内核上正常，色板按钮可正常响应。
 const IS_ARKWEB = /ArkWeb|HuaweiBrowser/i.test(navigator.userAgent);
-let pickerMode = (CAN_COLOR && !IS_ARKWEB) ? 'native' : 'pop';
-// native 模式：input 保持默认可命中（它铺满整颗按钮，真实点按直接落在它身上、
-// 走浏览器原生通路）；非 native 模式：让位给 label，由下方处理器统一分发
-if (pickerMode !== 'native') pickerInp.style.pointerEvents = 'none';
+const USE_NATIVE = pickerInp.type === 'color' && !IS_ARKWEB;
+// 原生路径：input 保持默认可命中（它铺满整颗按钮，真实点按直接落在它身上、走浏览器原生通路）；
+// 否则让位给 label，由下方处理器统一分发
+if (!USE_NATIVE) pickerInp.style.pointerEvents = 'none';
 
 function hsvToHex(h, s, v) {        // HSV → hex：面板全部取色数学自算，不依赖引擎解析
   const f = n => { const k = (n + h / 60) % 6; return v - v * s * Math.max(0, Math.min(k, 4 - k, 1)); };
@@ -3295,8 +3294,10 @@ function bindPick(el, fn) {
   el.addEventListener('pointerdown', e => {
     e.preventDefault();
     try { el.setPointerCapture(e.pointerId); } catch (err) {}
-    fn(e);
-    const mv = ev => fn(ev);
+    const rc = el.getBoundingClientRect();   // 拖动期间面板几何不变：只量一次，
+                                             // 避免每次 move 写样式后再读布局触发强制回流
+    fn(e, rc);
+    const mv = ev => fn(ev, rc);
     const up = () => {
       el.removeEventListener('pointermove', mv);
       el.removeEventListener('pointerup', up);
@@ -3308,22 +3309,21 @@ function bindPick(el, fn) {
     el.addEventListener('pointercancel', up);
   });
 }
-bindPick(svPad, e => {
-  const rc = svPad.getBoundingClientRect();
-  pS = Math.min(1, Math.max(0, (e.clientX - rc.left) / rc.width));
-  pV = 1 - Math.min(1, Math.max(0, (e.clientY - rc.top) / rc.height));
+bindPick(svPad, (e, rc) => {
+  pS = clamp01((e.clientX - rc.left) / rc.width);
+  pV = 1 - clamp01((e.clientY - rc.top) / rc.height);
   svLayout(); pickerPreview();
 });
-bindPick(hueBar, e => {
-  const rc = hueBar.getBoundingClientRect();
-  pH = Math.min(359.9, Math.max(0, (e.clientX - rc.left) / rc.width * 360));
+bindPick(hueBar, (e, rc) => {
+  pH = clamp((e.clientX - rc.left) / rc.width * 360, 0, 359.9);
   hueLayout(); svLayout(); pickerPreview();
 });
 
+function togglePickerPop() { showPickerPop(!pickerPop.classList.contains('open')); }
 let pickerHoldT = null, pickerHeld = false;
 pickerBtn.addEventListener('pointerdown', () => {
   pickerHeld = false;
-  pickerHoldT = setTimeout(() => { pickerHeld = true; showPickerPop(!pickerPop.classList.contains('open')); }, 650);
+  pickerHoldT = setTimeout(() => { pickerHeld = true; togglePickerPop(); }, 650);
 });
 for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) pickerBtn.addEventListener(ev, () => clearTimeout(pickerHoldT));
 pickerBtn.addEventListener('click', e => {
@@ -3333,11 +3333,11 @@ pickerBtn.addEventListener('click', e => {
   if (e.target === pickerInp) return;
   e.preventDefault();               // 其余情况：不走 label 的隐式转发，统一由这里分发
   if (pickerHeld) return;           // 刚才是一次长按 → 色板已唤出，吞掉随后的 click
-  if (pickerMode === 'native') {
+  if (USE_NATIVE) {
     pickerInp.click();              // 正常点按都会直接落在 input 上（前面的守卫放行、走原生通路）；
                                     // 这里只兜住理论死角：点在了 input 覆盖范围之外
   } else {
-    showPickerPop(!pickerPop.classList.contains('open'));
+    togglePickerPop();
   }
 });
 // 点击别处收起色板（capture：不被画布上停止冒泡的处理器影响）
