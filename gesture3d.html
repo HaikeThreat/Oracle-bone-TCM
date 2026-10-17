@@ -367,7 +367,7 @@
   <div class="group" id="swatches"></div>
   <label class="cbtn" id="btnPicker" aria-label="自定义颜色（吸管取色）；长按可打开内置色板" style="position:relative; padding:7px 10px">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none"><path d="m2 22 1-1h3l9-9"/><path d="M3 21v-3l9-9"/><path d="m15 6 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3l.4.4Z"/></svg>
-    <input type="color" id="colorInput" value="#ffcf7a" style="position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; border:0; padding:0; pointer-events:none;">
+    <input type="color" id="colorInput" value="#ffcf7a" style="position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; border:0; padding:0;">
   </label>
 </div>
 
@@ -3191,16 +3191,15 @@ document.getElementById('glyphSearch').addEventListener('input', () => refreshGl
 document.getElementById('btnGlyphs').addEventListener('click', () => refreshGlyphPanel(true));
 document.getElementById('colorInput').addEventListener('input', e => setColor(e.target.value, null));
 
-// ── 取色按钮：能力降级链（修「非苹果设备点击取色棒无反应」）────────────────
-// 旧实现只靠 <label for> 把点击转发给隐形 <input type=color>：部分非苹果内核
-// （安卓各家浏览器、鸿蒙 WebView）要么不支持 type=color、要么支持但点了不弹任何
-// 界面 —— 表现就是「点击毫无反应」。现按能力逐级降级：
-//   ① EyeDropper API（桌面 Chrome/Edge 等 Chromium 桌面环境；安卓/WebView 视机型
-//      而定，多数没有）：真正的屏幕吸管；
-//   ② 原生 <input type=color>（Safari / iPadOS / Firefox / 安卓等，行为与从前一致）；
-//   ③ 都没有 → 弹内置色板（色相/明度两条滑杆 + 实时预览），任何设备都能用。
-// 另设逃生门：任意设备「长按取色棒」也能唤出内置色板（对「type=color 假支持、
-// 点了不弹界面」的内核这是唯一可靠通道——JS 无法探测"对话框是否真的弹出"）。
+// ── 取色按钮：能力降级（修「非苹果设备点击取色棒无反应」，并保住苹果的原生通路）──
+// 策略：原生取色器优先（苹果/桌面/绝大多数安卓，行为与最初完全一致），不支持的
+// 内核落到内置色板：
+//   ① CAN_COLOR（type=color 受支持）→ 原生路径：隐形 input 保持「直接可点」——
+//      WebKit 只认直接落在 input 上的真实点按，忽略一切编程式 .click() 激活
+//      （曾因此把苹果点死过：input 被 pointer-events:none 挡住 + 编程式激活被忽略）；
+//   ② 不支持（部分 WebView/老旧内核）→ 弹内置色板（色相/明度滑杆 + 实时预览）。
+// 逃生门：任意设备「长按取色棒」唤出内置色板（对「type=color 假支持、点了不弹界面」
+// 的内核这是唯一可靠通道——JS 无法探测"对话框是否真的弹出"）。
 const pickerBtn = document.getElementById('btnPicker');
 const pickerInp = document.getElementById('colorInput');
 const pickerPop = document.getElementById('pickerPop');
@@ -3211,12 +3210,11 @@ const pickerSw  = document.getElementById('pickerSw');
 // 不能用 value==='#' 探测：Chromium/WebKit 对非法颜色值会静默回落 #000000，
 // 那样连支持原生取色器的浏览器都会被误判为"不支持"。
 const CAN_COLOR = (() => { const i = document.createElement('input'); i.type = 'color'; return i.type === 'color'; })();
-let pickerMode = window.EyeDropper ? 'eye' : (CAN_COLOR ? 'native' : 'pop');
+let pickerMode = CAN_COLOR ? 'native' : 'pop';
+// native 模式：input 保持默认可命中（它铺满整颗按钮，真实点按直接落在它身上、
+// 走浏览器原生通路）；非 native 模式：让位给 label，由下方处理器统一分发
+if (pickerMode !== 'native') pickerInp.style.pointerEvents = 'none';
 
-function applyPickerColor(v) {      // 直接走主管线（不再经合成 input 事件——那条链路无冒泡/无 inputType，过窄易断）
-  pickerInp.value = v;
-  setColor(v, null);
-}
 function hslToHex(h, s, l) {        // 自算 hex（标准 CSS 数学，与色板预览一致），不依赖引擎解析
   s /= 100; l /= 100;
   const k = n => (n + h / 30) % 12;
@@ -3278,16 +3276,9 @@ pickerBtn.addEventListener('click', e => {
   if (e.target === pickerInp) return;
   e.preventDefault();               // 其余情况：不走 label 的隐式转发，统一由这里分发
   if (pickerHeld) return;           // 刚才是一次长按 → 色板已唤出，吞掉随后的 click
-  if (pickerMode === 'eye') {
-    // 取消（AbortError）静默；其它失败（引擎有 API 但系统不支持屏幕取色）→ 落回内置色板，
-    // 保证「点了永远有反应」这条底线
-    try {
-      new EyeDropper().open().then(r => applyPickerColor(r.sRGBHex)).catch(err => {
-        if (!err || err.name !== 'AbortError') showPickerPop(true);
-      });
-    } catch (err) { showPickerPop(true); }
-  } else if (pickerMode === 'native') {
-    pickerInp.click();              // 显式编程点击；其合成事件冒泡上来时上面的守卫会放行
+  if (pickerMode === 'native') {
+    pickerInp.click();              // 正常点按都会直接落在 input 上（前面的守卫放行、走原生通路）；
+                                    // 这里只兜住理论死角：点在了 input 覆盖范围之外
   } else {
     showPickerPop(!pickerPop.classList.contains('open'));
   }
