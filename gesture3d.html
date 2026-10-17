@@ -98,17 +98,29 @@
   .cbtn:hover { border-color:var(--gold); color:var(--gold); }
   .cbtn.on { border-color:var(--gold); color:var(--gold); background:rgba(255,196,107,.12); }
 
-  /* 内置色板（取色降级链第③级 / 长按取色棒唤出）：range 输入在任何内核上都可靠 */
+  /* 内置取色器（取色降级链第③级 / 长按取色棒唤出）：2D 色域 + 色相条，
+     iOS/安卓原生取色器同款布局 —— 华为 ArkWeb 无原生取色 UI，此面板即其等效物 */
   #pickerPop { position:fixed; bottom:92px; left:50%; transform:translateX(-50%); z-index:30;
-    display:none; align-items:center; justify-content:center; flex-wrap:wrap; gap:10px 12px; padding:10px 14px;
+    display:none; flex-direction:column; gap:11px; padding:14px;
     max-width:calc(100vw - 20px);   /* 窄屏防裁切：html/body 是 overflow:hidden，越界的部分没有任何手段可达 */
     background:var(--panel); border:1px solid var(--line); border-radius:14px;
     backdrop-filter:blur(10px); box-shadow:0 8px 32px rgba(0,0,0,.5); }
   #pickerPop.open { display:flex; }
+  #svPad { position:relative; width:min(250px, 74vw); height:min(148px, 44vw); border-radius:10px;
+    cursor:crosshair; touch-action:none; user-select:none; -webkit-touch-callout:none;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.09); }
+  #svDot { position:absolute; width:16px; height:16px; border-radius:50%; border:2px solid #fff;
+    box-shadow:0 1px 5px rgba(0,0,0,.6); transform:translate(-50%,-50%); pointer-events:none; }
+  #hueBar { position:relative; width:min(250px, 74vw); height:14px; border-radius:99px; cursor:pointer;
+    touch-action:none; user-select:none; -webkit-touch-callout:none;
+    background:linear-gradient(to right,#f00 0%,#ff0 17%,#0f0 33%,#0ff 50%,#00f 67%,#f0f 83%,#f00 100%);
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.12); }
+  #hueDot { position:absolute; top:50%; width:20px; height:20px; border-radius:50%; border:2px solid #fff;
+    transform:translate(-50%,-50%); box-shadow:0 1px 5px rgba(0,0,0,.6); pointer-events:none; }
+  #pickerMeta { display:flex; align-items:center; gap:8px; }
   #pickerSw { width:20px; height:20px; border-radius:50%; flex:none;
     border:2px solid rgba(255,255,255,.3); background:#ffcf7a; }
-  #pickerPop .pk { display:flex; align-items:center; gap:6px; font-size:12px; color:#8fa3bd; white-space:nowrap; }
-  #pickerPop input[type=range] { width:min(110px, 26vw); accent-color:#ffc46b; }
+  #hexLabel { font:12px/1.2 ui-monospace,Menlo,Consolas,monospace; color:#8fa3bd; letter-spacing:.5px; }
   .sw { width:22px; height:22px; border-radius:50%; cursor:pointer; border:2px solid rgba(255,255,255,.25);
         transition:.15s; }
   .sw:hover { transform:scale(1.15); }
@@ -371,11 +383,12 @@
   </label>
 </div>
 
-<!-- 内置色板：取色按钮能力降级链的第③级；任意设备「长按取色棒」也能唤出 -->
+<!-- 内置取色器：取色按钮能力降级链的第③级；任意设备「长按取色棒」也能唤出。
+     2D 色域 + 色相条（原生取色器标准布局）——ArkWeb 等无原生取色 UI 的内核走这里 -->
 <div id="pickerPop">
-  <span id="pickerSw"></span>
-  <label class="pk">色相<input id="pickerHue" type="range" min="0" max="360" value="34"></label>
-  <label class="pk">明度<input id="pickerLum" type="range" min="35" max="85" value="62"></label>
+  <div id="svPad"><div id="svDot"></div></div>
+  <div id="hueBar"><div id="hueDot"></div></div>
+  <div id="pickerMeta"><span id="pickerSw"></span><span id="hexLabel">#ffcf7a</span></div>
 </div>
 
 <div id="glyphPanel">
@@ -3201,14 +3214,18 @@ document.getElementById('colorInput').addEventListener('input', e => setColor(e.
 //   ① 其它 CAN_COLOR（type=color 受支持）→ 原生路径：隐形 input 保持「直接可点」——
 //      WebKit 只认直接落在 input 上的真实点按，忽略一切编程式 .click() 激活
 //      （曾因此把苹果点死过：input 被 pointer-events:none 挡住 + 编程式激活被忽略）；
-//   ② 不支持（部分 WebView/老旧内核）→ 弹内置色板（色相/明度滑杆 + 实时预览）。
+//   ② 不支持（部分 WebView/老旧内核）→ 弹内置取色器（2D 色域 + 色相条 + 实时预览，
+//      原生取色器同款布局，ArkWeb 上即「原生等效物」）。
 // 逃生门：任意设备「长按取色棒」唤出内置色板（对其它「假支持」内核的兜底通道）。
 const pickerBtn = document.getElementById('btnPicker');
 const pickerInp = document.getElementById('colorInput');
 const pickerPop = document.getElementById('pickerPop');
-const pickerHue = document.getElementById('pickerHue');
-const pickerLum = document.getElementById('pickerLum');
+const svPad  = document.getElementById('svPad');
+const svDot  = document.getElementById('svDot');
+const hueBar = document.getElementById('hueBar');
+const hueDot = document.getElementById('hueDot');
 const pickerSw  = document.getElementById('pickerSw');
+const hexLabel  = document.getElementById('hexLabel');
 // 能力检测用 type 反射（规范：不支持的类型会回落为 'text'）。
 // 不能用 value==='#' 探测：Chromium/WebKit 对非法颜色值会静默回落 #000000，
 // 那样连支持原生取色器的浏览器都会被误判为"不支持"。
@@ -3221,16 +3238,12 @@ let pickerMode = (CAN_COLOR && !IS_ARKWEB) ? 'native' : 'pop';
 // 走浏览器原生通路）；非 native 模式：让位给 label，由下方处理器统一分发
 if (pickerMode !== 'native') pickerInp.style.pointerEvents = 'none';
 
-function hslToHex(h, s, l) {        // 自算 hex（标准 CSS 数学，与色板预览一致），不依赖引擎解析
-  s /= 100; l /= 100;
-  const k = n => (n + h / 30) % 12;
-  const a = s * Math.min(l, 1 - l);
-  const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1));
+function hsvToHex(h, s, v) {        // HSV → hex：面板全部取色数学自算，不依赖引擎解析
+  const f = n => { const k = (n + h / 60) % 6; return v - v * s * Math.max(0, Math.min(k, 4 - k, 1)); };
   const to = x => Math.round(255 * x).toString(16).padStart(2, '0');
-  const R = to(f(0)), G = to(f(8)), B = to(f(4));   // f(0)/f(8)/f(4) 依次对应 R/G/B
-  return '#' + R + G + B;
+  return '#' + to(f(5)) + to(f(3)) + to(f(1));
 }
-function hexToHsl(hex) {            // 仅用于：打开色板时把滑杆初始化到当前颜色
+function hexToHsv(hex) {            // 仅用于：打开面板时把光点初始化到当前颜色
   const r = parseInt(hex.slice(1, 3), 16) / 255,
         g = parseInt(hex.slice(3, 5), 16) / 255,
         b = parseInt(hex.slice(5, 7), 16) / 255;
@@ -3240,34 +3253,70 @@ function hexToHsl(hex) {            // 仅用于：打开色板时把滑杆初�
     if (mx === r) h = ((g - b) / d) % 6; else if (mx === g) h = (b - r) / d + 2; else h = (r - g) / d + 4;
     h *= 60; if (h < 0) h += 360;
   }
-  const l = (mx + mn) / 2;
-  return { h, s: d === 0 ? 0 : (d / (1 - Math.abs(2 * l - 1))) * 100, l: l * 100 };
+  return { h, s: mx === 0 ? 0 : d / mx, v: mx };
 }
-let pickerSat = 72;                 // 打开色板时从当前颜色取回；滑杆不暴露饱和度
-function pickerPopColor() { return hslToHex(+pickerHue.value, pickerSat, +pickerLum.value); }
+// 面板状态：pH 色相(0-360)、pS 饱和度(0-1)、pV 明度(0-1)；打开时从当前颜色取回
+let pH = 34, pS = .72, pV = .86;
+function pHex() { return hsvToHex(pH, pS, pV); }
+function svLayout() {               // SV 面板：光点位置 + 底色（白→纯色横叠、黑→透明竖叠）
+  svDot.style.left = (pS * 100).toFixed(2) + '%';
+  svDot.style.top = ((1 - pV) * 100).toFixed(2) + '%';
+  svDot.style.background = pHex();
+  svPad.style.background = 'linear-gradient(to top,#000,transparent),' +
+    'linear-gradient(to right,#fff,' + hsvToHex(pH, 1, 1) + ')';
+}
+function hueLayout() {              // 色相条：光点位置与本色
+  hueDot.style.left = (pH / 3.6).toFixed(2) + '%';
+  hueDot.style.background = hsvToHex(pH, 1, 1);
+}
 function showPickerPop(show) {
   if (show && curColor) {
-    // 滑杆必须初始化到当前颜色：否则第一次碰滑杆会用陈旧默认值把当前配色顶掉
-    const hsl = hexToHsl('#' + curColor.getHexString());
-    pickerHue.value = Math.round(hsl.h);
-    pickerLum.value = Math.round(hsl.l);
-    pickerSat = Math.max(20, hsl.s);
-    pickerSw.style.background = '#' + curColor.getHexString();
+    // 光点必须初始化到当前颜色：否则第一次拖动会用陈旧默认值把当前配色顶掉
+    const hsv = hexToHsv('#' + curColor.getHexString());
+    pH = hsv.h; pS = hsv.s; pV = hsv.v;
+    hueLayout(); svLayout(); pickerPreview();
   }
   pickerPop.classList.toggle('open', !!show);
 }
 function pickerPreview() {          // 拖动中：只做即时预览（材质染色），不触发 7000 粒子的全量重算
-  const v = pickerPopColor();
+  const v = pHex();
   pickerSw.style.background = v;
+  hexLabel.textContent = v;
   if (points && points.material) points.material.color.set(v);
 }
-function pickerCommit() {           // 松手（change）：正式上色；setColor 里会把预览染色复位
-  setColor(pickerPopColor(), null);
+function pickerCommit() {           // 松手：正式上色；setColor 里会把预览染色复位
+  setColor(pHex(), null);
 }
-pickerHue.addEventListener('input', pickerPreview);
-pickerLum.addEventListener('input', pickerPreview);
-pickerHue.addEventListener('change', pickerCommit);
-pickerLum.addEventListener('change', pickerCommit);
+// SV 面板与色相条共用拖拽：pointerdown 落点即取色，setPointerCapture 后可拖出边界，
+// touch-action:none（CSS）保证拖动不被页面手势打断；pointerup 提交
+function bindPick(el, fn) {
+  el.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    try { el.setPointerCapture(e.pointerId); } catch (err) {}
+    fn(e);
+    const mv = ev => fn(ev);
+    const up = () => {
+      el.removeEventListener('pointermove', mv);
+      el.removeEventListener('pointerup', up);
+      el.removeEventListener('pointercancel', up);
+      pickerCommit();
+    };
+    el.addEventListener('pointermove', mv);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+  });
+}
+bindPick(svPad, e => {
+  const rc = svPad.getBoundingClientRect();
+  pS = Math.min(1, Math.max(0, (e.clientX - rc.left) / rc.width));
+  pV = 1 - Math.min(1, Math.max(0, (e.clientY - rc.top) / rc.height));
+  svLayout(); pickerPreview();
+});
+bindPick(hueBar, e => {
+  const rc = hueBar.getBoundingClientRect();
+  pH = Math.min(359.9, Math.max(0, (e.clientX - rc.left) / rc.width * 360));
+  hueLayout(); svLayout(); pickerPreview();
+});
 
 let pickerHoldT = null, pickerHeld = false;
 pickerBtn.addEventListener('pointerdown', () => {
