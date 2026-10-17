@@ -52,7 +52,7 @@
   // 日后该文件改动不必严格同步）。若实际文件更大，百分比会停在 99% 并显示「正在收尾…」。
   var EXPECT = 1643057;
   var SLOW_MSG = '网络较慢，仍在下载…';
-  var settled = false, warned = false, lastPct = -1;
+  var settled = false, warned = false, lastPct = '';
 
   function slowNet() {
     if (settled || warned) return;      // 同一会话同一时刻只提示一次；进度恢复后数字会继续更新
@@ -66,18 +66,20 @@
     location.replace(TARGET);
   }
   function render(got) {
-    var pct = Math.floor(got * 100 / EXPECT);
+    var pct = got * 100 / EXPECT;
     if (pct >= 100) {                   // 文件比 EXPECT 大（日后改动未同步）时的收尾态
-      if (lastPct !== 100) {
-        lastPct = 100;
+      if (lastPct !== 'done') {
+        lastPct = 'done';
         statusEl.textContent = '正在收尾…';
         barEl.style.width = '99.5%';
       }
       return;
     }
-    if (pct === lastPct) return;        // 整数百分比变化才写 DOM（一次下载 ≤100 次，通常更少）
-    lastPct = pct;
-    statusEl.textContent = '正在准备… ' + Math.max(1, pct) + '%';
+    // 百分比保留一位小数（如 2.5%）；显示字符串变化才写 DOM，天然合并高频写入
+    var pctStr = Math.max(0.1, pct).toFixed(1) + '%';
+    if (pctStr === lastPct) return;
+    lastPct = pctStr;
+    statusEl.textContent = '正在准备… ' + pctStr;
     barEl.style.width = Math.max(4, pct) + '%';
   }
 
