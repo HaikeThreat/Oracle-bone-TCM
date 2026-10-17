@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>取色按钮自检 · 甲骨文中医密码</title>
+<style>
+  html, body { margin:0; background:#0a0e14; color:#c9d6e6; font:14px/1.7 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+  .wrap { max-width:820px; margin:0 auto; padding:20px 16px 60px; }
+  h1 { font-size:17px; color:#ffc46b; margin:0 0 4px; letter-spacing:1px; }
+  .sub { color:#5d6f86; font-size:12px; margin-bottom:16px; }
+  #log { background:#060a11; border:1px solid #1a2433; border-radius:8px; padding:12px; white-space:pre-wrap; word-break:break-word; min-height:220px; }
+  .ok { color:#5cff9d; } .bad { color:#ff7a6b; } .warn { color:#ffab4a; } .dim { color:#5d6f86; } .head { color:#8fa8c8; }
+  .test { display:flex; align-items:center; gap:12px; margin:14px 0; flex-wrap:wrap; }
+  .btn { cursor:pointer; border:1px solid rgba(120,160,220,.25); border-radius:12px; padding:12px 18px; background:#101826; color:#dfe9f5; font-size:14px; }
+  /* 与主页面同构的隐形 input：opacity 0.001 保证命中测试在各内核一致 */
+  .pickbtn { position:relative; display:inline-flex; align-items:center; justify-content:center; width:120px; height:44px; border:1px solid rgba(120,160,220,.35); border-radius:12px; background:#101826; color:#ffc46b; }
+  .pickbtn input[type=color] { position:absolute; inset:0; width:100%; height:100%; opacity:0.001; cursor:pointer; border:0; padding:0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>取色按钮自检</h1>
+  <div class="sub">在华为上打开本页 → 依序点下面 ①②③ → 把整页截图发回。页面会自动记录环境与事件。</div>
+  <div id="log"></div>
+
+  <div class="test">
+    <span class="dim">① 直接点按（与主页面同款结构）：</span>
+    <label class="pickbtn" id="btnNative">点我取色<input type="color" id="inpNative" value="#ffcf7a"></label>
+  </div>
+  <div class="test">
+    <span class="dim">② 程序化 showPicker()：</span>
+    <span class="btn" id="btnShowPicker">试试 showPicker()</span>
+  </div>
+  <div class="test">
+    <span class="dim">③ 程序化 .click()：</span>
+    <span class="btn" id="btnClick">试试 .click()</span>
+  </div>
+  <div class="sub">判断标准以肉眼为准：看到系统颜色编辑器弹出 = 该通路可用；毫无反应 = 被容器吞掉。</div>
+</div>
+<script>
+(function () {
+  'use strict';
+  const L = document.getElementById('log');
+  let bad = 0, warn = 0;
+  const ms = () => performance.now().toFixed(0).padStart(6) + 'ms';
+  function line(cls, msg) { const d = document.createElement('div'); d.className = cls || ''; d.textContent = ms() + '  ' + msg; L.appendChild(d); }
+  const ok = m => line('ok', '✔ ' + m);
+  const fail = m => { bad++; line('bad', '✘ ' + m); };
+  const wm = m => { warn++; line('warn', '⚠ ' + m); };
+  const info = m => line('dim', '· ' + m);
+  const head = m => line('head', '── ' + m + ' ──');
+
+  head('1. 环境');
+  info('UA = ' + navigator.userAgent);
+  if (navigator.userAgentData) info('UA brands = ' + JSON.stringify(navigator.userAgentData.brands));
+  info('pointer:coarse = ' + matchMedia('(pointer: coarse)').matches + ' · isSecureContext = ' + window.isSecureContext);
+
+  head('2. 能力探测');
+  const probe = document.createElement('input');
+  probe.type = 'color';
+  const canColor = probe.type === 'color';
+  (canColor ? ok : fail)('type=color 反射支持 = ' + canColor + '（type 读回: ' + probe.type + '）');
+  const hasShowPicker = typeof document.createElement('input').showPicker === 'function';
+  (hasShowPicker ? ok : wm)('HTMLInputElement.showPicker 存在 = ' + hasShowPicker);
+  info('EyeDropper API 存在 = ' + (typeof window.EyeDropper !== 'undefined'));
+
+  head('3. 事件记录（点 ① ② ③ 后看这里）');
+  const inp = document.getElementById('inpNative');
+  const label = document.getElementById('btnNative');
+  ['pointerdown', 'pointerup', 'pointercancel', 'click'].forEach(ev =>
+    label.addEventListener(ev, e => {
+      info('事件 ' + ev + ' · target = <' + (e.target.tagName || '?') + '#' + (e.target.id || '') + '> · isTrusted = ' + e.isTrusted);
+    }, true));
+  inp.addEventListener('input', () => ok('input 事件：颜色值 = ' + inp.value));
+  inp.addEventListener('change', () => ok('change 事件：颜色值 = ' + inp.value));
+
+  document.getElementById('btnShowPicker').addEventListener('click', () => {
+    if (!inp.showPicker) { wm('本内核没有 showPicker()'); return; }
+    try { const r = inp.showPicker(); info('showPicker() 已调用，返回 = ' + r); }
+    catch (e) { fail('showPicker() 抛出：' + (e && e.name) + ' ' + (e && e.message)); }
+  });
+  document.getElementById('btnClick').addEventListener('click', () => {
+    info('调用 inp.click() …');
+    try { inp.click(); } catch (e) { fail('click() 抛出：' + e.message); }
+  });
+
+  info('提示：页面无法自动判断系统编辑器"是否弹出"，以你的肉眼为准；①②③ 任何一路弹出都算可用。');
+})();
+</script>
+</body>
+</html>
