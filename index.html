@@ -12,10 +12,14 @@
      2026-10-16 晚改版：由「meta refresh 秒跳」改为「先下载、带进度、再进入」。
      原因：作品首页是 1.6MB 单文件；慢网络（大陆访问 Pages、弱网手机）下直接秒跳，
      浏览器会一直停在入口页等新页面，观感就是「卡死」，而用户看不到任何进展。
-     现在改为：fetch 作品页并实时显示百分比进度条 → 完成后 location.replace
-     （命中 HTTP 缓存，秒开）。全自动、不设手动按钮：
+     现在改为：fetch 作品页并实时显示百分比进度条 → 下载完成后【原地换入文档】
+     （document.open/write/close），不再发起第二次导航——旧方案的 location.replace
+     依赖"导航复用 HTTP 缓存"，而在大陆访问 Pages 的限速环境里这一复用并不总发生，
+     1.6MB 的二次下载偶发挂起，表现为「卡在『准备完成，正在进入』」。换入方案把这次
+     网络依赖整个删掉：HTML 已在手里、两个解析阻塞脚本（three/hands）并行预热，
+     换入即渲染。全自动、不设手动按钮：
        ● 12 秒无下载进展（或总时长超 45 秒）→ 状态栏提示「网络较慢」（单一心跳检查）；
-       ● fetch 失败 → 短暂提示后自动直跳作品页（走浏览器原生导航兜底）；
+       ● fetch 失败 → 短暂提示后走浏览器原生导航兜底（最后退路）；
        ● 禁用 JS → <noscript> 里的 meta refresh 兜底。 -->
 <link rel="canonical" href="gesture3d.html">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%3E%3Crect%20width='64'%20height='64'%20fill='%2304060a'/%3E%3Ctext%20x='32'%20y='47'%20font-size='40'%20text-anchor='middle'%20fill='%23ffc46b'%20font-family='Kaiti%20SC,STKaiti,serif'%3E%E7%94%B2%3C/text%3E%3C/svg%3E">
@@ -59,12 +63,29 @@
     warned = true;
     statusEl.textContent = SLOW_MSG;
   }
-  function enter() {
+  // 下载完成后的「原地换入」：不再导航，直接把拿到的 HTML 写成本文档——
+  // 彻底消除旧方案在「准备完成，正在进入…」处二次下载挂起的偶发卡死。
+  function swapIn(html) {
     if (settled) return;
     settled = true;
     barEl.style.width = '100%';
+    try {
+      document.open();
+      document.write(html);
+      document.close();
+      try { history.replaceState(null, '', TARGET); } catch (e) {}   // 地址栏同步为作品页
+    } catch (e) {
+      location.replace(TARGET);                                       // 极旧内核兜底
+    }
+  }
+  // 最后退路：普通导航（仅 fetch 失败时用；此时没有可换入的内容）
+  function fallbackNav() {
+    if (settled) return;
+    settled = true;
     location.replace(TARGET);
   }
+  // 预热作品页的两个「解析阻塞」脚本：换入后立即可用，避免换入后卡在空白解析阶段
+  ['libs/three.min.js', 'libs/hands.js'].forEach(function (u) { fetch(u).catch(function () {}); });
   function render(got) {
     var pct = got * 100 / EXPECT;
     if (pct >= 100) {                   // 文件比 EXPECT 大（日后改动未同步）时的收尾态
@@ -94,12 +115,23 @@
   fetch(TARGET)
     .then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
-      if (!(r.body && r.body.getReader)) return r.arrayBuffer();   // 旧内核无流式读取：等完再进
-      var reader = r.body.getReader(), got = 0;
+      if (!(r.body && r.body.getReader)) {        // 旧内核无流式读取：等完直接换入
+        return r.arrayBuffer().then(function (b) {
+          swapIn(new TextDecoder('utf-8').decode(new Uint8Array(b)));
+        });
+      }
+      var reader = r.body.getReader(), got = 0, chunks = [];
       var pump = function () {
         return reader.read().then(function (res) {
-          if (res.done) { statusEl.textContent = '准备完成，正在进入…'; return; }
+          if (res.done) {
+            statusEl.textContent = '准备完成，正在进入…';
+            var buf = new Uint8Array(got), off = 0;
+            for (var i = 0; i < chunks.length; i++) { buf.set(chunks[i], off); off += chunks[i].length; }
+            swapIn(new TextDecoder('utf-8').decode(buf));
+            return;
+          }
           got += res.value.length;
+          chunks.push(res.value);
           lastProgressAt = Date.now();
           warned = false;               // 有进展：允许之后再次卡住时重新提示（只影响文案）
           render(got);
@@ -108,12 +140,11 @@
       };
       return pump();
     })
-    .then(enter)
     .catch(function () {
-      // 已无手动按钮：失败时短暂提示，随后直接走浏览器原生导航兜底（同旧行为）
+      // fetch 失败（没有可换入的内容）：短暂提示后走浏览器原生导航兜底（最后退路）
       if (settled) return;
       statusEl.textContent = '加载失败，正在尝试直接进入…';
-      setTimeout(enter, 600);
+      setTimeout(fallbackNav, 600);
     });
 })();
 </script>
