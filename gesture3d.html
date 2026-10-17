@@ -94,6 +94,8 @@
     cursor:pointer; border:1px solid var(--line); border-radius:99px; background:#101826;
     color:#dfe9f5; font-size:12.5px; padding:7px 14px; display:flex; align-items:center; gap:6px;
     transition:.2s; user-select:none; white-space:nowrap;
+    height:34px;   /* 统一锁高：按钮里的 emoji（🎥⛶）走系统 emoji 字体、行高随内核而异，
+                      会把按钮撑得高低不一（华为 ArkWeb 上最明显）；锁高后各按钮严格同高 */
   }
   .cbtn:hover { border-color:var(--gold); color:var(--gold); }
   .cbtn.on { border-color:var(--gold); color:var(--gold); background:rgba(255,196,107,.12); }
