@@ -3192,14 +3192,17 @@ document.getElementById('btnGlyphs').addEventListener('click', () => refreshGlyp
 document.getElementById('colorInput').addEventListener('input', e => setColor(e.target.value, null));
 
 // ── 取色按钮：能力降级（修「非苹果设备点击取色棒无反应」，并保住苹果的原生通路）──
-// 策略：原生取色器优先（苹果/桌面/绝大多数安卓，行为与最初完全一致），不支持的
+// 策略：原生取色器优先（苹果/桌面/绝大多数安卓，行为与最初完全一致），不适用的
 // 内核落到内置色板：
-//   ① CAN_COLOR（type=color 受支持）→ 原生路径：隐形 input 保持「直接可点」——
+//   ⓪ 华为 ArkWeb / HuaweiBrowser（HarmonyOS 内核）→ 直接走内置色板：
+//      真机诊断（2026-10-17「取色自检」页）证实该内核在 color input 上
+//      只派发 pointerdown/up、不派发受信任 click，showPicker() 调用成功却
+//      不弹任何界面——原生取色链路在此内核上是死的，无法从网页侧唤醒；
+//   ① 其它 CAN_COLOR（type=color 受支持）→ 原生路径：隐形 input 保持「直接可点」——
 //      WebKit 只认直接落在 input 上的真实点按，忽略一切编程式 .click() 激活
 //      （曾因此把苹果点死过：input 被 pointer-events:none 挡住 + 编程式激活被忽略）；
 //   ② 不支持（部分 WebView/老旧内核）→ 弹内置色板（色相/明度滑杆 + 实时预览）。
-// 逃生门：任意设备「长按取色棒」唤出内置色板（对「type=color 假支持、点了不弹界面」
-// 的内核这是唯一可靠通道——JS 无法探测"对话框是否真的弹出"）。
+// 逃生门：任意设备「长按取色棒」唤出内置色板（对其它「假支持」内核的兜底通道）。
 const pickerBtn = document.getElementById('btnPicker');
 const pickerInp = document.getElementById('colorInput');
 const pickerPop = document.getElementById('pickerPop');
@@ -3210,7 +3213,10 @@ const pickerSw  = document.getElementById('pickerSw');
 // 不能用 value==='#' 探测：Chromium/WebKit 对非法颜色值会静默回落 #000000，
 // 那样连支持原生取色器的浏览器都会被误判为"不支持"。
 const CAN_COLOR = (() => { const i = document.createElement('input'); i.type = 'color'; return i.type === 'color'; })();
-let pickerMode = CAN_COLOR ? 'native' : 'pop';
+// 华为 ArkWeb / HuaweiBrowser：原生取色链路实测不可用（见上方⓪），直接走内置色板；
+// 其余设备保持原生优先。普通元素（label/按钮）的 click 在该内核上正常，色板按钮可正常响应。
+const IS_ARKWEB = /ArkWeb|HuaweiBrowser/i.test(navigator.userAgent);
+let pickerMode = (CAN_COLOR && !IS_ARKWEB) ? 'native' : 'pop';
 // native 模式：input 保持默认可命中（它铺满整颗按钮，真实点按直接落在它身上、
 // 走浏览器原生通路）；非 native 模式：让位给 label，由下方处理器统一分发
 if (pickerMode !== 'native') pickerInp.style.pointerEvents = 'none';
