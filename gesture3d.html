@@ -1510,7 +1510,8 @@
 //      发光着色器（加色混合/软边光点/逐粒子亮度/呼吸偏移）
 //    · 物理在 CPU 侧以 TypedArray 积分（零 GC），每帧写回 BufferAttribute
 //    · 无摄像头/拒绝授权 → 自动回退鼠标模式（按住=握拳，移动=转动）
-//    · 手势模型经 jsdelivr 加载（首次约 5~10 秒，需联网）
+//    · 手势模型按部署环境择优加载（Pages 用 npmmirror，本地/局域网用 libs/；
+//      首次约 5~10 秒，需联网；长时间无结果会自动换源重试）
 // ============================================================================
 window.onerror = function(msg, src, line) {
   const e = document.getElementById('err');
@@ -1532,50 +1533,124 @@ const MODEL_COMPLEXITY = IS_TOUCHY ? 0 : 1;
 // 正常推理约 30~60ms（本机实测 435ms 含首次初始化），10 秒是极宽松的上限：
 // 慢设备不会误判，真挂起则 10 秒内被发现并自动重试。
 const SEND_TIMEOUT_MS = 10000;
-// ── 手势模型资源源（就近择优）─────────────────────────────────────────────
+// ── 手势模型资源源（按部署环境定优先级 + 停滞换源）────────────────────────
 // 背景：大陆访问 GitHub Pages 时，wasm/模型等「大二进制」被 CDN 限速到 ~10 KB/s
 // （实测 90 秒只下到 0.7~1.3MB，6MB 的 wasm 要十几分钟，手机直接加载不出来）。
 // 而公共 npm 镜像与 jsDelivr 可跑满带宽（本机实测 5.6 MB/s 与 1.5 MB/s），
 // 且与本地 libs/ 是同一 npm 包、逐字节一致（@mediapipe/hands@0.4.1675469240，
 // md5 已核对）——只换「送货地址」，模型本身零变化。
-// 启动手势前对三个源各发一个 550B 小文件探测（赛跑式，谁先连通用谁）：
-//   离线 / 局域网部署 → 本地 libs/ 秒赢，行为与从前完全一致；
-//   大陆联网 → npmmirror 秒赢；海外 → jsDelivr 兜底。
-// 三个源全探测失败时回落到本地，交给原有错误路径提示。
+//
+// 选源规则（2026-10-23 起改为确定性优先级，不再是「小文件赛跑」）：
+//   · GitHub Pages（*.github.io）：npmmirror → jsDelivr → libs/
+//   · localhost / 局域网 / 自建服务器 / file://：libs/ → npmmirror → jsDelivr
+// 为什么放弃赛跑：550B 探测只能测「连得通多快」，测不出「12MB 下得多快」。
+// Pages 上的 libs/ 与页面同源、连接已热，几乎必然赢得赛跑，却恰恰是被限速的
+// 那条路径 —— 「谁先连通用谁」于是稳定选中慢源。现在按优先级逐级确认，高优先级
+// 失败才降级；探测仍并行发出，降级时通常不必重新等一轮 DNS/TLS。
 const HANDS_VER = '0.4.1675469240';      // 与 libs/ 内文件逐字节同源的 npm 包版本（md5 已核对）
-const HANDS_SOURCES = [
+const HANDS_CDN_SOURCES = [
   'https://registry.npmmirror.com/@mediapipe/hands/' + HANDS_VER + '/files/',
-  'https://cdn.jsdelivr.net/npm/@mediapipe/hands@' + HANDS_VER + '/',
-  'libs/'
+  'https://cdn.jsdelivr.net/npm/@mediapipe/hands@' + HANDS_VER + '/'
 ];
-let handsSrc = null;                     // 探测结果缓存：整个会话复用，开关摄像头不重探
+const HANDS_LOCAL = 'libs/';
+// 只有 Pages 需要把 libs/ 排到最后：那里的 libs/ 就是被限速的 GitHub 路径。
+// 其余部署的 libs/ 是真·本地（局域网/自建服务器），必须排第一。
+const HANDS_CDN_FIRST = /(^|\.)github\.io$/i.test(location.hostname);
+const PROBE_TIMEOUT_MS = 6000;           // 单源探测上限：微信里首包 DNS/TLS 可能偏慢
+const MODEL_STALL_SWITCH_MS = 20000;     // 模型 20 秒没产出任何结果 → 判定该源不可用，换源
+const MODEL_RETRY_COOLDOWN_MS = 45000;   // 三源都失败：等网络恢复再整轮重试，避免 20 秒一换
+function allHandsSources() {
+  return HANDS_CDN_FIRST ? HANDS_CDN_SOURCES.concat(HANDS_LOCAL)
+                         : [HANDS_LOCAL].concat(HANDS_CDN_SOURCES);
+}
+const badHandsSources = new Set();       // 本次会话里已判「下不动」的源，换源时跳过
+let handsSrc = null;                     // 当前选中的源；摄像头会话内复用
+let handsSrcP = null;                    // 选源进行中的 Promise（避免并发重复探测）
+let handsSwitching = false;              // 换源重建进行中（看门狗不再触发）
+let handsEpoch = 0;                      // 摄像头启停 / 换源的世代令牌：作废在途的换源
+
+function probeHandsSource(base) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), PROBE_TIMEOUT_MS);
+  // 探测不用 no-store：URL 已版本固化，缓存条目正好被随后的 locateFile 加载复用。
+  return fetch(libUrl(base, 'hands.binarypb'), { signal: ctl.signal })
+    .then(r => r.ok, () => false)
+    .then(ok => { clearTimeout(timer); return { base, ok, ctl }; });
+}
 function pickHandsSource() {
   if (handsSrc) return Promise.resolve(handsSrc);
-  return new Promise(resolve => {
-    let settled = false;
-    const running = [];
-    const settle = base => {
-      if (settled) return;
-      settled = true; handsSrc = base;
-      for (const r of running) {            // 胜者已定：中止其余探测，不再空耗请求与计时器
-        clearTimeout(r.timer);
-        if (r.base !== base) r.ctl.abort();
-      }
-      console.info('[hands] 模型资源源:', base);
-      resolve(base);
-    };
-    // 每个源产出一个「成功或失败都收场」的探测；全部失败才回落本地（settle 幂等）。
-    // 探测不用 no-store：URL 已版本固化，缓存条目正好被随后的 locateFile 加载复用。
-    const probes = HANDS_SOURCES.map(base => new Promise(done => {
-      const ctl = new AbortController();
-      const timer = setTimeout(() => ctl.abort(), 4000);
-      running.push({ base, ctl, timer });
-      fetch(libUrl(base, 'hands.binarypb'), { signal: ctl.signal })
-        .then(r => { clearTimeout(timer); if (r.ok) settle(base); done(); })
-        .catch(() => { clearTimeout(timer); done(); });
-    }));
-    Promise.all(probes).then(() => settle('libs/'));
-  });
+  if (handsSrcP) return handsSrcP;
+  handsSrcP = (async () => {
+    if (!allHandsSources().some(b => !badHandsSources.has(b))) badHandsSources.clear();
+    const order = allHandsSources().filter(b => !badHandsSources.has(b));
+    // 并行探测、按优先级取第一个可用者：高优先级失败时，低优先级通常已有结果。
+    const probes = new Map(order.map(base => [base, probeHandsSource(base)]));
+    let picked = null;
+    for (const base of order) {
+      if (await probes.get(base).then(r => r.ok)) { picked = base; break; }
+    }
+    if (!picked) picked = order[order.length - 1];  // 全都不通：用兜底源（Pages 上即 libs/），交给原有错误路径
+    for (const [base, p] of probes) {     // 胜者已定：中止其余探测，不再空耗请求
+      if (base !== picked) p.then(r => r.ctl.abort());
+    }
+    handsSrc = picked;
+    console.info('[hands] 模型资源源:', picked);
+    return picked;
+  })().finally(() => { handsSrcP = null; });
+  return handsSrcP;
+}
+// 用指定源创建 MediaPipe 实例（首次启动与「换源重建」共用同一套参数）。
+function buildHands(base) {
+  const h = new Hands({ locateFile: f => libUrl(base, f) });   // 与探测共用同一 URL 拼装（libs/ 才带 ?v）
+  // modelComplexity：1=full（手部关键点更准）0=lite（推理便宜一大截）。
+  // 推理在主线程同步执行，每次约几十毫秒，期间渲染被掐住 → 手势旋转顿挫。
+  // 想更快就设 0；若发现"捏合"判定变迟钝，就改回 1。
+  h.setOptions({ maxNumHands: 2, modelComplexity: MODEL_COMPLEXITY,
+    minDetectionConfidence: 0.6, minTrackingConfidence: 0.5 });
+  // 旧实例被换下后，它那条 pending send 仍可能迟到地回调 onResults；
+  // 若不过滤，会把「新源其实还没跑起来」误判成健康（resultsN 被旧实例顶上去）。
+  h.onResults(r => { if (cam.hands === h) onHandResults(r); });
+  return h;
+}
+// 换源重建：模型长时间零结果时，关掉旧实例、把当前源判为不可用，按优先级选下一个源。
+// 关键：不等旧的 pending send —— 一次挂起会永久堵死整条管线；旧 send 属于旧世代，
+// 随 feedGen 作废即可（其 Promise 仍带错误处理，不会产生未捕获拒绝）。
+async function switchHandsSource(why) {
+  if (!cam.on || handsSwitching) return;
+  handsSwitching = true;
+  const epoch = ++handsEpoch;
+  try {
+    if (handsSrc) badHandsSources.add(handsSrc);
+    handsSrc = null;
+    cam.handsErr = '模型下载停滞（' + why + '），正在更换资源源…';
+    console.warn('[hands] 换源：', why, '；已排除', Array.from(badHandsSources));
+    feedGen++;                            // 停掉当前送检循环（残留 send 属于旧世代）
+    const old = cam.hands;
+    cam.hands = null;
+    if (old) {                            // close() 也可能被挂起，最多等 3 秒
+      try { await Promise.race([old.close(), new Promise(r => setTimeout(r, 3000))]); }
+      catch (e) {}
+    }
+    if (epoch !== handsEpoch || !cam.on) return;      // 换源期间用户关了摄像头
+    if (!allHandsSources().some(b => !badHandsSources.has(b))) {
+      cam.handsErr = '所有模型资源源都下载失败 —— '
+        + (MODEL_RETRY_COOLDOWN_MS / 1000) + ' 秒后自动重试';
+      await new Promise(r => setTimeout(r, MODEL_RETRY_COOLDOWN_MS));
+      if (epoch !== handsEpoch || !cam.on) return;
+      badHandsSources.clear();
+    }
+    const base = await pickHandsSource();
+    if (epoch !== handsEpoch || !cam.on) return;
+    cam.hands = buildHands(base);
+    cam.handsErr = null;
+    cam.resultsN = 0; cam.sendFails = 0; cam.initAt = performance.now();
+    banner('手势模型已更换下载源：' + base.replace(/^https?:\/\//, '').split('/')[0]);
+    feedLoop();                           // 全新世代重建送检循环
+  } catch (e) {
+    cam.handsErr = '换源失败：' + (e && e.message ? e.message : e);
+  } finally {
+    handsSwitching = false;
+  }
 }
 // ── 手势转动幅度（位置跟随模式）────────────────────────────────────────────
 // 嫌字转得不够就调大 *_RANGE；嫌一动就过头就调大 *_SPAN（手要摆更远才吃满）。
@@ -2345,6 +2420,7 @@ async function toggleCamera() {
   if (cam.on) {                                     // 关闭
     cam.on = false;
     feedGen++;                                      // 作废送检循环世代：旧循环下一轮即自行退出
+    handsEpoch++;                                   // 作废在途的换源重建
     if (cam.stream) cam.stream.getTracks().forEach(t => t.stop());
     document.getElementById('gestureBox').style.display = 'none';
     btn.classList.remove('on'); btn.textContent = '🎥 手势控制';
@@ -2362,7 +2438,8 @@ async function toggleCamera() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia)
       throw new Error('当前环境不支持摄像头（请改用 http://localhost 访问）');
     if (!window.Hands) throw new Error('MediaPipe 未加载（libs/hands.js 缺失或加载失败）');
-    const srcP = pickHandsSource();                 // 与摄像头授权并行探测资源源，省掉等待
+    handsEpoch++;                                   // 新一轮摄像头会话：作废旧会话在途的换源
+    const srcP = pickHandsSource();                 // 与摄像头授权并行选源，省掉等待
 
     cam.stream = await Promise.race([
       // 帧率优先：手势「跟手」程度直接由相机帧率决定（检测节拍 ≈ 相机帧率）。
@@ -2385,16 +2462,8 @@ async function toggleCamera() {
     await video.play();
 
     if (!cam.hands) {
-      const base = await srcP;                                // 就近择优：离线/局域网→本地 libs/；大陆→npmmirror；海外→jsDelivr
-      cam.hands = new Hands({
-        locateFile: f => libUrl(base, f)                      // 与探测共用同一 URL 拼装（libs/ 才带 ?v）
-      });
-      // modelComplexity：1=full（手部关键点更准）0=lite（推理便宜一大截）。
-      // 推理在主线程同步执行，每次约几十毫秒，期间渲染被掐住 → 手势旋转顿挫。
-      // 想更快就设 0；若发现"捏合"判定变迟钝，就改回 1。
-      cam.hands.setOptions({ maxNumHands: 2, modelComplexity: MODEL_COMPLEXITY,
-        minDetectionConfidence: 0.6, minTrackingConfidence: 0.5 });
-      cam.hands.onResults(onHandResults);
+      // 按部署环境选源：Pages 上优先 npmmirror；本地/局域网优先 libs/。详见 pickHandsSource。
+      cam.hands = buildHands(await srcP);
     }
     cam.on = true; cam.ready = true;
     cam.handsErr = null; cam.resultsN = 0; cam.sendFails = 0; cam.initAt = performance.now();
@@ -2426,6 +2495,13 @@ async function feedLoop() {
   let lastMediaTime = -1;
   let lastSendAt = performance.now();
   while (cam.on && gen === feedGen) {
+    // 换源看门狗：onResults 每送检一帧必触发（与画面里有没有手无关），所以 resultsN
+    // 一直为 0 只可能是模型没跑起来。20 秒还没结果就别再干等这个源了 —— 直接换源重建。
+    if (!cam.resultsN && !handsSwitching &&
+        performance.now() - (cam.initAt || 0) > MODEL_STALL_SWITCH_MS) {
+      switchHandsSource('20 秒无结果');
+      return;                                  // 换源会新建循环；本世代到此为止
+    }
     // send 失败绝不能让循环静默死亡（WASM 初始化失败/模型 404 时旧代码会永远卡"未检测"）
     if (video.readyState >= 2 && video.videoWidth > 0) {
       const nowMs = performance.now();
@@ -2451,6 +2527,8 @@ async function feedLoop() {
             sendP.then(() => 'ok', e => { cam._sendErr = e; return 'err'; }),
             new Promise(r => setTimeout(() => r('timeout'), SEND_TIMEOUT_MS))
           ]);
+          // 等待期间可能已换源/重启：旧世代的结局绝不能写进新会话的状态。
+          if (gen !== feedGen) return;
           if (verdict === 'ok') {
             if (cam.sendFails) { cam.sendFails = 0; cam.handsErr = null; }   // 恢复后自动清错误
           } else if (verdict === 'err') {
@@ -2460,16 +2538,24 @@ async function feedLoop() {
             // 循环头会跳过后续帧，因此不会雪崩式叠加推理。
             cam.sendFails = (cam.sendFails || 0) + 1;
             cam.handsErr = '推理超过 ' + (SEND_TIMEOUT_MS / 1000) + ' 秒未返回 —— '
-              + '模型资源可能仍在下载，画面已就绪，会自行恢复';
+              + '模型资源可能仍在下载，画面已就绪，会自行恢复或自动换源';
             const late = await Promise.race([
               sendP.then(() => 'ok', () => 'err'),
               new Promise(r => setTimeout(() => r('timeout'), SEND_TIMEOUT_MS))
             ]);
+            if (gen !== feedGen) return;      // 同上：换源/重启后不再处理旧结局
             if (late === 'ok') { cam.sendFails = 0; cam.handsErr = null; }    // 迟到但成功了
             else if (late === 'err') throw cam._sendErr;
+            else if (!cam.resultsN
+              && performance.now() - (cam.initAt || 0) > MODEL_STALL_SWITCH_MS) {
+              // late === 'timeout' 且模型至今零结果：这个源已经等够久了，换源重建。
+              switchHandsSource('推理超时且无结果');
+              return;
+            }
             // late === 'timeout'：仍在飞，下一轮循环会再走这里（继续等，不重发）
           }
         } catch (e) {
+          if (gen !== feedGen) break;             // 旧世代：换源/重启已接管，别再写错误状态
           cam.sendFails = (cam.sendFails || 0) + 1;
           cam.handsErr = (e && e.message) ? String(e.message) : String(e);
           console.warn('[hands] send 失败 (' + cam.sendFails + '):', cam.handsErr);
@@ -3396,8 +3482,9 @@ function drawGestureWidget(t) {
     if (cam.handsErr)       { color = '#ff7a6b'; label = '检测出错 · ' + cam.handsErr; }
     else if (vid.videoWidth === 0) { color = '#ffab4a'; label = '相机无画面 · 被占用或授权中'; }
     else if (!cam.resultsN) { color = '#ffab4a';
-      label = (performance.now() - (cam.initAt || 0) > 12000)
-        ? '模型初始化失败 · 看控制台/刷新' : '手势模型初始化中…'; }
+      label = handsSwitching ? '正在更换模型资源源…'
+        : (performance.now() - (cam.initAt || 0) > 12000)
+          ? '模型初始化缓慢 · 20 秒后自动换源' : '手势模型初始化中…'; }
   }
   if (gather > 0.5)       { color = '#5cff9d'; label = '聚形'; }
   else if (disperse > 0.5){ color = '#ff7a6b'; label = '气散'; }

@@ -139,12 +139,16 @@ window.addEventListener('unhandledrejection', e =>
     else fail('脚本加载了但没有 window.Hands —— 文件内容可能不完整');
   } catch (e) { fail('hands.js 加载失败：' + e.message); }
 
-  head('8. 模型资源源择优（与主页面同款：本地 / npmmirror / jsDelivr）');
-  const SOURCE_LIST = [
-    'libs/',
+  head('8. 模型资源源择优（与主页面同款：Pages 优先 CDN，本地/局域网优先 libs/）');
+  // 与 gesture3d.html 的 allHandsSources() 保持一致：Pages 上的 libs/ 是被限速的
+  // GitHub 路径，必须排最后；其余部署的 libs/ 是真·本地，排第一。
+  const CDN_SOURCES = [
     'https://registry.npmmirror.com/@mediapipe/hands/0.4.1675469240/files/',
     'https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/'
   ];
+  const LOCAL_SOURCE = 'libs/';
+  const SOURCE_LIST = /(^|\.)github\.io$/i.test(location.hostname)
+    ? CDN_SOURCES.concat(LOCAL_SOURCE) : [LOCAL_SOURCE].concat(CDN_SOURCES);
   let picked = '';
   for (const b of SOURCE_LIST) {
     const t0s = performance.now();
@@ -155,7 +159,7 @@ window.addEventListener('unhandledrejection', e =>
       if (!picked) picked = b;
     } catch (e) { wm(b + ' 探测失败：' + e.message); }
   }
-  if (!picked) { fail('三个源全部探测失败'); picked = 'libs/'; }
+  if (!picked) { fail('三个源全部探测失败'); picked = SOURCE_LIST[SOURCE_LIST.length - 1]; }
 
   head('9. 初始化模型（这一步最可能暴露真因）');
   let hands = null;

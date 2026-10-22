@@ -153,14 +153,25 @@ python3 build_glyphs.py --db 其它.json --curated 其它.json   # 换数据源
 所以这**不是**「GitHub Pages 被墙」，也不是配置问题，而是这条 6MB 二进制路径被限速
 （`.wasm` 已被 gzip，压缩比有限，疑似触发 CDN 流式压缩瓶颈）。
 
-**已修复（2026-10-16 晚）：手势模型资源「就近择优」加载。**
-启动手势前对三个源各发一个 550B 小文件探测请求（赛跑式，谁先连通用谁）：
-① 本地 `libs/`（离线/局域网部署秒赢，行为与从前完全一致）；
-② 淘宝 npmmirror（`registry.npmmirror.com`，阿里 CDN，**大陆实测 5.6 MB/s**）；
-③ jsDelivr（`cdn.jsdelivr.net`，海外兜底，实测 1.5 MB/s）。
-三个源与本地文件**逐字节同源**：同为 npm 包 `@mediapipe/hands@0.4.1675469240`（md5 已核对），
-只换「送货地址」，模型本身零变化。整套约 16MB 模型在大陆数秒内下完；
-三源全失败时回落本地，交给原有错误路径提示。源码：`gesture3d.html` 的 `HANDS_SOURCES / pickHandsSource()`。
+**修复一（2026-10-16 晚）：手势模型资源多源加载。**
+三个候选源与本地文件**逐字节同源**：同为 npm 包 `@mediapipe/hands@0.4.1675469240`
+（md5 已核对），只换「送货地址」，模型本身零变化：
+① 淘宝 npmmirror（`registry.npmmirror.com`，阿里 CDN，**大陆实测 5.6 MB/s**）；
+② jsDelivr（`cdn.jsdelivr.net`，海外兜底，实测 1.5 MB/s）；
+③ 本地 `libs/`（离线 / 局域网 / 自建服务器部署）。
+整套约 16MB 模型在大陆数秒内下完。
+
+**修复二（2026-10-23）：按部署环境定优先级 + 停滞自动换源。**
+原先的「三源各发 550B 探测、谁先连通用谁」有缺陷：小文件探测只测延迟，测不出
+12MB 的吞吐。Pages 上的 `libs/` 与页面同源、连接已热，几乎必然赢下赛跑，却恰恰是
+被限速的那条路径 —— 微信内置浏览器里因此出现过「等到超时也不加载」。现在：
+
+- `*.github.io`：npmmirror → jsDelivr → `libs/`；localhost / 局域网 / 自建服务器：
+  `libs/` → npmmirror → jsDelivr。探测仍并行发出，降级时几乎零等待。
+- 模型 20 秒没产出任何结果（`onResults` 每送检一帧必触发，与画面里有没有手无关）
+  → 关掉旧实例、把该源判为不可用、换下一个源重建；三源都不通则 45 秒后整轮重试。
+
+源码：`gesture3d.html` 的 `allHandsSources() / pickHandsSource() / switchHandsSource()`。
 
 #### 其他 Pages 事实（便于日后排查）
 
