@@ -6,7 +6,7 @@
 
 **完全离线可运行 · 无任何 CDN 依赖 · 无摄像头也能玩**
 
-**在线试玩：[oracletcm.com](https://oracletcm.com/)** —— 阿里云 ECS 自建站点，HTTPS，ICP 备案号 滇ICP备2026008290号-3。
+**在线试玩：[oracletcm.com](https://oracletcm.com/)** —— 阿里云轻量应用服务器（SWAS）自建站点，HTTPS，ICP 备案号 滇ICP备2026008290号-3。
 备用入口：[haikethreat.github.io/Oracle-bone-TCM](https://haikethreat.github.io/Oracle-bone-TCM/) —— GitHub Pages 托管，免备案（6MB 模型被限速，首选手势体验用主站）。
 首屏约 680KB（1~3 秒可看自动巡字）；「手势控制」需再下 6MB 模型，点按钮才触发，见下文[方式一](#方式一github-pages)。
 
@@ -127,7 +127,7 @@ python3 build_glyphs.py --db 其它.json --curated 其它.json   # 换数据源
 
 ### 方式一：GitHub Pages
 
-**线上地址：<https://haikethreat.github.io/Oracle-bone-TCM/>**（2026-10-16 实测已上线）
+**备用线上地址：<https://haikethreat.github.io/Oracle-bone-TCM/>**（主站为 <https://oracletcm.com/>）
 
 配置：仓库 **Settings → Pages → Deploy from a branch** 选 `main` / `(root)`。
 资源全部使用相对路径，已实测子路径（`用户名.github.io/仓库名/`）下可正常运行。
@@ -137,7 +137,7 @@ python3 build_glyphs.py --db 其它.json --curated 其它.json   # 换数据源
 
 页面用 JS 注入只急加载 `three.min.js`（633KB）+ `hands.js`（45KB），**手势模型是点击才加载**的：
 
-| 功能 | 需要下载 | 主站（ECS） |
+| 功能 | 需要下载 | 主站（SWAS） |
 | --- | --- | --- |
 | 打开页面 / 待机自动巡字 / 输入框生成 | 约 **680KB** | 秒开（同源 + gzip + 长缓存） |
 | 点「🎥 手势控制」 | 再加约 **16MB** 模型 | 数秒内（同源 `libs/`） |
@@ -163,13 +163,13 @@ python3 build_glyphs.py --db 其它.json --curated 其它.json   # 换数据源
 - `Cache-Control: max-age=600` —— Pages 固定值，**后台改不了**；页面靠顶部 `ASSET_V` 破缓存
 - HTTP 强制 301 跳 HTTPS；108/110/111 三个边缘 IP 内容一致
 
-### 方式二：自建服务器（阿里云等）
+### 方式二：自建服务器（阿里云轻量应用服务器 SWAS）
 
 先生成上传就绪的目录，再上传并配置服务器：
 
 ```bash
 python3 deploy.py                                  # ① 本地：输出 dist/，16 个文件约 25MB
-rsync -avz --delete dist/ root@<ECS公网IP>:/var/www/oracletcm/   # ② 上传
+rsync -avz --delete dist/ root@<SWAS公网IP>:/var/www/oracletcm/   # ② 上传
 sudo bash deploy/setup-server.sh oracletcm.com /var/www/oracletcm  # ③ 服务器：配 nginx
 ```
 
@@ -218,7 +218,7 @@ server { listen 80; server_name 你的域名; return 301 https://$host$request_u
 压缩收益（实测）：`gesture3d.html` 1550→**831KB**、
 `hands_solution_simd_wasm_bin.wasm` 5885→**1773KB**、`three.min.js` 618→**154KB**。
 
-安全组只放行 **443**（与 80 用于跳转）。**不要把 `serve.py` 的 8138 端口暴露到公网** —— 它面向本地开发，没有访问控制。
+轻量应用服务器的**防火墙放行 80 / 443**（80 用于跳转）；22 用于 SSH，建议按来源 IP 收紧；16909 是 OpenClaw gateway，按需保留。**不要把 `serve.py` 的 8138 端口暴露到公网** —— 它面向本地开发，没有访问控制。
 
 ## License 与致谢
 

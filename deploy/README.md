@@ -1,11 +1,11 @@
 # deploy/ —— 部署辅助
 
-面向**自建服务器**（阿里云 ECS 等）。GitHub Pages 不需要这些。
+面向**自建服务器**（阿里云轻量应用服务器 SWAS）。GitHub Pages 不需要这些。
 
-> **免备案通道已在用**：<https://haikethreat.github.io/Oracle-bone-TCM/>
-> （2026-10-16 上线）。本目录全部脚本都是给「备案后的正式站点」用的，
-> 与 Pages 互不影响 —— 需要临时把链接发出去时，直接用 Pages 那条即可，
-> 详见 [`POST-FILING.md`](POST-FILING.md) 的「临时通道」一节与仓库根 README。
+> **主站已备案上线**：<https://oracletcm.com/>（滇ICP备2026008290号-3）。
+> GitHub Pages 保留为备用入口：<https://haikethreat.github.io/Oracle-bone-TCM/>。
+> 本目录脚本用于自建服务器，与 Pages 互不影响；详见
+> [`POST-FILING.md`](POST-FILING.md) 与仓库根 README。
 
 ## 顺序
 
@@ -13,7 +13,7 @@
 # ① 本地：生成上传就绪的站点目录（只挑运行时必需文件，不含构建用的 AYJGW.ttf）
 python3 deploy.py                 # → dist/
 
-# ② 上传（把 <IP> 换成 ECS 公网 IP）
+# ② 上传（把 <IP> 换成 SWAS 公网 IP）
 rsync -avz --delete dist/ root@<IP>:/var/www/oracletcm/
 
 # ③ 服务器上：配置 nginx（.wasm MIME、gzip、libs 长缓存、80→443 跳转）
@@ -36,7 +36,7 @@ nginx 配置里一旦引用 `ssl_certificate` 而证书文件不存在，`nginx 
 | 现象 | 真实原因 |
 | --- | --- |
 | 备案通过前访问超时/被重置 | 阿里云对**未备案域名**拦截 80/443 入站，与 nginx 配置无关 |
-| nginx 配好了但仍访问不通 | 阿里云**安全组**未放行 80/443（控制台 → 安全组 → 入方向）。服务器本机防火墙是另一层 |
+| nginx 配好了但仍访问不通 | 阿里云**轻量应用服务器防火墙**未放行 80/443（控制台 → 轻量应用服务器 → 防火墙规则）。服务器本机防火墙是另一层 |
 
 ## 关于 HTTPS
 

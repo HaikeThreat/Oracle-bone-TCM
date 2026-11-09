@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================
-#  setup-server.sh —— 在阿里云 ECS 上一键配置站点
+#  setup-server.sh —— 在阿里云轻量应用服务器（SWAS）上一键配置站点
 #  用法（在服务器上，用 root 或 sudo 执行）：
 #     sudo bash setup-server.sh oracletcm.com /var/www/oracletcm
 #
@@ -41,7 +41,7 @@ mkdir -p "$ROOT"
 if [ ! -f "$ROOT/index.html" ]; then
   echo "⚠ $ROOT 下还没有站点文件。请在本地执行 python3 deploy.py，"
   echo "  再把 dist/ 里的内容上传到 $ROOT（例如："
-  echo "  rsync -avz --delete dist/ root@<ECS公网IP>:$ROOT/ ）"
+  echo "  rsync -avz --delete dist/ root@<SWAS公网IP>:$ROOT/ ）"
 fi
 
 # 3) 证书探测：决定用完整 HTTPS 配置还是先起 HTTP
@@ -132,7 +132,7 @@ elif command -v ufw >/dev/null 2>&1; then
   ufw allow 80/tcp  >/dev/null 2>&1 || true
   ufw allow 443/tcp >/dev/null 2>&1 || true
 fi
-echo "    注意：阿里云安全组也要放行 80/443（控制台 → 安全组 → 入方向）"
+echo "    注意：阿里云轻量应用服务器防火墙也要放行 80/443（控制台 → 轻量应用服务器 → 防火墙规则）"
 
 # 5) 自检并 reload
 nginx -t
@@ -144,6 +144,6 @@ echo "✔ 配置完成：$CONF"
 [ -n "$CERT" ] && echo "  访问：https://${DOMAIN}/" || echo "  访问：http://${DOMAIN}/  （尚未启用 HTTPS，摄像头不可用）"
 echo
 echo "后续："
-echo "  · 备案通过后若仍无法访问，先查阿里云安全组是否放行 80/443"
+echo "  · 备案通过后若仍无法访问，先查阿里云轻量应用服务器防火墙是否放行 80/443"
 echo "  · 申请免费证书：阿里云「数字证书管理服务」签发后下载 nginx 版，"
 echo "    放到 /etc/nginx/ssl/${DOMAIN}.pem 与 .key，然后重跑本脚本"

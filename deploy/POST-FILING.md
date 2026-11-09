@@ -6,11 +6,12 @@
 >
 > | 步骤 | 结果 |
 > | --- | --- |
-> | 0 传最新代码 | `dist/` 重建并 rsync 到 `/var/www/oracletcm/`（`gesture3d.html` 1,141,341B，含备案号） |
-> | 1 DNS 解析 | `@` 与 `www` 各一条 A → <ECS公网IP>，TTL 600，立即生效 |
+> | 服务器 | 阿里云**轻量应用服务器（SWAS）**，2C4G / 50GB，公网 IP 见 DNS |
+> | 0 传最新代码 | `dist/` 重建并 rsync 到 `/var/www/oracletcm/`（`gesture3d.html` 1,134,109B，含备案号） |
+> | 1 DNS 解析 | `@` 与 `www` 各一条 A → <SWAS公网IP>，TTL 600，立即生效 |
 > | 2 证书 | Let's Encrypt 签发成功，有效期至 2027-02-07；续期由 `/etc/cron.d/certbot-renew` 自动执行 |
 > | 3 nginx | certbot 自动写入 443 配置与 80→HTTPS 跳转，另补 `http2 on;`；`nginx -t` 通过后 reload |
-> | 4 四层验证 | 公网 200；wasm `application/wasm`；gzip 1,141,341 → 710,670；`libs/` 长缓存头正确 |
+> | 4 四层验证 | 公网 200；wasm `application/wasm`；gzip 1,134,109 → 708,052；`libs/` 长缓存头正确 |
 > | 5 回归 | `<既有站点>` 仍 200，两份配置互不影响 |
 > | 备案号展示 | 入口页与作品页左下角均已展示并链接 beian.miit.gov.cn |
 > | 真实浏览器 | Playwright 假摄像头实测：入口页即时跳转，1.3s 首帧，`isSecureContext:true`，摄像头 640×480，模型请求全部同源 `libs/`，无报错 |
@@ -19,6 +20,11 @@
 
 `oracletcm.com` 的站点**已经部署完成并验证通过**，唯一卡住的是 ICP 备案。
 本文件记录备案通过后要做的每一步，以及每步的**验证方法**与**已知陷阱**。
+
+> **服务器类型**：阿里云轻量应用服务器（SWAS）。
+> 网络访问控制入口是**轻量应用服务器控制台 → 防火墙规则**。
+> 注意：ECS 的 `DescribeInstances` 查不到这台实例，管理请用 `aliyun swas-open`；
+> 防火墙/快照类 API 需带 `--RegionId cn-beijing --InstanceId <实例ID>`。
 
 > **急着把链接发出去？** 备案期间已有可用通道，见下文
 > [临时通道](#临时通道备案期间用-github-pages-把链接发出去) ——
@@ -37,7 +43,7 @@
 > | 既有站点 `<既有站点>` | **未受影响** |
 > | DNS 解析记录 | **0 条** ← 备案后才允许添加 |
 > | 证书 | **未签** ← ACME 需要 80 端口可公网响应 |
-> | 安全组 | 已放行 **80 / 443**（无需改动） |
+> | SWAS 防火墙 | 80/443 已放行；22 SSH、16909 OpenClaw 按需保留 |
 
 ## 为什么现在访问不了（不是配置问题）
 
@@ -49,7 +55,7 @@
 | 请求来源 | 结果 |
 | --- | --- |
 | 服务器本机 `curl -H 'Host: oracletcm.com' http://127.0.0.1/` | **200**（不经接入层） |
-| 公网 `curl -H 'Host: oracletcm.com' http://<ECS公网IP>/` | **403**（被接入层拦下） |
+| 公网 `curl -H 'Host: oracletcm.com' http://<SWAS公网IP>/` | **403**（被接入层拦下） |
 | 公网用已备案域名 `Host: <既有站点>` | **301**（直达 nginx） |
 
 所以**不要怀疑服务器配置**。
@@ -71,8 +77,8 @@
 
 | 请求 | 结果 |
 | --- | --- |
-| `http://<ECS公网IP>/` 带 `Host: oracletcm.com` | **403**（接入层拦截） |
-| `https://<ECS公网IP>/` | **200，但返回的是 `<既有站点>` 的页面** |
+| `http://<SWAS公网IP>/` 带 `Host: oracletcm.com` | **403**（接入层拦截） |
+| `https://<SWAS公网IP>/` | **200，但返回的是 `<既有站点>` 的页面** |
 
 443 的 default server 是那份**已备案的正式站点**，证书也是它的。所以 IP 直连不仅会有域名不匹配的
 证书警告，返回的内容还根本不是本站 —— 要改就得动正在服务的站点，风险与收益不成比例。
@@ -112,7 +118,7 @@ f794a8f  「点条目列表会动一下」：滚动锚定加错元素 + 重建�
 
 ```bash
 python3 deploy.py                                   # 本地重建 dist/（幂等）
-rsync -avz --delete dist/ root@<ECS公网IP>:/var/www/oracletcm/
+rsync -avz --delete dist/ root@<SWAS公网IP>:/var/www/oracletcm/
 ```
 
 **验证**：服务器上比对大小（本地 `dist/gesture3d.html` 应为 `1604529` 字节）：
@@ -132,10 +138,10 @@ grep -c "scrollbar-gutter:stable\|translateY(-3px)\|OracleGlyphFont" /var/www/or
 ```bash
 # 裸域
 aliyun alidns AddDomainRecord --DomainName oracletcm.com \
-  --RR @ --Type A --Value <ECS公网IP> --TTL 600
+  --RR @ --Type A --Value <SWAS公网IP> --TTL 600
 # www
 aliyun alidns AddDomainRecord --DomainName oracletcm.com \
-  --RR www --Type A --Value <ECS公网IP> --TTL 600
+  --RR www --Type A --Value <SWAS公网IP> --TTL 600
 ```
 
 TTL 用 **600**（10 分钟）：解析刚开始可能要调整，短 TTL 便于回滚。
@@ -143,7 +149,7 @@ TTL 用 **600**（10 分钟）：解析刚开始可能要调整，短 TTL 便于
 **验证**：等 1–2 分钟后
 
 ```bash
-nslookup oracletcm.com 223.5.5.5        # 应返回 <ECS公网IP>
+nslookup oracletcm.com 223.5.5.5        # 应返回 <SWAS公网IP>
 ```
 
 ## 步骤 2：签发证书
