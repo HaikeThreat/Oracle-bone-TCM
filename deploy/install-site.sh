@@ -9,7 +9,7 @@
 #  设计前提（本机实测得出，不是通用假设）：
 #   · 服务器在大陆，raw.githubusercontent.com 不可达（60s 0 字节），
 #     但 github.com 可用（浅克隆 46MB 仅 3.4 秒）→ 故用 git 作为分发通道。
-#   · 本机已有 nginx 与 certbot 在服务 kylinhealth.com.cn，
+#   · 本机已有 nginx 与 certbot 在服务 既有站点，
 #     故本脚本只【新增】一个 server 块，绝不改写或删除既有配置。
 #   · 备案通过前不可加域名解析（阿里云限制），也不可签发证书，
 #     故证书签发与解析绑定留到备案后由运维步骤完成（见 deploy/README.md）。
@@ -171,7 +171,7 @@ server {
 NGINX
 fi
 
-# ── 校验并 reload（kylinhealth 的站点不受影响）──────────────────────────
+# ── 校验并 reload（既有站点 的站点不受影响）──────────────────────────
 nginx -t
 systemctl reload nginx
 

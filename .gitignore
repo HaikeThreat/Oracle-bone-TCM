@@ -7,7 +7,31 @@ __pycache__/
 .idea/
 dist/
 
+# 上传用的站点打包（14MB，按需本地生成，勿提交）
+oracle-bone-tcm-site.zip
+
+# 双击启动器可能被「右键 → 打开方式」覆写成 .local 副本，勿提交
+*.command.local
+
 # 本地调试产物（CDP/无头浏览器诊断用，勿提交）
 .diag/
 .edge-prof/
 .edge-*/
+
+# 博物馆比赛材料：仅本地归档，不入公开仓库
+#（仓库是 public，GitHub Pages 又直接发布 main 根目录，提交即等于公开）
+博物馆馆藏比赛/
+费用使用清单.docx
+费用使用清单.pdf
+馆藏文创设计赛道*.pdf
+make_list.py
+
+# 内部调试页（仅本地自检用，不对外发布）
+取色自检.html
+手势自检.html
+
+# 展馆合作自荐信等个人材料，仅本地保留
+docs/自荐信-*.md
+
+# 完整甲骨文字体：构建时子集化用，许可待确认，不随仓库分发
+libs/AYJGW.ttf

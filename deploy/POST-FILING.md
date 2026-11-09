@@ -1,5 +1,22 @@
 # 备案通过后的收尾清单
 
+> ## ✅ 已完成（2026-11-10）
+>
+> 备案号 **滇ICP备2026008290号-3**，全流程已执行并验证：
+>
+> | 步骤 | 结果 |
+> | --- | --- |
+> | 0 传最新代码 | `dist/` 重建并 rsync 到 `/var/www/oracletcm/`（`gesture3d.html` 1,141,341B，含备案号） |
+> | 1 DNS 解析 | `@` 与 `www` 各一条 A → <ECS公网IP>，TTL 600，立即生效 |
+> | 2 证书 | Let's Encrypt 签发成功，有效期至 2027-02-07；续期由 `/etc/cron.d/certbot-renew` 自动执行 |
+> | 3 nginx | certbot 自动写入 443 配置与 80→HTTPS 跳转，另补 `http2 on;`；`nginx -t` 通过后 reload |
+> | 4 四层验证 | 公网 200；wasm `application/wasm`；gzip 1,141,341 → 710,670；`libs/` 长缓存头正确 |
+> | 5 回归 | `<既有站点>` 仍 200，两份配置互不影响 |
+> | 备案号展示 | 入口页与作品页左下角均已展示并链接 beian.miit.gov.cn |
+> | 真实浏览器 | Playwright 假摄像头实测：入口页即时跳转，1.3s 首帧，`isSecureContext:true`，摄像头 640×480，模型请求全部同源 `libs/`，无报错 |
+>
+> 以下为原始清单与踩坑记录，保留备查。
+
 `oracletcm.com` 的站点**已经部署完成并验证通过**，唯一卡住的是 ICP 备案。
 本文件记录备案通过后要做的每一步，以及每步的**验证方法**与**已知陷阱**。
 
@@ -7,7 +24,7 @@
 > [临时通道](#临时通道备案期间用-github-pages-把链接发出去) ——
 > <https://haikethreat.github.io/Oracle-bone-TCM/>（不需要备案）。
 
-> 当前状态（2026-10-15 实测）
+> 原始状态（2026-10-15 实测，已过时，见上方完成记录）
 >
 > | 项 | 状态 |
 > | --- | --- |
@@ -17,7 +34,7 @@
 > | nginx 配置 | `/etc/nginx/conf.d/oracletcm.com.conf`，`nginx -t` **零警告** |
 > | 服务器本机自测 | `/`、`gesture3d.html`、`three.min.js`、`hands_solution_simd_wasm_bin.wasm` 全部 **200**，wasm 的 Content-Type 为 `application/wasm` |
 > | gzip | `gesture3d.html` 1,587,069B → **850,945B**（省 46%）；`.wasm` 按 `gzip off` 不压缩 |
-> | 既有站点 `kylinhealth.com.cn` | **未受影响** |
+> | 既有站点 `<既有站点>` | **未受影响** |
 > | DNS 解析记录 | **0 条** ← 备案后才允许添加 |
 > | 证书 | **未签** ← ACME 需要 80 端口可公网响应 |
 > | 安全组 | 已放行 **80 / 443**（无需改动） |
@@ -32,8 +49,8 @@
 | 请求来源 | 结果 |
 | --- | --- |
 | 服务器本机 `curl -H 'Host: oracletcm.com' http://127.0.0.1/` | **200**（不经接入层） |
-| 公网 `curl -H 'Host: oracletcm.com' http://47.95.12.207/` | **403**（被接入层拦下） |
-| 公网用已备案域名 `Host: kylinhealth.com.cn` | **301**（直达 nginx） |
+| 公网 `curl -H 'Host: oracletcm.com' http://<ECS公网IP>/` | **403**（被接入层拦下） |
+| 公网用已备案域名 `Host: <既有站点>` | **301**（直达 nginx） |
 
 所以**不要怀疑服务器配置**。
 
@@ -54,8 +71,8 @@
 
 | 请求 | 结果 |
 | --- | --- |
-| `http://47.95.12.207/` 带 `Host: oracletcm.com` | **403**（接入层拦截） |
-| `https://47.95.12.207/` | **200，但返回的是 `kylinhealth.com.cn` 的页面** |
+| `http://<ECS公网IP>/` 带 `Host: oracletcm.com` | **403**（接入层拦截） |
+| `https://<ECS公网IP>/` | **200，但返回的是 `<既有站点>` 的页面** |
 
 443 的 default server 是那份**已备案的正式站点**，证书也是它的。所以 IP 直连不仅会有域名不匹配的
 证书警告，返回的内容还根本不是本站 —— 要改就得动正在服务的站点，风险与收益不成比例。
@@ -95,7 +112,7 @@ f794a8f  「点条目列表会动一下」：滚动锚定加错元素 + 重建�
 
 ```bash
 python3 deploy.py                                   # 本地重建 dist/（幂等）
-rsync -avz --delete dist/ root@47.95.12.207:/var/www/oracletcm/
+rsync -avz --delete dist/ root@<ECS公网IP>:/var/www/oracletcm/
 ```
 
 **验证**：服务器上比对大小（本地 `dist/gesture3d.html` 应为 `1604529` 字节）：
@@ -115,10 +132,10 @@ grep -c "scrollbar-gutter:stable\|translateY(-3px)\|OracleGlyphFont" /var/www/or
 ```bash
 # 裸域
 aliyun alidns AddDomainRecord --DomainName oracletcm.com \
-  --RR @ --Type A --Value 47.95.12.207 --TTL 600
+  --RR @ --Type A --Value <ECS公网IP> --TTL 600
 # www
 aliyun alidns AddDomainRecord --DomainName oracletcm.com \
-  --RR www --Type A --Value 47.95.12.207 --TTL 600
+  --RR www --Type A --Value <ECS公网IP> --TTL 600
 ```
 
 TTL 用 **600**（10 分钟）：解析刚开始可能要调整，短 TTL 便于回滚。
@@ -126,7 +143,7 @@ TTL 用 **600**（10 分钟）：解析刚开始可能要调整，短 TTL 便于
 **验证**：等 1–2 分钟后
 
 ```bash
-nslookup oracletcm.com 223.5.5.5        # 应返回 47.95.12.207
+nslookup oracletcm.com 223.5.5.5        # 应返回 <ECS公网IP>
 ```
 
 ## 步骤 2：签发证书
@@ -140,12 +157,12 @@ nslookup oracletcm.com 223.5.5.5        # 应返回 47.95.12.207
 /opt/certbot/bin/certbot --nginx \
   -d oracletcm.com -d www.oracletcm.com \
   --non-interactive --agree-tos --redirect \
-  --reuse-account a62c39721e7805162d6d75f6abb22524
+  --reuse-account <ACME 账号 ID>
 ```
 
 - `--reuse-account` 复用已有 ACME 账号（避免新建账号触发速率限制）
 - `--redirect` 让 certbot 自己加 80→443 跳转
-- certbot 会自动改写 `oracletcm.com.conf` 里的 server 块，**不会动 kylinhealth**
+- certbot 会自动改写 `oracletcm.com.conf` 里的 server 块，**不会动 <既有站点>**
 
 **验证**：
 
@@ -212,7 +229,7 @@ curl -sI https://oracletcm.com/libs/three.min.js | grep -i cache-control
 ## 步骤 5：回归确认既有站点
 
 ```bash
-curl -sI https://kylinhealth.com.cn/ | head -3      # 应仍正常
+curl -sI https://<既有站点>/ | head -3      # 应仍正常
 ls -la /etc/nginx/conf.d/                            # 两个 .conf 各自独立
 ```
 
@@ -230,8 +247,3 @@ ls -la /etc/nginx/conf.d/                            # 两个 .conf 各自独立
 | `http2` 写法 | 用 `http2 on;`；`listen ... http2` 已废弃并会告警（实测） |
 | 服务器拉 GitHub 会抖 | clone 需重试；`raw.githubusercontent.com` 完全不可达 |
 | 备案前不要试图用 hosts 绕过 | 阿里云拦的是**公网请求的域名**，本机绑 hosts 依然 403 |
-
-## 顺带一提（与本站无关）
-
-安全组里 **16909 端口对 `0.0.0.0/0` 开放**，那是 OpenClaw gateway。
-若不需要公网访问，建议在安全组里收紧 —— 它目前是暴露状态。

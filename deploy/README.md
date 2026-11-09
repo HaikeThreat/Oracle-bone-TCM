@@ -60,7 +60,7 @@ nginx 配置里一旦引用 `ssl_certificate` 而证书文件不存在，`nginx 
 | `libs/three.min.js` | 200 `text/javascript` |
 | `libs/hands_solution_simd_wasm_bin.wasm` | 200 **`application/wasm`** |
 | `libs/hand_landmark_full.tflite` | 200 `application/octet-stream` |
-| `kylinhealth.com.cn`（既有站点） | 301，未受影响 |
+| `<既有站点>` | 301，未受影响 |
 | `nginx -t` | **零警告** |
 | gzip | `gesture3d.html` 1,587,069B → **850,945B**（省 46%）；`.wasm` 按 `gzip off` 不压缩 |
 
