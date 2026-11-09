@@ -6,7 +6,8 @@
 
 **完全离线可运行 · 无任何 CDN 依赖 · 无摄像头也能玩**
 
-**在线试玩：[haikethreat.github.io/Oracle-bone-TCM](https://haikethreat.github.io/Oracle-bone-TCM/)** —— GitHub Pages 托管，免备案。
+**在线试玩：[oracletcm.com](https://oracletcm.com/)** —— 阿里云 ECS 自建站点，HTTPS，ICP 备案号 滇ICP备2026008290号-3。
+备用入口：[haikethreat.github.io/Oracle-bone-TCM](https://haikethreat.github.io/Oracle-bone-TCM/) —— GitHub Pages 托管，免备案（6MB 模型被限速，首选手势体验用主站）。
 首屏约 680KB（1~3 秒可看自动巡字）；「手势控制」需再下 6MB 模型，点按钮才触发，见下文[方式一](#方式一github-pages)。
 
 ## 这是什么
@@ -82,7 +83,7 @@ host 为 `localhost`（以及 `127.0.0.0/8`、`::1/128`）的源被视为「潜�
 
 | 路径 | 说明 |
 | --- | --- |
-| `index.html` | 站点入口：预载 `gesture3d.html` 并显示进度后自动进入（含常驻「直接进入」兜底按钮；静态托管的目录入口必须是 index.html，否则根地址 404） |
+| `index.html` | 站点入口：即时跳转到 `gesture3d.html`（静态托管的目录入口必须是 index.html，否则根地址 404） |
 | `gesture3d.html` | 作品主页面。字体子集与字库全部内嵌，自包含 |
 | `libs/` | Three.js r152 与 MediaPipe Hands 本地运行时（约 28MB，首次访问付一次，之后走长缓存） |
 | `data/` | 字表数据库（1530 行已释甲骨文）与人工编排条目 |
@@ -100,6 +101,8 @@ python3 add_glyphs.py 牛 虎 鹿
 ```
 
 新字会被并入 `data/curated_glyphs.json`（带上 `curated` 标记，因而进入待机巡字池），随后自动调用 `build_glyphs.py` 完成字体子集化与页面注入。需要 `pip install fonttools`，字必须在数据表中。刷新页面即可生效。
+
+> 重建字库还需要完整源字体 `libs/AYJGW.ttf`。因该字体再分发许可尚待确认，仓库**不提供**这个文件；请自行获取后放到该路径，否则 `build_glyphs.py` 会报找不到字体。
 
 数据分两层，职责不重叠：
 
@@ -134,44 +137,24 @@ python3 build_glyphs.py --db 其它.json --curated 其它.json   # 换数据源
 
 页面用 JS 注入只急加载 `three.min.js`（633KB）+ `hands.js`（45KB），**手势模型是点击才加载**的：
 
-| 功能 | 需要下载 | 大陆实测 |
+| 功能 | 需要下载 | 主站（ECS） |
 | --- | --- | --- |
-| 打开页面 / 待机自动巡字 / 输入框生成 | 约 **680KB** | ✅ 1~3 秒 |
-| 点「🎥 手势控制」 | 再加约 **16MB** 模型 | ✅ 数秒（自动择优源，见下） |
+| 打开页面 / 待机自动巡字 / 输入框生成 | 约 **680KB** | 秒开（同源 + gzip + 长缓存） |
+| 点「🎥 手势控制」 | 再加约 **16MB** 模型 | 数秒内（同源 `libs/`） |
 
-#### 已知坑与修复：Pages 上 6MB 的 `.wasm` 吞吐极不稳定（2026-10-16 实测 → 当晚修复）
+#### 模型来源：2026-11-10 简化
 
-同一宿主的对照测试结果非常反直觉：
+主站备案上线后，`gesture3d.html` 只保留两条路径：
 
-| 文件 | 大小 | 实测速度 |
-| --- | --- | --- |
-| `three.min.js` | 633KB | **314 KB/s**（2 秒完成） |
-| `hand_landmark_full.tflite` | 5.4MB | **703 KB/s** ✅ |
-| `hands_solution_simd_wasm_bin.wasm` | 6.0MB | **11 ~ 83 KB/s** ❌ |
+- `*.github.io`（备用入口）：模型直连淘宝 npmmirror（`registry.npmmirror.com`）；
+- 其他所有部署（自建服务器 / localhost / 局域网）：全部同源 `libs/`，无探测、无换源。
 
-同一个文件在不同时刻测出 11 / 41 / 62 / 66 / 83 KB/s —— 而**同一宿主的 tflite 却有 703 KB/s**。
-所以这**不是**「GitHub Pages 被墙」，也不是配置问题，而是这条 6MB 二进制路径被限速
-（`.wasm` 已被 gzip，压缩比有限，疑似触发 CDN 流式压缩瓶颈）。
+原先的「多源并行探测 + 20 秒停滞自动换源」状态机已删除 —— 那是 GitHub Pages
+6MB wasm 被限速（实测 11~83 KB/s，而同宿主 tflite 有 703 KB/s）时的补丁；
+主站自建后本地加载为秒级，保留它只会增加故障面。
 
-**修复一（2026-10-16 晚）：手势模型资源多源加载。**
-三个候选源与本地文件**逐字节同源**：同为 npm 包 `@mediapipe/hands@0.4.1675469240`
-（md5 已核对），只换「送货地址」，模型本身零变化：
-① 淘宝 npmmirror（`registry.npmmirror.com`，阿里 CDN，**大陆实测 5.6 MB/s**）；
-② jsDelivr（`cdn.jsdelivr.net`，海外兜底，实测 1.5 MB/s）；
-③ 本地 `libs/`（离线 / 局域网 / 自建服务器部署）。
-整套约 16MB 模型在大陆数秒内下完。
-
-**修复二（2026-10-23）：按部署环境定优先级 + 停滞自动换源。**
-原先的「三源各发 550B 探测、谁先连通用谁」有缺陷：小文件探测只测延迟，测不出
-12MB 的吞吐。Pages 上的 `libs/` 与页面同源、连接已热，几乎必然赢下赛跑，却恰恰是
-被限速的那条路径 —— 微信内置浏览器里因此出现过「等到超时也不加载」。现在：
-
-- `*.github.io`：npmmirror → jsDelivr → `libs/`；localhost / 局域网 / 自建服务器：
-  `libs/` → npmmirror → jsDelivr。探测仍并行发出，降级时几乎零等待。
-- 模型 20 秒没产出任何结果（`onResults` 每送检一帧必触发，与画面里有没有手无关）
-  → 关掉旧实例、把该源判为不可用、换下一个源重建；三源都不通则 45 秒后整轮重试。
-
-源码：`gesture3d.html` 的 `allHandsSources() / pickHandsSource() / switchHandsSource()`。
+> 备用 Pages 入口上的手势仍可用（npmmirror 大陆实测 5.6 MB/s），但没有 jsDelivr 兜底。
+> 若 npm 镜像不可达，Pages 上只能使用待机巡字与鼠标模式，请改用主站。
 
 #### 其他 Pages 事实（便于日后排查）
 
@@ -196,7 +179,7 @@ sudo bash deploy/setup-server.sh oracletcm.com /var/www/oracletcm  # ③ 服务�
 
 脚本只挑**运行时真正需要**的文件，并显式保留两类「没被请求但删不得」的 fallback：
 `hands_solution_wasm_bin.{js,wasm}`（旧浏览器无 SIMD 时用）与 `hand_landmark_lite.tflite`（`modelComplexity:0` 时用）。
-不纳入 `libs/AYJGW.ttf`（4.2MB）—— 那是构建时子集化用的完整字体，页面内嵌的是 base64 子集。
+不纳入 `libs/AYJGW.ttf`（4.2MB）—— 那是构建时子集化用的完整字体（许可待确认，仓库也不分发），页面内嵌的是 base64 子集。
 
 把 `dist/` 内容上传到站点根后，nginx 关键配置：
 
