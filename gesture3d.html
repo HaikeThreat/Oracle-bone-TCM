@@ -356,20 +356,28 @@
     #bar .sep { height:18px; }
   }
 
-  /* ICP 备案号：工信部要求公开站点在首页底部展示，并链接至备案系统。
-     放左下角、层级低于控制条，不与底部居中的 #bar 争位。 */
-  #icp {
-    position:fixed; left:16px; bottom:6px; z-index:10;
-    font-size:11px; color:#5d6f86; text-decoration:none; letter-spacing:.5px;
+  /* ICP 备案 + 公安联网备案：工信部/公安部要求公开站点在首页底部展示并链接至备案系统。
+     放左下角、单行排列；极窄屏降到 10px，避免换行后压到底部控制条。 */
+  #legal {
+    position:fixed; left:16px; bottom:5px; z-index:10;
+    display:flex; flex-wrap:wrap; gap:10px;
+    font-size:11px; line-height:1.4; letter-spacing:.5px;
     font-family:-apple-system,"PingFang SC",sans-serif;
   }
-  #icp:hover { color:#8fa3bd; }
+  #legal a { color:#5d6f86; text-decoration:none; }
+  #legal a:hover { color:#8fa3bd; }
+  @media (max-width: 400px) {
+    #legal { left:10px; gap:6px; font-size:10px; }
+  }
 </style>
 </head>
 <body>
 <canvas id="stage"></canvas>
 <div id="err"></div>
-<a id="icp" href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">滇ICP备2026008290号-3</a>
+<div id="legal">
+  <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">滇ICP备2026008290号-3</a>
+  <a href="https://beian.mps.gov.cn/#/query/webSearch?code=53038102530583" target="_blank" rel="noopener noreferrer">滇公网安备53038102530583号</a>
+</div>
 
 <div id="topbar" class="panel3d">
   <div class="titlerow">

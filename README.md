@@ -6,7 +6,7 @@
 
 **完全离线可运行 · 无任何 CDN 依赖 · 无摄像头也能玩**
 
-**在线试玩：[oracletcm.com](https://oracletcm.com/)** —— 阿里云轻量应用服务器（SWAS）自建站点，HTTPS，ICP 备案号 滇ICP备2026008290号-3。
+**在线试玩：[oracletcm.com](https://oracletcm.com/)** —— 阿里云轻量应用服务器（SWAS）自建站点，HTTPS，ICP 备案号 滇ICP备2026008290号-3，公安联网备案号 滇公网安备53038102530583号。
 备用入口：[haikethreat.github.io/Oracle-bone-TCM](https://haikethreat.github.io/Oracle-bone-TCM/) —— GitHub Pages 托管，免备案（6MB 模型被限速，首选手势体验用主站）。
 首屏约 680KB（1~3 秒可看自动巡字）；「手势控制」需再下 6MB 模型，点按钮才触发，见下文[方式一](#方式一github-pages)。
 

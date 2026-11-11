@@ -13,7 +13,7 @@
 > | 3 nginx | certbot 自动写入 443 配置与 80→HTTPS 跳转，另补 `http2 on;`；`nginx -t` 通过后 reload |
 > | 4 四层验证 | 公网 200；wasm `application/wasm`；gzip 1,134,109 → 708,052；`libs/` 长缓存头正确 |
 > | 5 回归 | `<既有站点>` 仍 200，两份配置互不影响 |
-> | 备案号展示 | 入口页与作品页左下角均已展示并链接 beian.miit.gov.cn |
+> | 备案号展示 | 入口页与作品页左下角均已展示 ICP 与公安联网备案号，分别链接 beian.miit.gov.cn / beian.mps.gov.cn |
 > | 真实浏览器 | Playwright 假摄像头实测：入口页即时跳转，1.3s 首帧，`isSecureContext:true`，摄像头 640×480，模型请求全部同源 `libs/`，无报错 |
 >
 > 以下为原始清单与踩坑记录，保留备查。

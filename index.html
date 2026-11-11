@@ -19,16 +19,22 @@
           align-items:center; justify-content:center; gap:14px; text-align:center; padding:24px; }
   .title { color:#ffc46b; font-size:22px; letter-spacing:2px; }
   .hint { font-size:13px; color:#5d6f86; }
-  /* ICP 备案号：工信部要求公开站点在首页底部展示，并链接至备案系统 */
-  .icp { font-size:11px; color:#5d6f86; text-decoration:none; letter-spacing:.5px; }
-  .icp:hover { color:#8fa3bd; }
+  /* ICP 备案 + 公安联网备案：公开站点首页底部展示并链接至备案系统 */
+  .legal { display:flex; flex-wrap:wrap; justify-content:center; gap:6px 12px;
+           font-size:11px; color:#5d6f86; letter-spacing:.5px; }
+  .legal a { color:#5d6f86; text-decoration:none; }
+  .legal a:hover { color:#8fa3bd; }
+  @media (max-width: 400px) { .legal { font-size:10px; gap:4px 8px; } }
 </style>
 </head>
 <body>
   <div class="wrap">
     <div class="title">甲骨文 · 中医密码</div>
     <div class="hint">正在进入…</div>
-    <a class="icp" href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">滇ICP备2026008290号-3</a>
+    <div class="legal">
+      <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">滇ICP备2026008290号-3</a>
+      <a href="https://beian.mps.gov.cn/#/query/webSearch?code=53038102530583" target="_blank" rel="noopener noreferrer">滇公网安备53038102530583号</a>
+    </div>
   </div>
 <script>location.replace('gesture3d.html');</script>
 </body>
