@@ -85,7 +85,10 @@ server {
     location ~ \.html\$ { add_header Cache-Control "no-cache"; }
 
     # 清爽地址：/index.html → /；/oracle、/herb 内部交给 gesture3d.html（地址栏保持干净）
-    location = /index.html { return 301 /; }
+    location = /index.html {
+        # 只在用户直接访问 /index.html 时跳转；/ 的内部 index 重写不跳，避免死循环
+        if (\$request_uri ~ ^/index\.html) { return 301 /; }
+    }
     location = /oracle      { rewrite ^ /gesture3d.html last; }
     location = /herb        { rewrite ^ /gesture3d.html last; }
     location = /oracle/     { return 301 /oracle; }
@@ -131,7 +134,10 @@ server {
     location ~ \.html\$ { add_header Cache-Control "no-cache"; }
 
     # 清爽地址：/index.html → /；/oracle、/herb 内部交给 gesture3d.html（地址栏保持干净）
-    location = /index.html { return 301 /; }
+    location = /index.html {
+        # 只在用户直接访问 /index.html 时跳转；/ 的内部 index 重写不跳，避免死循环
+        if (\$request_uri ~ ^/index\.html) { return 301 /; }
+    }
     location = /oracle      { rewrite ^ /gesture3d.html last; }
     location = /herb        { rewrite ^ /gesture3d.html last; }
     location = /oracle/     { return 301 /oracle; }
