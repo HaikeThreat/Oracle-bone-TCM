@@ -6,6 +6,8 @@
 
 **自建站完全离线可运行 · 无外部 CDN 依赖 · 无摄像头也能玩**（`file://` 手势需联网走 CDN）
 
+![新扉页：中醫西學博物館欢迎页与两个展厅入口](docs/screenshot-cover.png)
+
 **在线试玩：[oracletcm.com](https://oracletcm.com/)** —— 阿里云轻量应用服务器（SWAS）自建站点，HTTPS，ICP 备案号 滇ICP备2026008290号-3，公安联网备案号 滇公网安备53038102530583号。
 备用入口：[haikethreat.github.io/Oracle-bone-TCM](https://haikethreat.github.io/Oracle-bone-TCM/) —— GitHub Pages 托管，免备案（6MB 模型被限速，首选手势体验用主站）。
 扉页约 5KB（gzip）；进入展厅约 1.1MB（gzip）；中药展厅首次再下约 9.2MB 三七模型；「手势控制」需再下约 16MB 模型，点按钮才触发。见下文[方式一](#方式一github-pages)。
@@ -34,6 +36,8 @@
 聚形收敛期间视图锁定为正视（成字那一瞬一定是正的），成字后才交还转动控制权。左下角为实时手部骨架（不显示相机画面）。
 
 ## 中药展馆
+
+![中药展馆：三七整株、属性卡与两侧炮制工序](docs/screenshot-herb.png)
 
 从扉页选「中药」，或直接打开 `gesture3d.html?mode=herb`。展馆按「药材实体 + 属性卡 + 炮制演示」组织：中间是 3D 药材，属性卡在桌面端常驻左侧、手机/平板竖屏收为底部抽屉，左右两侧滚动演示炮制工序。
 
