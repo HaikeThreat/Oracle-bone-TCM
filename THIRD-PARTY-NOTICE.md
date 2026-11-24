@@ -16,26 +16,12 @@
 - 版权：Google LLC
 - 许可：Apache License 2.0 — <https://www.apache.org/licenses/LICENSE-2.0>
 
-## Noto Serif SC（扉页中文字体子集）
-
-- 文件：`index.html` 内嵌的 WOFF2 子集（仅收录扉页用字）
-- 版权：Copyright © Google Inc. / Adobe
-- 许可：SIL Open Font License 1.1 — <https://scripts.sil.org/OFL>
-- 说明：用于保证 iPad / 电脑 / 手机 Safari 上扉页中文（馆名、欢迎您、展厅名等）字形一致。
-
-## 三七写实模型 ⚠ 来源/授权待确认
-
-- 文件：`libs/sanqi_model.glb`（约 9.2MB）及自动生成的 `libs/sanqi_model_fallback.js`
-- 说明：中药展厅的三七写实模型（约 150k 三角面，2K PBR 贴图）。
-- 状态：项目包未记录原始来源与许可信息；公开部署前需向模型提供方核实再分发授权。
-
 ## AYJGW 甲骨文字体 ⚠ 许可待确认
 
-- 文件：`gesture3d.html` 内嵌子集；完整源字体 `libs/AYJGW.ttf` **不随仓库分发**
+- 文件：`libs/AYJGW.ttf`（完整源字体）及 `gesture3d.html` 内嵌子集
 - 版权：Copyright © AYSY.JKX, 2003（字体名"乔老师甲骨字替换"）
 - 状态：字体内嵌许可信息为空，正在与版权方确认再分发授权。
-  为避免扩大分发范围，完整 TTF 已从公开仓库移除（页面仅保留必需的子集）；
-  重建字库需自行获取该字体并放到 `libs/AYJGW.ttf`。
+  若无法获得授权，后续版本将移除字体文件，改为提供下载指引 + 本地子集化脚本。
 
 ## 甲骨文字表数据 ⚠ 许可待确认
 
