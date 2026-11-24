@@ -21,8 +21,7 @@
                font:15px/1.7 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
                -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
                -webkit-tap-highlight-color:transparent; overscroll-behavior:none; }
-  /* 静态背景：蓝色辅光 + 40px 网格。单独一层，不随指针重绘 ——
-     否则 1px 网格会随光斑每帧重新栅格化，在部分缩放/高分屏上出现摩尔纹。 */
+  /* 静态背景：蓝色辅光 + 40px 网格。单独一层，只画一次。 */
   .bgGrid { position:fixed; inset:0; z-index:0; pointer-events:none;
     background:
       radial-gradient(46vw 40vw at 86% 88%, rgba(90,170,220,.08), transparent 64%),
@@ -31,14 +30,24 @@
     background-size:auto,40px 40px,40px 40px;
     mask-image:radial-gradient(72% 70% at 50% 45%, #000 55%, transparent 100%);
     -webkit-mask-image:radial-gradient(72% 70% at 50% 45%, #000 55%, transparent 100%); }
-  /* 左上角那团暖光的位置由 --lx/--ly 控制（默认仍在左上角，与原来一致）；
-     单独一层叠在静态网格之上，指针移动时只重绘这一层 ——
-     与第一次修改的图层关系一致，避免光斑与 1px 网格反复合成产生摩尔纹。 */
-  body::before { content:""; position:fixed; inset:0; z-index:1; pointer-events:none;
+  /* 第一版的打光层：暖光 + 被照亮的网格线 + 圆形光域遮罩。
+     光心由 --lx/--ly 控制（默认左上角），指针移动时只重绘这一层。
+     网格线是光斑里的高频细节，能把渐变的 8-bit 色阶打散，
+     所以这一版看不到同心椭圆纹。 */
+  .coverFx { position:fixed; inset:0; z-index:1; pointer-events:none;
+    mask-image:radial-gradient(78% 76% at 50% 45%, #000 50%, rgba(0,0,0,.55) 84%, rgba(0,0,0,.32) 100%);
+    -webkit-mask-image:radial-gradient(78% 76% at 50% 45%, #000 50%, rgba(0,0,0,.55) 84%, rgba(0,0,0,.32) 100%); }
+  .fxLight { position:absolute; inset:0;
     background:
-      radial-gradient(52vw 38vw at var(--lx,18%) var(--ly,12%), rgba(255,196,107,.12), transparent 62%);
-    mask-image:radial-gradient(72% 70% at 50% 45%, #000 55%, transparent 100%);
-    -webkit-mask-image:radial-gradient(72% 70% at 50% 45%, #000 55%, transparent 100%); }
+      radial-gradient(44vmax 34vmax at var(--lx,18vw) var(--ly,12vh),
+        rgba(255,196,107,.14), rgba(255,196,107,.05) 45%, transparent 70%),
+      linear-gradient(transparent 0 39px, rgba(255,201,128,.20) 39px 40px),
+      linear-gradient(90deg, transparent 0 39px, rgba(255,201,128,.20) 39px 40px);
+    background-size:auto,40px 40px,40px 40px;
+    mask-image:radial-gradient(circle 34vmax at var(--lx,18vw) var(--ly,12vh),
+      rgba(0,0,0,.95) 0%, rgba(0,0,0,.60) 45%, transparent 78%);
+    -webkit-mask-image:radial-gradient(circle 34vmax at var(--lx,18vw) var(--ly,12vh),
+      rgba(0,0,0,.95) 0%, rgba(0,0,0,.60) 45%, transparent 78%); }
   .wrap { position:relative; z-index:2; min-height:100%; display:flex; flex-direction:column;
           align-items:center; justify-content:center; text-align:center;
           padding:clamp(24px,6vh,64px) 24px;
@@ -107,6 +116,7 @@
 </head>
 <body>
 <div class="bgGrid" aria-hidden="true"></div>
+<div class="coverFx" aria-hidden="true"><div class="fxLight"></div></div>
 <div class="wrap">
   <div class="welcome">
     <div class="uni">中醫西學博物館</div>
@@ -230,15 +240,17 @@
 })();
 </script>
 <script>
-/* 扉页打光跟随指针：只移动 body::before 里那团暖光的位置，
+/* 扉页打光跟随指针：只移动 .fxLight 里那团暖光的位置，
    背景网格、暗角、蓝色辅光都保持原样；不引入库，
    rAF 中按时间做指数缓动，让光像一盏有惯性的灯，而不是硬贴鼠标。 */
 (function () {
   'use strict';
+  var light = document.querySelector('.fxLight');
+  if (!light) return;
   var rm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
   if (rm && rm.matches) return;              // 系统要求减少动态：保留左上角静止光
 
-  var style = document.body.style;
+  var style = light.style;
   var x = innerWidth * 0.18, y = innerHeight * 0.12;   // 当前光心（初始 = 左上角）
   var tx = x, ty = y;                                  // 目标光心
   var raf = 0, last = 0;
