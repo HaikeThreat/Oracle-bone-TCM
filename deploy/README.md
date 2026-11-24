@@ -11,7 +11,7 @@
 
 ```bash
 # ① 本地：生成上传就绪的站点目录（只挑运行时必需文件，不含构建用的 AYJGW.ttf）
-python3 deploy.py                 # → dist/
+python3 deploy.py                 # → dist/（新版 18 个文件约 47MB）
 
 # ② 上传（把 <IP> 换成 SWAS 公网 IP）
 rsync -avz --delete dist/ root@<IP>:/var/www/oracletcm/
@@ -60,6 +60,7 @@ nginx 配置里一旦引用 `ssl_certificate` 而证书文件不存在，`nginx 
 | `libs/three.min.js` | 200 `text/javascript` |
 | `libs/hands_solution_simd_wasm_bin.wasm` | 200 **`application/wasm`** |
 | `libs/hand_landmark_full.tflite` | 200 `application/octet-stream` |
+| `libs/sanqi_model.glb`（新版） | 200；`libs/` 长缓存头正确 |
 | `<既有站点>` | 301，未受影响 |
 | `nginx -t` | **零警告** |
 | gzip | `gesture3d.html` 1,587,069B → **850,945B**（省 46%）；`.wasm` 按 `gzip off` 不压缩 |

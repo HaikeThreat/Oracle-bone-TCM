@@ -76,7 +76,7 @@ server {
     gzip_min_length 1024;
     gzip_types text/html text/css application/javascript text/javascript application/json;
 
-    # libs/ 首屏约 16MB，开长缓存后只在首次付；页面顶部 ASSET_V 可破缓存
+    # libs/ 约 50MB，开长缓存后只在首次付；页面顶部 ASSET_V 可破缓存
     location /libs/ {
         add_header Cache-Control "public, max-age=31536000, immutable";
         gzip off;                # wasm/tflite 已是压缩格式，再压无益

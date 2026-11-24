@@ -4,15 +4,22 @@
 
 ![捏合聚形：粒子聚成甲骨文「心」，左侧为字形库面板](docs/screenshot.png)
 
-**完全离线可运行 · 无任何 CDN 依赖 · 无摄像头也能玩**
+**自建站完全离线可运行 · 无外部 CDN 依赖 · 无摄像头也能玩**（`file://` 手势需联网走 CDN）
 
 **在线试玩：[oracletcm.com](https://oracletcm.com/)** —— 阿里云轻量应用服务器（SWAS）自建站点，HTTPS，ICP 备案号 滇ICP备2026008290号-3，公安联网备案号 滇公网安备53038102530583号。
 备用入口：[haikethreat.github.io/Oracle-bone-TCM](https://haikethreat.github.io/Oracle-bone-TCM/) —— GitHub Pages 托管，免备案（6MB 模型被限速，首选手势体验用主站）。
-首屏约 680KB（1~3 秒可看自动巡字）；「手势控制」需再下 6MB 模型，点按钮才触发，见下文[方式一](#方式一github-pages)。
+扉页约 5KB（gzip）；进入展厅约 1.1MB（gzip）；中药展厅首次再下约 9.2MB 三七模型；「手势控制」需再下约 16MB 模型，点按钮才触发。见下文[方式一](#方式一github-pages)。
 
 ## 这是什么
 
-《智解甲骨·中医密码》—— Three.js 7000 粒子点云 + MediaPipe 手势追踪的单文件网页交互作品。摄像头手势：
+《智解甲骨·中医密码》—— Three.js 粒子点云 + MediaPipe 手势追踪的单文件网页交互作品。站点由独立扉页 `index.html` 进入两个展厅：
+
+| 展厅 | 内容 |
+| --- | --- |
+| **甲骨文** | 7000 粒子字形层：字库、任意字、五色、待机巡字、比心彩蛋 |
+| **中药** | 三七（150k 面 PBR 写实 GLB、菊花心断面/饮片/皂苷）与雪上一枝蒿（程序化实体网格 + PBR 贴图、块根/花序特写、炮制工序）；药材属性卡内切换 |
+
+两个展厅共用同一套场景与手势输入，进入后左下角「‹ 返回展厅」可回到扉页重新选择。甲骨文展厅的摄像头手势：
 
 | 手势 | 效果 |
 | --- | --- |
@@ -33,7 +40,7 @@
 ```bash
 cd /path/to/甲骨文      # 必须在项目目录下执行：serve.py 是相对路径
 python3 serve.py 8138
-# 浏览器打开 http://localhost:8138/gesture3d.html
+# 浏览器打开 http://localhost:8138/index.html（新扉页，选择展厅）
 ```
 
 macOS 上还可以直接**双击**项目根目录的 [`启动本地服务.command`](启动本地服务.command)：
@@ -48,7 +55,7 @@ host 为 `localhost`（以及 `127.0.0.0/8`、`::1/128`）的源被视为「潜�
 换成局域网 IP（如 `http://192.168.1.5:8138`）就**不是**安全上下文，手势会失效 ——
 这是浏览器规则，与本项目无关。
 
-`serve.py` 是无缓存、多线程的静态服务器（只依赖标准库）。页面对此有前置拦截：在 `file://` 下点击「手势控制」会直接提示改用 HTTP，而不是抛出一句看不懂的报错。
+`serve.py` 是无缓存、多线程的静态服务器（只依赖标准库）。直接双击 `index.html` 也能看两个展厅（三七写实模型由 `libs/sanqi_model_fallback.js` 内嵌后备加载）；`file://` 下本地 `libs/` 的 wasm 被 CORS 拦截，联网时手势会自动改走 npm CDN，断网则请用上面的 HTTP 方式。
 
 用 `python3 -m http.server 8138` 也能跑，但浏览器容易吃缓存，且它是单线程、一个挂起连接就会让整站停止响应，不推荐。
 
@@ -77,18 +84,23 @@ host 为 `localhost`（以及 `127.0.0.0/8`、`::1/128`）的源被视为「潜�
 - 底部「任意字·楷体」输入：**先查字库** —— 若该字有甲骨文字形，就用甲骨文渲染；库里没有才退回系统楷体（是楷体粒子字，不是甲骨文）。简繁都能查到（输入简体 `册`/`麦` 也会命中 `冊`/`麥` 的甲骨文字形），多字合并条目里的字（如 `月/夕` 的「月」）同样可查
 - 颜色：五色预设（金青朱玉紫）+ 取色棒（屏幕吸管 / 系统取色盘 / 内置色板三级降级，长按取色棒唤出色板）；实时写入顶点色
 - 全屏：控制条「⛶ 全屏」
+- 展厅：从扉页选择「甲骨文 / 中药」；进入后左下角「‹ 返回展厅」回扉页（在药用部位特写里先逐层后退）
+- 中药：拖动旋转植株；滚轮 / 触控板双指 / 触屏双指以落点为支点缩放；点击入药部位（三七根茎/花、雪上一枝蒿块根/花序）或捏合放大到 ≥1.55× 进入部位特写，再点标签或模型可切换；底部「药材 ▾」切换三七 / 雪上一枝蒿；左右两侧滚动演示炮制工序
 - 待机巡字：进页面后连续 45 秒无输入才启动，此后每字约 18.4 秒（聚形 1.6s → 保持 12s → 散开 1.8s → 空歇 3s），一轮 67 字约 20.5 分钟；**只在精选的 67 字里轮播**（数据里标了 `curated: true` 的字），不会轮到全库中与中医无关的字；手动选字后计时重置，若所选字不在精选池里，巡字会安全接回池首（「心」）
 
 ## 目录结构
 
 | 路径 | 说明 |
 | --- | --- |
-| `index.html` | 站点入口：即时跳转到 `gesture3d.html`（静态托管的目录入口必须是 index.html，否则根地址 404） |
-| `gesture3d.html` | 作品主页面。字体子集与字库全部内嵌，自包含 |
-| `libs/` | Three.js r152 与 MediaPipe Hands 本地运行时（约 28MB，首次访问付一次，之后走长缓存） |
+| `index.html` | 站点扉页：博物馆名 / 欢迎您 / 作品名 / 甲骨文与中药两个展厅入口 + 备案页脚（静态托管的目录入口必须是 index.html，否则根地址 404） |
+| `gesture3d.html` | 作品主页面：甲骨文粒子展厅 + 中药展馆。字体子集与字库全部内嵌，自包含 |
+| `libs/` | Three.js r152、MediaPipe Hands 与三七写实模型（约 50MB，首次访问付一次，之后走长缓存） |
+| `libs/sanqi_model.glb` | 三七写实模型（约 150k 面 PBR） |
+| `libs/sanqi_model_fallback.js` | 三七 GLB 的脚本内嵌后备（file:// / GLB 加载失败时请求） |
 | `data/` | 字表数据库（1530 行已释甲骨文）与人工编排条目 |
 | `add_glyphs.py` | 往精选字库加字：并入 `data/curated_glyphs.json` 后自动调用 `build_glyphs.py` |
 | `build_glyphs.py` | 唯一的构建实现：重子集化字体 + 注入页面 + 刷新别名表与计数 |
+| `build_model_fallback.py` | 把 `libs/sanqi_model.glb` 转成脚本内嵌后备；换模型后重跑并把 `ASSET_V` 加一 |
 | `data/curated_glyphs.json` | **人工编排层的唯一数据源**（字头、码位、精选标记、文案） |
 | `serve.py` | 无缓存本地服务器（可选）：`python3 serve.py [端口]`，默认 8138，仅本机用 `--host 127.0.0.1` |
 | `deploy.py` | 生成上传就绪的站点目录 `dist/`（只挑运行时必需文件，见「部署」） |
@@ -119,7 +131,7 @@ python3 build_glyphs.py --limit 200  # 只取前 200 个，试体积用
 python3 build_glyphs.py --db 其它.json --curated 其它.json   # 换数据源
 ```
 
-实测体积：面板约 1066 个单字，字体子集（二进制）约 **962KB**、页面内嵌 base64 约 **1.25MB**、整个 HTML 约 **1.5MB**（相比手势模型的 16MB 仍属小头）。字库数据已与主脚本分离：条目与别名表写在页面头部，重建只改动那两块。
+实测体积：面板约 1066 个单字，字体子集（二进制）约 **962KB**、页面内嵌 base64 约 **1.25MB**、整个 HTML 约 **1.66MB**（相比手势模型的 16MB 仍属小头）。字库数据已与主脚本分离：条目与别名表写在页面头部，重建只改动那两块。
 
 ## 部署
 
@@ -139,22 +151,17 @@ python3 build_glyphs.py --db 其它.json --curated 其它.json   # 换数据源
 
 | 功能 | 需要下载 | 主站（SWAS） |
 | --- | --- | --- |
-| 打开页面 / 待机自动巡字 / 输入框生成 | 约 **680KB** | 秒开（同源 + gzip + 长缓存） |
+| 打开扉页 / 选择展厅（甲骨文粒子） | 约 **1.1MB**（gzip） | 秒开（同源 + gzip + 长缓存） |
+| 首次进入中药展厅 | 再加约 **9.2MB** 三七模型 | 同源 `libs/`，之后走长缓存 |
 | 点「🎥 手势控制」 | 再加约 **16MB** 模型 | 数秒内（同源 `libs/`） |
 
-#### 模型来源：2026-11-10 简化
+#### 模型来源：2026-11-24 迁回站点定制
 
-主站备案上线后，`gesture3d.html` 只保留两条路径：
+- **自建服务器 / localhost / 局域网**（http(s)，非 `*.github.io`）：全部同源 `libs/`，不探测、不换源；
+- **`*.github.io`（备用入口）**：npmmirror / jsDelivr / 本地 `libs/` 三源赛跑（Pages 上的大二进制被限速，CDN 通常赢）；
+- **`file://` 直接打开**：本地 `libs/` 被 CORS 拦截，只在两个 https CDN 间赛跑；断网时提示改用本地服务。
 
-- `*.github.io`（备用入口）：模型直连淘宝 npmmirror（`registry.npmmirror.com`）；
-- 其他所有部署（自建服务器 / localhost / 局域网）：全部同源 `libs/`，无探测、无换源。
-
-原先的「多源并行探测 + 20 秒停滞自动换源」状态机已删除 —— 那是 GitHub Pages
-6MB wasm 被限速（实测 11~83 KB/s，而同宿主 tflite 有 703 KB/s）时的补丁；
-主站自建后本地加载为秒级，保留它只会增加故障面。
-
-> 备用 Pages 入口上的手势仍可用（npmmirror 大陆实测 5.6 MB/s），但没有 jsDelivr 兜底。
-> 若 npm 镜像不可达，Pages 上只能使用待机巡字与鼠标模式，请改用主站。
+主站自建后本地加载为秒级，故不再对主站做 CDN 探测。备用 Pages 入口依赖 npm CDN；若镜像不可达，Pages 上只能使用待机巡字与鼠标模式，请改用主站。
 
 #### 其他 Pages 事实（便于日后排查）
 
@@ -168,7 +175,7 @@ python3 build_glyphs.py --db 其它.json --curated 其它.json   # 换数据源
 先生成上传就绪的目录，再上传并配置服务器：
 
 ```bash
-python3 deploy.py                                  # ① 本地：输出 dist/，16 个文件约 25MB
+python3 deploy.py                                  # ① 本地：输出 dist/，18 个文件约 47MB
 rsync -avz --delete dist/ root@<SWAS公网IP>:/var/www/oracletcm/   # ② 上传
 sudo bash deploy/setup-server.sh oracletcm.com /var/www/oracletcm  # ③ 服务器：配 nginx
 ```
@@ -177,8 +184,8 @@ sudo bash deploy/setup-server.sh oracletcm.com /var/www/oracletcm  # ③ 服务�
 且**先探测证书** —— 没有证书时先写「仅 HTTP」配置让站点能开（否则 nginx 因引用不存在的
 证书而起不来），证书就绪后重跑即自动切换为 HTTPS。详见 [`deploy/README.md`](deploy/README.md)。
 
-脚本只挑**运行时真正需要**的文件，并显式保留两类「没被请求但删不得」的 fallback：
-`hands_solution_wasm_bin.{js,wasm}`（旧浏览器无 SIMD 时用）与 `hand_landmark_lite.tflite`（`modelComplexity:0` 时用）。
+脚本只挑**运行时真正需要**的文件，并显式保留三类「没被请求但删不得」的 fallback：
+`hands_solution_wasm_bin.{js,wasm}`（旧浏览器无 SIMD 时用）、`hand_landmark_lite.tflite`（`modelComplexity:0` 时用）与 `sanqi_model_fallback.js`（file:// / GLB 加载失败时用）。
 不纳入 `libs/AYJGW.ttf`（4.2MB）—— 那是构建时子集化用的完整字体（许可待确认，仓库也不分发），页面内嵌的是 base64 子集。
 
 把 `dist/` 内容上传到站点根后，nginx 关键配置：
@@ -202,7 +209,7 @@ server {
     gzip_min_length 1024;
     gzip_types text/html text/css application/javascript text/javascript application/json;
 
-    # libs/ 长缓存（首屏约 16MB，只在首次付）；页面用顶部 ASSET_V 破缓存
+    # libs/ 长缓存（约 50MB，只在首次付）；页面用顶部 ASSET_V 破缓存
     location /libs/ {
         add_header Cache-Control "public, max-age=31536000, immutable";
         gzip off;              # wasm/tflite 已是压缩格式，再压无益
