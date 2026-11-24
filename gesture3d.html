@@ -2969,44 +2969,24 @@ function sampleGlyph3D(spec, forAmbient, skipPanel) {
   // （实测：查库未命中的字被误传到此处即复现）。返回 false 与「字形渲染失败」
   // 同一条错误通路，调用方能据此提示而不是白屏。
   if (!spec || !spec.ch) { console.warn('[Oracle] sampleGlyph3D 收到空 spec'); return false; }
-  // 只要本次显示的目标不属于比心序列（手动选字、待机巡字、回填原字），
-  // 比心流程即告结束 —— 否则用户点个字，5 秒后仍会被短语的收尾逻辑顶掉。
-  if (!isHeartOwned(spec)) heartPhase = 0;
   curGlyph3D = spec;                     // [修复] 更新当前字：高亮框/字名/巡字全部依赖它
   syncGlyphState(spec, true);            // 面板选中态与实际显示保持一致
   const g = gcv.getContext('2d', gctxOpt);
-  // heart 形态在此处脱钩：它既没有 PUA 码位也没有系统字形，若走 isOracle 分支
-  // 会在 spec.code.slice() 处直接抛 TypeError 并让整个应用崩掉。
   const isText = spec.mode === 'text';
-  const isHeart = spec.mode === 'heart';
-  const isPhrase = spec.mode === 'phrase';
-  const isOracle = !isText && !isHeart && !isPhrase;
-  const chars = isHeart ? [] : [...spec.ch].slice(0, 2);
-  // 短语支持换行：行间用 \n 分隔。粒子只用 \n 排版，标签另取 labelCh
-  // （HTML 里换行会被折叠成空格，直接拿 ch 当标题会串成一行）。
-  const phraseLines = isPhrase ? String(spec.ch).split('\n').filter(s => s.length) : null;
-  const serifFam = '"Songti SC","STSong","SimSun","Noto Serif SC",serif';
+  const isOracle = !isText;
+  const chars = [...spec.ch].slice(0, 2);
   let drawText, family, weight;
-  if (isHeart) {
-    drawText = ''; family = 'serif'; weight = '';
-  } else if (isOracle) {
+  if (isOracle) {
     drawText = String.fromCodePoint(parseInt(spec.code.slice(1), 16));
     // 防御：一个码位只对应一个字形，多字会挤在一起互相遮挡。
     // 正常数据已保证单字，这里再截一次，避免将来数据异常时画出叠字。
     drawText = [...drawText][0] || '';
     family = 'OracleGlyphFont, serif'; weight = '';
-  } else if (isPhrase) {
-    // 排版只需知道「最长那一行」——行宽决定整体字号，行数决定整体行高。
-    drawText = phraseLines.reduce((a, b) => (a.length >= b.length ? a : b), '');
-    family = serifFam; weight = '900 ';
   } else {
-    // 楷体分支同样只取首字：下面还有一处按固定坐标画两个字的兼容分支，
-    // 对本项目（每次只展示一个字）只会造成遮挡，故不启用。
+    // 楷体分支只取首字：本项目每次只展示一个字。
     drawText = chars[0];
     family = '"Songti SC","STSong","SimSun","Noto Serif SC",serif'; weight = '900 ';
   }
-  // 阈值沿用 oracle 一档（0.35）：爱心与字形一样是实心的，边缘抗锯齿较软，
-  // 用 text 那档 0.45 会把心尖描边啃细。
   const thr = isText ? 0.45 : 0.35, CSZ = 512, MAXBOX = 420, MARGIN = 24;
 
   // 初估字号（TextMetrics 只作粗起点，尺寸由墨迹实测决定）
@@ -3015,10 +2995,7 @@ function sampleGlyph3D(spec, forAmbient, skipPanel) {
   const m = g.measureText(drawText);
   const mw = (m.actualBoundingBoxLeft + m.actualBoundingBoxRight) || m.width || 400;
   const mh = (m.actualBoundingBoxAscent || 300) + (m.actualBoundingBoxDescent || 100);
-  // 短语要 reserved 出多行的高度；1.06 是行距系数，须与 drawPhraseLines 的 LEADING 一致，
-  // 否则初估与实绘的行距对不上，会让自适应白白多跑一轮收缩。
-  const rows = isPhrase ? phraseLines.length : 1;
-  const estH = isPhrase ? mh * rows * PHRASE_LEADING : mh;
+  const estH = mh;
   fs = Math.max(40, Math.round(400 * Math.min(MAXBOX / mw, MAXBOX / estH, 1.5)));
 
   // 渲染 → 墨迹包围盒 → 贴边则缩小重画
@@ -3026,18 +3003,8 @@ function sampleGlyph3D(spec, forAmbient, skipPanel) {
   for (let attempt = 0; attempt < 4; attempt++) {
     g.clearRect(0, 0, CSZ, CSZ);
     g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle';
-    if (isHeart) {
-      // 心形尺寸由 R 直接给定，不像文字那样需要「贴边就缩小重画」的自适应
-      drawHeartShape(g, CSZ / 2, CSZ / 2, MAXBOX * 0.92);
-    } else if (isPhrase) {
-      drawPhraseLines(g, phraseLines, family, weight, fs, CSZ);
-    } else {
-      g.font = weight + fs + 'px ' + family;
-      // 每次只展示一个字，直接居中绘制。
-      // （原有多字并排分支用固定坐标 (140,262)/(372,262) 画两处文字，本项目用不到，
-      //   且会造成叠字遮挡，已移除。）
-      g.fillText(drawText, CSZ / 2, CSZ / 2 + 4);
-    }
+    g.font = weight + fs + 'px ' + family;
+    g.fillText(drawText, CSZ / 2, CSZ / 2 + 4);
     imgData = g.getImageData(0, 0, CSZ, CSZ).data;
     minX = minY = 1e9; maxX = maxY = -1e9;
     for (let y = 0; y < CSZ; y++)
@@ -3047,7 +3014,6 @@ function sampleGlyph3D(spec, forAmbient, skipPanel) {
           if (y < minY) minY = y; if (y > maxY) maxY = y;
         }
     if (maxX < 0) break;
-    if (isHeart) break;        // 尺寸已由 drawHeartShape 的 R 定死，无需迭代缩放
     if (minX >= MARGIN && minY >= MARGIN && maxX <= CSZ - 1 - MARGIN && maxY <= CSZ - 1 - MARGIN) break;
     fs = Math.round(fs * 0.75);
   }
@@ -3262,291 +3228,6 @@ function tipRatio(lm) {
   return Math.hypot(lm[4].x - lm[8].x, lm[4].y - lm[8].y) / palmSize(lm);
 }
 
-// ── 比心彩蛋（爱心形态）──────────────────────────────────────────────────
-// 设计取舍：爱心**复用 sampleGlyph3D 的全套流水线** —— canvas 画形 → 扫墨迹 →
-// 生成目标点云。这里只替换"画什么",采样/着色/顶点色/物理一行都不用改，
-// 因此爱心天然享有与甲骨文相同的聚散、转动、阵风惯性与颜色系统。
-const HEART_SPEC = Object.freeze({
-  ch: '❤', tag: '比心', mode: 'heart', intro: '以手比心，气聚成爱',
-});
-// 经典心形参数方程 t∈[0,2π]。先生成点集再按包围盒归一，
-// 好处是不必记公式里的经验偏移量（原式 y 的取值并不对称于原点）。
-function drawHeartShape(g, cx, cy, R) {
-  const pts = [];
-  let xmin = 1e9, xmax = -1e9, ymin = 1e9, ymax = -1e9;
-  for (let i = 0; i <= 180; i++) {
-    const t = i / 180 * Math.PI * 2;
-    const x = 16 * Math.pow(Math.sin(t), 3);
-    const y = -(13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t));
-    pts.push(x, y);
-    if (x < xmin) xmin = x; if (x > xmax) xmax = x;
-    if (y < ymin) ymin = y; if (y > ymax) ymax = y;
-  }
-  const k = R / Math.max(xmax - xmin, ymax - ymin);
-  const ox = cx - (xmin + xmax) / 2 * k, oy = cy - (ymin + ymax) / 2 * k;
-  g.beginPath();
-  for (let i = 0; i < pts.length; i += 2) {
-    const px = ox + pts[i] * k, py = oy + pts[i+1] * k;
-    i ? g.lineTo(px, py) : g.moveTo(px, py);
-  }
-  g.closePath();
-  g.fill();
-}
-// 多字短语排版：整体在 CSZ 画布内居中（行块垂直居中，每行水平居中）。
-// 逐字绘制而非整行 fillText，是为了让字距成为字号的显式比例 —— 汉字等宽，
-// 用 fs*(1+GAP) 步进即可，不必依赖字体自身的 kerning（各字体差异很大、不可控）。
-const PHRASE_LEADING = 1.06;    // 行距 = 字号 × 该系数（须与初估行数高度时所用一致）
-const PHRASE_GAP     = 0.06;    // 字距 = 字号 × 该系数
-function drawPhraseLines(g, lines, family, weight, fs, CSZ) {
-  g.font = weight + fs + 'px ' + family;
-  const lineH = fs * PHRASE_LEADING;
-  const totalH = lines.length * lineH;
-  const y0 = CSZ / 2 - totalH / 2 + lineH / 2;   // 首行「中心线」的 y
-  const adv = fs * (1 + PHRASE_GAP);
-  for (let i = 0; i < lines.length; i++) {
-    const cs = [...lines[i]];
-    let x = CSZ / 2 - (cs.length - 1) * adv / 2;
-    for (const c of cs) { g.fillText(c, x, y0 + i * lineH); x += adv; }
-  }
-}
-// ── 比心手势的几何判据（2026-10-23 第 3 版，按实拍手型定）──────────────────
-// 实际手势（用户实拍确认）：**拇指与食指交叉成 X**，中指·无名指·小指收进手心。
-//
-// 「交叉」是个**拓扑特征**而非程度量，这是它比前两版可靠的原因：
-//   · v1（拇食指相触 + 余指张开）与「捏合聚形」几何同构 —— 都是拇指食指尖相触，
-//     只差余指张开度，只能靠调阈值折中，误触治不干净；
-//   · v2（拇-无名指交错）能区分捏合，但"拇指横压四指"（握拳）要靠"无名指是否伸直"
-//     排除，安全边际只剩一条判据；
-//   · v3 判的是「拇指段与食指段在画面上是否成交叉」，与前后遮挡、手掌朝向、手离
-//     镜头远近都无关；而"两指伸出但彼此不交"（手枪手势、V 形张开）在拓扑上本就不同。
-//     注意：对"拇指-食指"这一对**不能**只靠"指尖换位"判交叉 —— 拇指比食指短，
-//     交叉时拇指尖往往停在食指中段，压根越不过食指尖。所以主判据取两段相交。
-//
-// 五条判据，全部以「跨掌宽 5→17」归一化或取方向余弦，故与手在画面中的远近、旋转无关：
-//   ① 食指伸出去（指根到指尖的长度）        fingerLen(5,8) ≥ INDEX_LEN_MIN
-//   ② 食指是竖起的（不是"手枪"那样横伸）    食指方向 · 掌轴方向 ≥ INDEX_UP_MIN
-//   ③ 拇食指尖是分开的                     距离 ≥ TIP_APART_MIN —— 相触即为捏合聚形
-//   ④ 拇指与食指在画面上交叉                拇指段(2-4)与食指段(5-8)相交，或拇指尖越过食指尖
-//   ⑤ 中·无名·小指收进手心                  三者 fingerLen 均 ≤ FOLD_LEN_MAX
-//
-// 【尺度参照的教训】上一版用「掌心 → 指尖」作伸展比，掌心取腕(0)与中指根(9)的中点。
-// 实采 3685 帧后发现这个参照会塌缩：手一旦朝镜头方向倾，|0→9| 在 2D 上变得很短，
-// 分母趋零，比值被放大到 5.94 这种荒谬值（真人中指收起不可能 >2.5），
-// 于是「三指收起」这条判据通过率恒为 0 —— 手势摆得再对也永远不会触发。
-// 现在改用 |5→17|（食指根到小指根的跨掌宽）作唯一尺度：它只取决于手掌本身的宽度，
-// 与手指蜷伸无关，手在画面里怎么转都最稳。
-function palmWidth(lm) {            // 跨掌宽：整条判据链唯一的尺度参照
-  return Math.hypot(lm[17].x - lm[5].x, lm[17].y - lm[5].y) + 1e-5;
-}
-// 指长比：指根到指尖的直线距离 ÷ 跨掌宽。伸直约 0.95~1.20，收进手心约 0.15~0.40。
-function fingerLen(lm, mcp, tip, pw) {
-  return Math.hypot(lm[tip].x - lm[mcp].x, lm[tip].y - lm[mcp].y) / pw;
-}
-// 两线段严格相交（端点相触不算）。用叉积定侧、不构造交点，省掉 sqrt。
-function segCross(ax, ay, bx, by, cx, cy, dx, dy) {
-  const s1 = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
-  const s2 = (bx - ax) * (dy - ay) - (by - ay) * (dx - ax);
-  const s3 = (dx - cx) * (ay - cy) - (dy - cy) * (ax - cx);
-  const s4 = (dx - cx) * (by - cy) - (dy - cy) * (bx - cx);
-  return s1 * s2 < 0 && s3 * s4 < 0;
-}
-const INDEX_LEN_MIN  = 0.55;   // ① 食指长度下限（伸直实测 1.0~1.3，收起 0.15~0.2）
-const INDEX_UP_MIN   = 0.35;   // ② 食指上举度余弦（实采最佳帧 0.458）
-const TIP_APART_MIN  = 0.25;   // ③ 拇食指尖最小间距 / 跨掌宽（相触 = 捏合，不是交叉）
-const FOLD_LEN_MAX   = 0.60;   // ⑤ 中/无名/小指收起时长度上限（伸直实测 1.1 左右）
-const CROSS_OVER_TOL = 0.05;   // ④ 指尖换位门槛：拇指尖须越到小指侧这么多（兜底判据）
-const CROSS_AXIS_MIN = 0.30;   // 掌横轴(5→17)短于此值视为掌面侧对镜头，此时只信线段相交
-const CROSS_DEPTH_MIN = 0.04;  // ④ 跨线深度：拇指两端离食指直线都要超过这么多，才算真跨过去
-                               //    调大 = 要求跨得更深（更保守）；擦着线过不算交叉
-// 把各判据的实测值打包。dbg 模式与阈值校准都读它，避免判定与显示各算一套。
-function heartMetrics(lm) {
-  const pw = palmWidth(lm);
-  const foldMiddle = fingerLen(lm, 9, 12, pw);
-  const foldRing   = fingerLen(lm, 13, 16, pw);
-  const foldPinky  = fingerLen(lm, 17, 20, pw);
-  // 食指「上举度」：食指方向 · 掌轴方向(0→9)。手指竖起约 0.9，水平前伸约 0，收回为负。
-  // 这条专治「手枪手势」—— 那是拇指竖、食指横，两者在画面上也会靠近甚至相交。
-  const fx = lm[8].x - lm[5].x, fy = lm[8].y - lm[5].y;
-  const flen = Math.hypot(fx, fy) + 1e-5;
-  const ax = lm[9].x - lm[0].x, ay = lm[9].y - lm[0].y;
-
-  const alen = Math.hypot(ax, ay) + 1e-5;
-  const indexUp = (fx * ax + fy * ay) / (flen * alen);
-  const indexLen = flen / pw;
-  // 掌横轴 u：食指根(5) → 小指根(17)，指向小指侧。
-  // 拇指尖越过食指尖时两者在该轴上的投影换位（用投影差，故不依赖手的旋转角度）。
-  const ux = lm[17].x - lm[5].x, uy = lm[17].y - lm[5].y;
-  const un = Math.hypot(ux, uy) + 1e-5;
-  const swap = ((lm[4].x - lm[8].x) * ux / un + (lm[4].y - lm[8].y) * uy / un) / pw;
-  // 两指尖距离。交叉时两根手指在交叉点两侧、指尖必然分开；
-  // 而「捏合聚形」是拇食指**相触**，这个值极小。它是把两者分开最直接的一条。
-  const tipApart = Math.hypot(lm[4].x - lm[8].x, lm[4].y - lm[8].y) / pw;
-  // 交叉的主判据：拇指是否**跨过了食指所在的那条直线**。
-  //
-  // 为什么换掉「两线段相交」（segCross）：交叉处两指互相遮挡，MediaPipe 的关键点
-  // 在那里会来回跳，实测单帧只有 **19.5%** 的帧判得出"相交"。而"两段是否相交"是个
-  // 脆弱的拓扑判断 —— 关键点一抖，交点就在存在/不存在之间翻转。
-  //
-  // 「跨线」不是一个点是否落在另一条线段上，而是**拇指根(2) 与拇指尖(4) 相对食指直线
-  // 的侧号是否相反**。符号翻转是整数变化，对抖动不敏感：只要拇指真的从一侧伸到了
-  // 另一侧，符号就稳定地为异号。同时还能给出"跨得有多深"——两侧的最小距离，
-  // 用来排除"擦着线过去"这种模棱两可的情形。
-  const ix = lm[8].x - lm[5].x, iy = lm[8].y - lm[5].y;
-  const il = Math.hypot(ix, iy) + 1e-5;
-  const side2 = ((lm[2].x - lm[5].x) * iy - (lm[2].y - lm[5].y) * ix) / il / pw;
-  const side4 = ((lm[4].x - lm[5].x) * iy - (lm[4].y - lm[5].y) * ix) / il / pw;
-  const straddle  = side2 * side4 < 0;                       // 拇指两端分居食指直线两侧
-  const overDepth = Math.min(Math.abs(side2), Math.abs(side4));  // 两侧余量：越小越勉强
-  // 老判据保留作兜底：掌面接近侧对镜头时，食指直线在画面上退化，跨线判断不可靠，
-  // 那时段相交反而能work（两条线几乎垂直）。
-  const cross = segCross(lm[2].x, lm[2].y, lm[4].x, lm[4].y,
-                         lm[5].x, lm[5].y, lm[8].x, lm[8].y);
-  return { pw, foldMiddle, foldRing, foldPinky,
-           indexUp, indexLen, swap, cross, straddle, overDepth, tipApart, uRel: un / pw };
-}
-// 单帧"交叉证据"：拇指真的跨过了食指直线（且两侧都有余量），
-// 或掌面侧对镜头导致跨线不可靠时，退回到"两段相交"。
-function crossEvidence(m) {
-  return ((m.straddle && m.overDepth > CROSS_DEPTH_MIN) || m.cross) ? 1 : 0;
-}
-// 判据本体：吃一份度量，返回是否成立。crossRate 是"最近若干帧里交叉成立的比例"，
-// 由时间平滑给出（见下面的 heartEmaOf）—— 单帧的交叉信号仍然带噪，不能直接当门槛。
-function judgeHeart(m, crossRate) {
-  if (m.indexLen < INDEX_LEN_MIN) return false;                            // ① 食指要伸出
-  if (m.indexUp < INDEX_UP_MIN) return false;                              // ② 且是竖起的，不是手枪那样横伸
-  if (m.tipApart < TIP_APART_MIN) return false;                            // ③ 指尖分开 —— 相触就是捏合
-  if (m.foldMiddle > FOLD_LEN_MAX || m.foldRing > FOLD_LEN_MAX
-      || m.foldPinky > FOLD_LEN_MAX) return false;                         // ⑤ 余三指收进手心
-  // ④ 交叉：跨线证据的时间比例，或拇指尖已越过食指尖
-  const cr = (crossRate === undefined) ? crossEvidence(m) : crossRate;
-  return cr > 0.5 || (m.uRel > CROSS_AXIS_MIN && m.swap > CROSS_OVER_TOL);
-}
-// 注意：真机判定走的是 heartEmaOf + judgeHeart（平滑后），下面这个单帧版本只供离线
-// 回归脚本按同一套阈值验算，runtime 不用它 —— 单帧交叉率太低，不能直接当门槛。
-function isHeartGesture(lm) {
-  if (!lm[20]) return false;
-  return judgeHeart(heartMetrics(lm));
-}
-// ── 度量的时间平滑 ──────────────────────────────────────────────────────
-// 为什么必须平滑：实采 3918 帧（同一姿势保持）显示，各判据的**单帧**通过率是
-//   食指长 99.5%、上举 89%、指尖距 86%、三指收起 6.6%、两段相交 19.5%
-// 「相交」最脆 —— 两根手指交叉处互相遮挡，MediaPipe 的关键点估计会来回跳，
-// 于是"连续 450ms 成立"几乎永远攒不满（全达成只有 0.1% 的帧）。这不是阈值松紧问题，
-// 而是单帧信号本身带噪。故对度量做 EMA，交叉改成"比例"（crossRate > 0.5 即认定交叉中），
-// 抖动被抹平，判定才可能持续。
-const HEART_EMA_A = 0.22;       // 平滑系数：越小越稳、越滞后（0.22 对应约 4~5 帧时间常数）
-const HEART_EMA_GAP_MS = 1000;  // 中断超过这么久就丢掉旧状态，避免用上一轮的手势"续命"
-let heartEmaLast = null;        // 最近一次算出的度量（只给左下角 dbg 面板显示用）
-// ⚠ 平滑状态必须**每只手各存一份**。两只手同时入画时，若共用同一个容器，
-// 左手和右手会交替往同一组数上喂值，度量被搅成两手的平均 —— 两只都判不出来。
-function heartEmaOf(lm, host) {
-  const m = heartMetrics(lm);
-  const now = performance.now();
-  const keys = ['indexLen', 'indexUp', 'tipApart', 'swap', 'foldMiddle', 'foldRing', 'foldPinky'];
-  let e = host ? host._heartE : null;
-  if (!e || now - (host._heartEAt || 0) > HEART_EMA_GAP_MS) {
-    e = { crossRate: crossEvidence(m), uRel: m.uRel, pw: m.pw };
-    for (const k of keys) e[k] = m[k];
-    if (host) host._heartE = e;
-  } else {
-    const a = HEART_EMA_A;
-    for (const k of keys) e[k] = lerp(e[k], m[k], a);
-    e.crossRate = lerp(e.crossRate, crossEvidence(m), a);
-    e.uRel = m.uRel;
-    e.pw = m.pw;
-  }
-  if (host) host._heartEAt = now;
-  // 不平滑的即时量也挂上去：dbg 面板要能同时看到"原始"和"平滑后"，
-  // 否则分不清是手势没摆对，还是被平滑吃掉了。
-  e.cross = m.cross; e.straddle = m.straddle; e.overDepth = m.overDepth;
-  heartEmaLast = e;
-  return e;
-}
-// ── 手型校准辅助：地址栏加 ?dbg=1 后，左下角实时显示三条判据的实测值 ──────────
-// 为什么需要它：上面几个阈值是按解剖比例推的初值，而手型、摄像头俯角、手的远近
-// 差异不小。开启后照手势比一比，就能看出到底卡在哪个量上（是没伸开、没交叉，
-// 还是无名指小指没攥住），不用靠「能不能触发」这种二值反馈反复猜。
-const HEART_DBG = /[?&]dbg=1\b/.test(location.search);
-let heartDbgEl = null;
-// 显示的是【平滑后】的度量 —— 也就是判定真正用的那一份。
-// 不再自己调 heartMetrics/heartEmaOf：每帧只能推进一次 EMA，多调一次时间常数就减半。
-function heartDbgDraw() {
-  if (!heartDbgEl) {
-    heartDbgEl = document.createElement('div');
-    heartDbgEl.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:98;'
-      + 'font:11px/1.6 ui-monospace,Consolas,monospace;color:#9fe8c0;background:rgba(0,0,0,.72);'
-      + 'padding:8px 10px;border-radius:8px;white-space:pre;pointer-events:none';
-    document.body.appendChild(heartDbgEl);
-  }
-  const m = heartEmaLast;
-  if (!m) { heartDbgEl.textContent = '未检测到手'; return; }
-  const f = v => (v < 0 ? '' : ' ') + v.toFixed(2);
-  // 持续进度条：这是「为什么没触发」最常见的答案 —— 姿态对了，但没坚持够久。
-  // 光看"✔ 成立"分不清是姿态不对还是时间不够，进度条一眼就能看出。
-  const h0 = (typeof hands3d !== 'undefined' ? hands3d[0] : null);
-  const hold = (h0 && h0.heartSince) ? Math.min(1, (performance.now() - h0.heartSince) / HEART_HOLD_MS) : 0;
-  const bars = Math.round(hold * 10);
-  heartDbgEl.textContent =
-    '比心手型度量（平滑后）' + (judgeHeart(m, m.crossRate) ? '  ✔ 成立' : '') + '\n' +
-    '持续 ' + '█'.repeat(bars) + '·'.repeat(10 - bars) + ' ' + Math.round(hold * 100) + '%\n' +
-    '① 食指长 ' + f(m.indexLen) + '  需 ≥ ' + INDEX_LEN_MIN + '\n' +
-    '② 上举余弦 ' + f(m.indexUp) + '  需 ≥ ' + INDEX_UP_MIN + '\n' +
-    '③ 指尖间距 ' + f(m.tipApart) + '  需 ≥ ' + TIP_APART_MIN + '\n' +
-    '④ 跨线 ' + (m.straddle ? '是' : '否') + ' 深度' + f(m.overDepth) + '  需 > ' + CROSS_DEPTH_MIN + '\n' +
-    '   交叉比例 ' + m.crossRate.toFixed(2) + '  需 > 0.50\n' +
-    '⑤ 中指' + f(m.foldMiddle) + ' 无名' + f(m.foldRing) + ' 小指' + f(m.foldPinky)
-      + '  需 ≤ ' + FOLD_LEN_MAX + '\n' +
-    '   掌宽 ' + m.pw.toFixed(3);
-}
-// 连续满足多久才认定是比心（毫秒）。①~④ 管「像不像」，这里管「稳不稳」：
-// 嫌难触发往下调，仍偶有误触往上调。按时间而非帧数 —— 帧率会随机型/负载漂移。
-const HEART_HOLD_MS  = 450;
-// 短暂判丢的宽容窗口：连续丢失超过这么久才把"持续计时"清零。
-// 关键点抖动是常态，一丢就清零会让 450ms 几乎攒不满。
-const HEART_GRACE_MS = 220;
-const HEART_RELEASE_MS = 900;    // 松手后隔多久从 ❤ 落成短语（留观察窗防中途丢帧闪跳）
-const HEART_PHRASE_MS  = 5200;   // 短语停留多久再还原成原来的字（调大=停留更久）
-// 爱心态必须能被「交还」：sampleGlyph3D 一旦执行就把 tgt（目标点云）换成了别的形态，
-// 若不还原，用户松手后再捏合，聚出来的仍然是爱心。故记下触发前的字，结束后回填。
-// 比心现为两段式：❤ →（松手）「我爱你 / 三生三世」→（停留期满）回到触发前的字。
-const HEART_PHRASE_SPEC = Object.freeze({
-  ch: '我爱你\n三生三世',                 // 粒子排版用（\n 换行）
-  labelCh: '我爱你 · 三生三世',           // 文字标签用（HTML 会把 \n 折叠成空格）
-  glyphScale: 1.35,                     // 两行七字包围盒偏扁，放大到与单字观感相当
-  tag: '比心', mode: 'phrase', intro: '以手比心，气聚成爱',
-});
-let heartPhase = 0;           // 0=未接管  1=爱心  2=短语
-let heartPrevSpec = null;     // 触发前显示的字（回填用）
-let lastHeartSeenAt = 0;      // 最后一次判到比心的时刻（由相机帧刷新）
-let phraseSinceAt = 0;        // 进入短语态的时刻
-function isHeartOwned(spec) { return spec === HEART_SPEC || spec === HEART_PHRASE_SPEC; }
-function triggerHeart() {
-  if (heartPhase === 1) return;    // 已在爱心态：省掉一次 7000 点重算
-  // 短语态下再次比心则回到爱心态；触发前的字沿用上一轮记下的，不能覆盖成短语 spec
-  if (curGlyph3D && !isHeartOwned(curGlyph3D)) heartPrevSpec = curGlyph3D;
-  heartPhase = 1;
-  // skipPanel=true：爱心/短语都不在字库里，重建 1066 条面板 DOM 既无条目可高亮，
-  // 又带来一次可见的列表重绘，直接跳过。
-  // 不调 banner()：画面中央已有大字标签，顶部那条红色横幅是给「错误/异常」用的，
-  // 拿来做形态播报既重复又抢眼（#err 是 position:fixed 满宽暗红条）。
-  sampleGlyph3D(HEART_SPEC, false, true);
-}
-// 松手后先落成短语，而不是直接跳回原来那个字 —— 语义上「比心」接住的是一句话。
-function enterHeartPhrase() {
-  if (heartPhase !== 1) return;
-  heartPhase = 2;
-  phraseSinceAt = performance.now();
-  sampleGlyph3D(HEART_PHRASE_SPEC, false, true);   // 同上：不弹横幅
-}
-// 留 900ms 观察窗再还原：比心过程中途若有 1~2 帧判丢，不至于立刻切走造成闪跳。
-function restoreFromHeart() {
-  if (heartPhase === 0) return;
-  heartPhase = 0;
-  // 触发前没选过字时，回落到精选池首字（编排上通常是「心」），语义上正好接住比心
-  const back = heartPrevSpec || AMBIENT_GLYPHS[0] || ORACLE_GLYPHS[0];
-  heartPrevSpec = null;
-  if (back && !isHeartOwned(back)) sampleGlyph3D(back, false, true);
-}
 // 施密特触发状态机（滞回 + 连续帧确认）：
 //   捏合  进入 ratio<0.45 / 退出 ratio>0.62
 //   张开  进入 ratio>1.05 / 退出 ratio<0.85
@@ -3709,16 +3390,8 @@ function physics(dt, t) {
 // ── 手势状态机 ────────────────────────────────────────────────────────────
 let statusText = ST.AMBIENT;
 function updateGestures(dt, t) {
-  // 爱心形态的退出延判：比心姿态已消失超过 900ms 才把目标点云交还原字。
-  // 放在状态机开头而非相机帧回调里 —— 后者在摄像头关闭后不再被调用，
-  // 爱心态就会永久卡住。
-  // 两段式收尾：松手后先落成短语，短语停留期满才回到触发前的字。
-  // 放在这里而非相机帧回调里，是因为摄像头一关回调就不再被调用，爱心态会永久卡住。
-  const tn = performance.now();
-  if (heartPhase === 1 && tn - lastHeartSeenAt > HEART_RELEASE_MS) enterHeartPhrase();
-  else if (heartPhase === 2 && tn - phraseSinceAt > HEART_PHRASE_MS) restoreFromHeart();
   // 三七展开度：直接复用「手掌开合度」（open01，气散用的同一个量）。
-  // 选它而不是加新手势，是因为它已经过长期调优、且与比心/捏合在形态上正交互：
+  // 选它而不是加新手势，是因为它已经过长期调优、且与捏合在形态上正交互：
   // 张开手掌 = 打开断面看菊花心，捏合 = 合株。无摄像头时退回鼠标：按住即打开。
   const herbLayer = activeHerbLayer();
   if (herbLayer) {
@@ -4163,31 +3836,6 @@ function handleLms(lms) {
       h.open01 = lerp(h.open01, o, 0.35);
       const prevRatio = h.ratio || 0;
       updateTriggerState(h, tipRatio(lm));                // 施密特触发：捏合/张开状态（用 raw，响应快）
-      // 比心：须【持续保持 HEART_HOLD_MS】才触发，而不是「连续 N 帧」。
-      // 2026-10-23 实测修坑：本机 MediaPipe 检测达数十帧/秒（探针 6 秒内回传 1455 次结果），
-      // 原先的「连续 3 帧」实际只有几十毫秒 —— 普通捏合时手指微张的瞬时抖动就能满足，
-      // 于是横幅「比心 ❤ · 气聚成爱」在没人刻意做手势时反复弹出。
-      // 帧率会随机型/负载大幅漂移，用帧数做门槛等于用一个不稳定的量当标准；
-      // 改为按时间累计，门槛就与帧率解耦。
-      // 用平滑后的度量判定（heartEmaOf），不用单帧 —— 交叉判据单帧只有约 20% 的帧成立，
-      // 单帧判定会让 450ms 的持续窗口永远攒不满。详见 heartEmaOf 上方的说明。
-      // 用平滑后的度量判定（heartEmaOf），不用单帧 —— 交叉处两指互相遮挡，
-      // 关键点会跳，单帧信号本身带噪。详见 heartEmaOf 上方的说明。
-      // 第二个参数是"宿主"：平滑状态按手各存一份，双手同框时互不污染。
-      const he = heartEmaOf(lm, h);
-      const tNow = performance.now();
-      if (!herbActive() && judgeHeart(he, he.crossRate)) {
-        if (!h.heartSince) h.heartSince = tNow;
-        h.heartOkAt = tNow;
-        lastHeartSeenAt = tNow;
-        if (heartPhase !== 1 && tNow - h.heartSince >= HEART_HOLD_MS) triggerHeart();
-      } else if (h.heartSince && tNow - (h.heartOkAt || 0) > HEART_GRACE_MS) {
-        // 宽容窗口：手保持同一个姿势时，关键点仍会偶尔判丢一两帧。
-        // 若一丢就清零，450ms 的持续窗口几乎永远攒不满 —— 这正是"姿势明明对、却很难触发"的主因。
-        // 改成连续丢失超过宽限期才真正放弃，短暂丢帧只是暂停计时，不清零。
-        h.heartSince = 0;
-      }
-      if (HEART_DBG) heartDbgDraw();
       h.ratioSlow = lerp(h.ratioSlow ?? h.ratio, h.ratio, 0.35);   // EMA：滤抖但跟上捏合完成（约0.1s滞后）
       h.sep01 = clamp01(h.ratio / 1.4);                   // 归一化间距（备用）
       // 捏合/张开速度 + 世界速度：均在相机检测帧内计算并低通滤波 ——
@@ -4318,10 +3966,7 @@ function updateFlightFade() {
 // 「· 甲骨文」这个后缀原本写死在下面，但只有甲骨文形态才成立 —— 爱心、楷体、
 // 短语都会被冠上「甲骨文」，明显不对（爱心尤其如此）。按 mode 取后缀。
 function labelSuffix(spec) {
-  if (!spec) return ' · 甲骨文';
-  if (spec.mode === 'heart')  return ' · 比心';
-  if (spec.mode === 'phrase') return '';
-  if (spec.mode === 'text')   return ' · 楷体';
+  if (spec && spec.mode === 'text') return ' · 楷体';
   return ' · 甲骨文';
 }
 function showLabel(ch, tag, show) {
@@ -4334,7 +3979,7 @@ function showLabel(ch, tag, show) {
   const big = head ? (head.replace(/\n/g, ' · ') + labelSuffix(curGlyph3D)) : '';
   // 甲骨文字形只给「字」本身配一个英文词（如 心 → Heart），详细释义不翻译。
   // 与中药标题「三七 / Sanqi」一致：英文与字名并排，不另起一行。
-  // 比心 / 短语 / 楷体模式没有字义对应，不显示斜杠。
+  // 楷体模式没有字义对应，不显示斜杠。
   const enMap = window.ORACLE_GLYPH_EN || {};
   const en = (curGlyph3D && !curGlyph3D.mode)
     ? (enMap[curGlyph3D.ch] || enMap[[...String(curGlyph3D.ch || '')][0]] || '')
@@ -10716,7 +10361,7 @@ document.addEventListener('pointerdown', e => {
 });
 // ── 板块切换：甲骨文 / 中药 ────────────────────────────────────────────────
 // 两个板块是并列的展示单元，共用同一套场景、手势输入和「聚气/散气」语汇；
-// 区别只在粒子层：甲骨文用字形层（7000 点 + 字库 + 比心），中药用三七层（5.9 万点）。
+// 区别只在粒子层：甲骨文用字形层（7000 点 + 字库），中药用三七层（5.9 万点）。
 // 切换只做两件事：显隐对应的粒子层、同步页签与控件可见性 —— 不销毁任何一层，
 // 所以来回切是瞬时的（三七首次进入才构建，约 20ms）。
 let SECTION = 'oracle';
