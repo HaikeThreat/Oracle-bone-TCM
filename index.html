@@ -21,9 +21,11 @@
                font:15px/1.7 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
                -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
                -webkit-tap-highlight-color:transparent; overscroll-behavior:none; }
+  /* 左上角那团暖光的位置由 --lx/--ly 控制（默认仍在左上角，与原来一致）；
+     指针移动时 JS 平滑更新这两个变量，网格、暗角、蓝色辅光都保持原样。 */
   body::before { content:""; position:fixed; inset:0; pointer-events:none;
     background:
-      radial-gradient(52vw 38vw at 18% 12%, rgba(255,196,107,.10), transparent 62%),
+      radial-gradient(52vw 38vw at var(--lx,18%) var(--ly,12%), rgba(255,196,107,.12), transparent 62%),
       radial-gradient(46vw 40vw at 86% 88%, rgba(90,170,220,.08), transparent 64%),
       linear-gradient(transparent 0 39px, rgba(120,160,220,.035) 39px 40px),
       linear-gradient(90deg, transparent 0 39px, rgba(120,160,220,.035) 39px 40px);
@@ -217,6 +219,43 @@
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(b.dataset.mode); }
     });
   });
+})();
+</script>
+<script>
+/* 扉页打光跟随指针：只移动 body::before 里那团暖光的位置，
+   背景网格、暗角、蓝色辅光都保持原样；不引入库，
+   rAF 中按时间做指数缓动，让光像一盏有惯性的灯，而不是硬贴鼠标。 */
+(function () {
+  'use strict';
+  var rm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
+  if (rm && rm.matches) return;              // 系统要求减少动态：保留左上角静止光
+
+  var style = document.body.style;
+  var x = innerWidth * 0.18, y = innerHeight * 0.12;   // 当前光心（初始 = 左上角）
+  var tx = x, ty = y;                                  // 目标光心
+  var raf = 0, last = 0;
+
+  function frame(t) {
+    raf = 0;
+    var dt = last ? Math.min(64, t - last) : 16;
+    last = t;
+    var k = 1 - Math.exp(-dt / 90);                    // 约 90ms 时间常数
+    x += (tx - x) * k;
+    y += (ty - y) * k;
+    if (Math.abs(tx - x) < 0.3 && Math.abs(ty - y) < 0.3) { x = tx; y = ty; }
+    style.setProperty('--lx', x.toFixed(1) + 'px');
+    style.setProperty('--ly', y.toFixed(1) + 'px');
+    if (x !== tx || y !== ty) raf = requestAnimationFrame(frame);
+  }
+
+  function follow(e) {
+    tx = e.clientX;
+    ty = e.clientY;
+    if (!raf) { last = 0; raf = requestAnimationFrame(frame); }
+  }
+
+  window.addEventListener(window.PointerEvent ? 'pointermove' : 'mousemove',
+                          follow, { passive: true });
 })();
 </script>
 </body>

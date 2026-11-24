@@ -6042,7 +6042,7 @@ const SQ_LABELS = [
   { t: '须根',        e: 'Fibrous roots',       c: [-0.58, -1.58,  0.02], off: [ -86,  -2] },
   { t: '茎',          e: 'Stem',                c: [ 0.04,  0.24,  0.04], off: [  58, -10] },
   { t: '叶 · 三枝七叶', e: 'Leaves, 3 × 7 leaflets', c: [ 0.72,  1.02,  0.16], off: [  76, -18] },
-  { t: '红果 · 花',    e: 'Berries & flowers',   c: [ 0.04,  1.42,  0.02], off: [  78, -30] },
+  { t: '果实 · 红籽',  e: 'Red berries (fruit)', c: [ 0.04,  1.42,  0.02], off: [  78, -30] },
   { t: '菊花心 · 断面', e: 'Chrysanthemum-heart section', c: [ 0.22, -0.72,  0.16], off: [ 104,  16] },
   { t: '皂苷 Rg₁/Rb₁', e: 'Notoginsenosides',    c: [ 0.95, -0.42,  0.28], off: [  64,  30] },
   { t: '饮片 · 菊花心', e: 'Decoction slices',    c: [-0.88, -0.58,  0.30], off: [ -78,  -6] },
@@ -7757,16 +7757,16 @@ const MED_INFO = {
   xue:   { text: '块根（干燥）',     en: 'Aconiti Brachypodi Radix', anchor: [0.02, -0.98, 0.16], hitR: 120, off: [96, -6],
            desc: '毛茛科植物短柄乌头 Aconitum brachypodum Diels 的干燥块根。秋末冬初采挖，去净须根，洗净，晒干。呈长圆柱形或长纺锤形，表面棕黄色，断面白色粉性。味苦、辛，性温，有大毒。' },
 };
-// 花也是药用部位：三七花（花蕾）、雪上一枝蒿花序
+// 三七顶端呈现的是果期红籽（果实）；雪上一枝蒿顶端是花序
 const MED_FLOWER = {
   sanqi: {
-    text: '花（三七花）', en: 'Notoginseng Flower', anchor: [0.02, 1.32, 0.06], hitR: 76, off: [96, -6],
-    desc: '五加科植物三七的干燥花蕾，夏末秋初花开放前采收。呈半球形或球形，表面灰绿色至黄绿色，由多数小花蕾密集而成。味甘，性凉，归肝、心经；清热生津、平肝降压。模型为果期，红色浆果所在位置即原花序。',
+    text: '果实（三七红籽）', en: 'Notoginseng Fruit', anchor: [0.02, 1.32, 0.06], hitR: 76, off: [96, -6],
+    desc: '五加科植物三七的核果状浆果，成熟时鲜红色，俗称「红籽」。果实聚成伞形果序，内含种子，秋季果熟。三七以根及根茎入药，果实不作药用，主要留作采种育苗。',
     rows: [
-      ['性味', 'Property', '甘，凉；归肝、心经', 'Sweet, cool; Liver & Heart'],
-      ['功效', 'Actions', '清热生津、平肝降压', 'Clears heat, calms liver, lowers BP'],
-      ['用法', 'Usage', '3–5 g，沸水泡服', '3–5 g, taken as infusion'],
-      ['注意', 'Caution', '脾胃虚寒者慎用', 'Caution in cold-deficiency of spleen/stomach'],
+      ['形态', 'Morphology', '核果状浆果，成熟时鲜红，聚成伞形果序', 'Drupe-like berries, bright red, in an umbel'],
+      ['果期', 'Fruiting', '秋季果熟，由绿转红', 'Ripens in autumn, green turning red'],
+      ['用途', 'Use', '采种育苗；非《中国药典》药用部位', 'Seed propagation; not an official medicinal part'],
+      ['注意', 'Note', '果实不作药用，不能替代三七根', 'Not used as medicine; not a root substitute'],
     ],
   },
   xue: {
@@ -8062,12 +8062,14 @@ function selectMedPart(part) {
   if (en) en.textContent = info.en;
   if (desc) desc.textContent = info.desc || '';
   const extra = part === 'leaf' || part === 'stem';
+  // 三七的果实不是《中国药典》药用部位，按「植物部位」介绍；雪上一枝蒿的花序仍走原分支
+  const plantPart = extra || (HERB === 'sanqi' && part === 'flower');
   const kicker = document.getElementById('pmKicker');
   const useTitle = document.getElementById('pmUseTitle');
   const procTitle = document.getElementById('pmProcTitle');
-  if (kicker) kicker.textContent = extra ? '植物部位 · PLANT PART' : '药用部位 · MEDICINAL PART';
-  if (useTitle) useTitle.textContent = extra ? '部位信息 · PART INFO' : '使用方法 · HOW TO USE';
-  if (procTitle) procTitle.textContent = extra ? '补充说明 · NOTES' : '炮制方法 · PROCESSING';
+  if (kicker) kicker.textContent = plantPart ? '植物部位 · PLANT PART' : '药用部位 · MEDICINAL PART';
+  if (useTitle) useTitle.textContent = plantPart ? '部位信息 · PART INFO' : '使用方法 · HOW TO USE';
+  if (procTitle) procTitle.textContent = plantPart ? '补充说明 · NOTES' : '炮制方法 · PROCESSING';
   const rows = info.rows || (part === 'flower' ? MED_FLOWER[HERB].rows : MED_USE[HERB]);
   if (use) use.innerHTML = rows.map(r =>
     '<div class="mu-row"><b>' + r[0] + '<small>' + r[1] + '</small></b>'
@@ -8341,8 +8343,9 @@ const PART_INFO = {
       ['三七粉', 'Powder', '研细粉，一次 1–3 g 吞服；外用适量撒敷。便于控制剂量，急症出血常用。'],
     ]},
     flower: { formula: 'Rg1 · Rb1 · 三七皂苷', procs: [
-      ['三七花茶', 'Infusion', '取干燥花蕾 3–5 g，沸水冲泡代茶饮。清热生津、平肝降压，用于津伤口渴、咽痛音哑、肝阳上亢之眩晕头痛。'],
-      ['花蕾煎服', 'Decoction', '花蕾 3–5 g 煎汤服，或与他药配伍，用于高血压属肝阳上亢者。'],
+      ['红籽采收', 'Harvest', '秋季果实成熟转红时采收，俗称「红籽」。果实不作药用，主要留作采种育苗。'],
+      ['播种育苗', 'Propagation', '去除果肉取出种子，经催芽处理后播种；三七通常栽培三年以上方可采挖。'],
+      ['辨识', 'ID', '核果状浆果成熟时鲜红，聚成伞形果序；花期同一位置为黄绿色小花。'],
     ]},
     leaf: { formula: 'Rg1 · Rb1 · 黄酮', procs: [
       ['叶的用途', 'Folk use', '三七叶含人参皂苷，民间曾代茶饮；非《中国药典》规定的药用部位，不作常规药用。'],
@@ -8478,6 +8481,94 @@ function pvSectionFlower() {
   grp.add(m);
   const rim = new THREE.Mesh(new THREE.TorusGeometry(0.383, 0.010, 8, 80),
     new THREE.MeshBasicMaterial({ color: 0x5f7440 }));
+  rim.position.set(0, 0, 0.04);
+  grp.add(rim);
+  grp.position.set(2.02, -0.30, 0.12);
+  grp.userData.real = true;
+  return grp;
+}
+
+// 三七果实（红籽）横切面：红色果皮、淡黄果肉、两枚种子。
+// 与花蕾切面同一套画法/材质 —— 果实视图不能再配花蕾图。
+function pvSectionFruit() {
+  const S = 640, cv = document.createElement('canvas');
+  cv.width = cv.height = S;
+  const g = cv.getContext('2d');
+  const cx = S / 2, cy = S / 2, R = S * 0.465;
+  g.clearRect(0, 0, S, S);
+
+  // 果皮：深红→亮红
+  const skin = g.createRadialGradient(cx, cy, R * 0.05, cx, cy, R);
+  skin.addColorStop(0.00, '#e25a40');
+  skin.addColorStop(0.42, '#c53427');
+  skin.addColorStop(0.80, '#9c1f16');
+  skin.addColorStop(1.00, '#78140d');
+  g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.fillStyle = skin; g.fill();
+  g.save(); g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.clip();
+
+  // 果肉：淡黄
+  const flesh = g.createRadialGradient(cx, cy, R * 0.08, cx, cy, R * 0.82);
+  flesh.addColorStop(0.00, '#faf0cd');
+  flesh.addColorStop(0.58, '#f0dfb0');
+  flesh.addColorStop(1.00, '#ddc189');
+  g.beginPath(); g.arc(cx, cy, R * 0.82, 0, Math.PI * 2); g.fillStyle = flesh; g.fill();
+
+  // 果肉与果皮之间的维管束：细密放射纹
+  g.strokeStyle = 'rgba(170, 94, 48, .38)'; g.lineWidth = 1.4;
+  for (let i = 0; i < 48; i++) {
+    const a = i / 48 * Math.PI * 2;
+    g.beginPath();
+    g.moveTo(cx + Math.cos(a) * R * 0.80, cy + Math.sin(a) * R * 0.80);
+    g.lineTo(cx + Math.cos(a) * R * 0.995, cy + Math.sin(a) * R * 0.995);
+    g.stroke();
+  }
+
+  // 两枚种子：淡黄白；腹侧一道种脐
+  const seeds = [[-0.24, 0.02, 0.30, 0.19, -0.42], [0.24, 0.03, 0.30, 0.19, 0.42]];
+  for (const [sx, sy, rx, ry, rot] of seeds) {
+    g.save();
+    g.translate(cx + R * sx, cy + R * sy);
+    g.rotate(rot);
+    g.beginPath();
+    g.ellipse(0, 0, R * rx, R * ry, 0, 0, Math.PI * 2);
+    const sg = g.createRadialGradient(-R * rx * 0.30, -R * ry * 0.35, R * 0.02, 0, 0, R * rx);
+    sg.addColorStop(0.00, '#fffdf1');
+    sg.addColorStop(0.55, '#f5e9c8');
+    sg.addColorStop(1.00, '#d8bf91');
+    g.fillStyle = sg; g.fill();
+    g.strokeStyle = 'rgba(150, 112, 66, .55)'; g.lineWidth = 2; g.stroke();
+    g.beginPath();
+    g.moveTo(-R * rx * 0.55, R * ry * 0.12);
+    g.quadraticCurveTo(0, R * ry * 0.55, R * rx * 0.55, R * ry * 0.10);
+    g.strokeStyle = 'rgba(138, 94, 52, .45)'; g.lineWidth = 1.6; g.stroke();
+    g.restore();
+  }
+
+  // 果皮上的细小油点
+  for (let i = 0; i < 260; i++) {
+    const a = Math.random() * Math.PI * 2, rr = R * (0.86 + Math.random() * 0.12);
+    g.fillStyle = 'rgba(255, 196, 138, ' + (0.05 + Math.random() * 0.10) + ')';
+    g.beginPath();
+    g.arc(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr, 0.6 + Math.random() * 1.6, 0, Math.PI * 2);
+    g.fill();
+  }
+  g.restore();
+
+  // 外缘：深红果皮
+  g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2);
+  g.strokeStyle = 'rgba(110, 20, 13, .95)'; g.lineWidth = R * 0.045; g.stroke();
+
+  const tex = new THREE.CanvasTexture(cv);
+  tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 8; tex.needsUpdate = true;
+  const capMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false });
+  const sideMat = new THREE.MeshStandardMaterial({ color: 0x8c2117, roughness: 0.96, metalness: 0, transparent: true, opacity: 0.96 });
+  const geo = new THREE.CylinderGeometry(0.38, 0.38, 0.06, 72, 1, false);
+  const m = new THREE.Mesh(geo, [sideMat, capMat, capMat]);
+  m.rotation.x = Math.PI / 2;
+  const grp = new THREE.Group();
+  grp.add(m);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.383, 0.010, 8, 80),
+    new THREE.MeshBasicMaterial({ color: 0x6d1911 }));
   rim.position.set(0, 0, 0.04);
   grp.add(rim);
   grp.position.set(2.02, -0.30, 0.12);
@@ -8968,7 +9059,7 @@ function pvFigure() {
 
 // 部位视图的构图：**按像素算**，不再靠手调的魔数。
 // 早前是写死 position(-0.55, 0.02) + scale(0.46/1)，结果两种药材、两个部位、
-// 四种视口下各有各的错：三七花在桌面被放大到 1593px 高（整块飞出屏幕），
+// 四种视口下各有各的错：三七果实在桌面被放大到 1593px 高（整块飞出屏幕），
 // 三七根顶部被裁掉 200px，块根又压住左侧属性卡。
 // 现在只做一件事：算出"卡片之外的那块安全区"，把部位按包围球塞进去。
 function layoutPartView() {
@@ -9235,7 +9326,8 @@ function enterPartView(part) {
   g.add(struct);
   PV.struct = struct;
   let section = null;
-  if (part === 'flower') section = pvSectionFlower();
+  // 三七顶端是果期红籽（果实）→ 用果实切面；花序切面只留给雪上一枝蒿
+  if (part === 'flower') section = pvSectionFruit();
   else if (part === 'root') section = pvSectionReal();
   else if (part === 'leaf') section = pvSectionLeaf();
   else if (part === 'stem') section = pvSectionStem();
@@ -9323,12 +9415,12 @@ function exitPartView() {
 // 按 accessor 建 BufferGeometry，贴图用 Blob URL 交给 TextureLoader。
 const REAL = { on: false, mesh: null, group: null, loading: null, error: false, parts: {}, dust: null, glow: null, intro: 0 };
 
-// 从整株写实模型里按高度裁出"花"和"根茎"两块真实网格：
+// 从整株写实模型里按高度裁出"果实"和"根茎"两块真实网格：
 // 几何/UV/贴图都复用，只重建索引 —— 得到的就是同一株植物的真实局部，不是重新画的粒子。
-// kind：点它做什么。flower / root 是入药部位 → 打开部位视图；
+// kind：点它做什么。flower（三七顶端为果实「红籽」）/ root → 打开部位视图；
 // leaf / stem 不入药 → 用气泡说明它在这味药里的角色（市面图谱应用也这么做，避免"点了没反应"）。
 const REAL_LABELS = [
-  { t: '花 / 果序', en: 'Flower',  p: [0.02, 1.13, 0.02], e: [0.34, 1.16, 0.02], kind: 'flower' },
+  { t: '果实 / 果序', en: 'Fruit',  p: [0.02, 1.13, 0.02], e: [0.34, 1.16, 0.02], kind: 'flower' },
   { t: '叶',       en: 'Leaf',    p: [-0.30, 0.64, 0.05], e: [-0.64, 0.68, 0.05], kind: 'leaf' },
   { t: '茎',       en: 'Stem',    p: [0.03, 0.42, 0.05],  e: [0.36, 0.42, 0.05],  kind: 'stem' },
   { t: '根茎',     en: 'Rhizome', p: [0.03, 0.17, 0.05],  e: [0.36, 0.17, 0.05],  kind: 'root' },
@@ -9415,11 +9507,13 @@ function pvLabelUpdate() {
   if (PART_TRANS.active && !PART_TRANS.handoff) {
     box.style.display = 'none'; return;
   }
-  // 右侧三块的标签随部位变化：茎是组织结构/茎横切，叶是化学结构/叶片横切
+  // 右侧三块的标签随部位变化：三七果实/茎/叶、雪上一枝蒿花序各有各的切面
   const mobileLabel = isMobilePortrait();
-  if (PV._labelPart !== PV.partName + (mobileLabel ? '|m' : '')) {
-    PV._labelPart = PV.partName + (mobileLabel ? '|m' : '');
+  const labelKey = PV.partName + '|' + PV.herbName + (mobileLabel ? '|m' : '');
+  if (PV._labelPart !== labelKey) {
+    PV._labelPart = labelKey;
     const part = PV.partName;
+    const sanqiFruit = part === 'flower' && PV.herbName === 'sanqi';
     const fEl = document.getElementById('plFormula');
     const sEl = document.getElementById('plStruct');
     const secEl = document.getElementById('plSection');
@@ -9428,7 +9522,8 @@ function pvLabelUpdate() {
       if (fEl) fEl.textContent = part === 'stem' ? '成分' : '化学式';
       if (sEl) sEl.textContent = part === 'stem' ? '组织结构' : '化学结构';
       if (secEl) {
-        secEl.textContent = part === 'flower' ? '花蕾切面'
+        secEl.textContent = sanqiFruit ? '果实切面'
+          : part === 'flower' ? '花蕾切面'
           : part === 'leaf' ? '叶片横切'
           : part === 'stem' ? '茎横切' : '药物切面';
       }
@@ -9437,7 +9532,8 @@ function pvLabelUpdate() {
       if (sEl) sEl.innerHTML = part === 'stem' ? '组织结构<small>Anatomy</small>' : '化学结构<small>Structure</small>';
       if (secEl) {
         let html;
-        if (part === 'flower') html = '花蕾切面 · 花萼与花瓣<small>Bud cross-section</small>';
+        if (sanqiFruit) html = '果实切面 · 果皮与种子<small>Fruit cross-section</small>';
+        else if (part === 'flower') html = '花蕾切面 · 花萼与花瓣<small>Bud cross-section</small>';
         else if (part === 'leaf') html = '叶片横切 · 叶脉<small>Leaf section</small>';
         else if (part === 'stem') html = '茎横切 · 维管束<small>Stem cross-section</small>';
         else html = '药物切面 · 菊花心<small>Cross-section</small>';
