@@ -42,6 +42,10 @@
      只留「手势控制 / 全屏」这两个两个板块都成立的入口 */
   body.herb-mode #bar #swatches, body.herb-mode #btnPicker,
   body.herb-mode #bar .sep { display:none !important; }
+  /* 本草展厅：右上角的状态胶囊与 fps/particles 参数读数都隐藏 ——
+     这两块是进程状态/调试信息，展陈画面里不需要（甲骨文展厅保持原样）。 */
+  body.herb-mode #stateBadge,
+  body.herb-mode #stats { display:none; }
 
   /* 板块页签：一直挂在标题右侧。两个板块是并列关系，不是二级入口，
      所以不用"按钮进入/退出"那套，直接可切换 */
@@ -161,6 +165,8 @@
   #partModal .pm-close { position:absolute; right:10px; top:8px; width:30px; height:30px; border:0;
                          background:transparent; color:#8fa3bd; font-size:22px; cursor:pointer; line-height:1; }
   #partModal .pm-close:hover { color:#ffc46b; }
+  #partModal .pm-head { position:relative; }
+  #partModal .pm-fold { display:none; }
   #partModal .pm-kicker { color:#ffc46b; font-size:11px; letter-spacing:2px; }
   #partModal h2 { margin:8px 0 2px; font-size:24px; letter-spacing:2px; color:#ffe1b0; font-weight:600; }
   #partModal .pm-en { color:#6f849c; font-size:12px; font-style:italic; }
@@ -211,7 +217,7 @@
   /* 卡片内部分三段（头 / 分页内容 / 物候），中间那段可滚：
      分页内容长短不一，物候轴必须始终留在卡底，不能被挤出可视区。 */
   #herbCard > #hcBody { display:flex; flex-direction:column; max-height:calc(100vh - 130px); }
-  #herbCard .hc-head, #herbCard .hc-origin, #herbCard .hc-rule, #herbCard .hc-tabs,
+  #herbCard .hc-head, #herbCard .hc-origin, #herbCard .hc-tabs,
   #herbCard .hc-pheno { flex:none; }
   body.herb-mode #herbCard { display:block; }
   body.part-open #herbCard { display:none; }
@@ -238,8 +244,8 @@
   #herbCard .hc-name { display:flex; align-items:baseline; gap:8px; margin-bottom:2px; flex-wrap:wrap; }
   #herbCard .hc-name b { color:#ffc46b; font-size:16px; letter-spacing:3px; }
   #herbCard .hc-name span { color:#6f849c; font-size:10px; letter-spacing:.5px; font-style:italic; }
-  #herbCard .hc-origin { color:#8fa3bd; font-size:11px; padding-bottom:7px; margin-bottom:7px;
-                         border-bottom:1px solid rgba(120,160,220,.16); }
+  /* 植物归属下方不再画分隔线，只留必要间距；tabs 直接接在后面。 */
+  #herbCard .hc-origin { color:#8fa3bd; font-size:11px; padding-bottom:0; margin-bottom:10px; }
   #herbCard .hc-origin small { display:block; margin-top:1px; color:#5f738c; font-size:9px; letter-spacing:.3px; }
   #herbCard .hc-row small { display:block; margin-top:1px; font-size:9px; letter-spacing:.2px;
                             color:#6f849c; font-weight:400; white-space:normal; line-height:1.35; }
@@ -249,16 +255,8 @@
   #herbCard .hc-row.warn b { color:#ff9b8f; }
   #herbCard .hc-row.warn span { color:#ffb3aa; }
   /* ── 药材图谱卡：印章 + 性味标签 + 分页 ── */
-  #herbCard .hc-head { display:flex; gap:10px; align-items:flex-start; }
-  #herbCard .hc-seal { position:relative; overflow:hidden; flex:none; width:38px; height:38px; border-radius:9px; display:grid; place-items:center;
-                       font:600 20px/1 "Songti SC","STSong",serif; color:#ffdcae;
-                       background:linear-gradient(150deg, rgba(190,60,40,.92), rgba(120,30,22,.92));
-                       box-shadow:inset 0 0 0 1px rgba(255,220,170,.35), 0 3px 10px rgba(120,30,20,.35); }
-  /* 印章顶部一道柔光，像篆刻印泥的釉面反光 */
-  #herbCard .hc-seal::before { content:""; position:absolute; left:0; right:0; top:0; height:45%;
-    background:linear-gradient(180deg, rgba(255,225,180,.18), transparent);
-    pointer-events:none; }
-  #herbCard .hc-headmain { min-width:0; }
+  #herbCard .hc-head { display:flex; align-items:flex-start; }
+  #herbCard .hc-headmain { flex:1; min-width:0; }
   #herbCard .hc-name { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0; }
   #herbCard .hc-name b { color:#ffc46b; font-size:17px; letter-spacing:3px; line-height:1.2; }
   #herbCard .hc-name span { color:#6f849c; font-size:9.5px; font-style:italic; line-height:1.2; }
@@ -270,7 +268,6 @@
   #herbCard .chip.cool { color:#a8dcff; background:rgba(90,170,255,.13); border-color:rgba(90,170,255,.3); }
   #herbCard .chip.toxic { color:#ffb3aa; background:rgba(255,90,80,.16); border-color:rgba(255,90,80,.4); }
   #herbCard .chip.mer { color:#b9e8c4; background:rgba(90,220,140,.12); border-color:rgba(90,220,140,.28); }
-  #herbCard .hc-rule { height:1px; margin:9px 0 7px; background:linear-gradient(90deg, rgba(255,196,107,.35), rgba(255,196,107,0)); }
   #herbCard .hc-tabs { display:flex; gap:4px; margin-bottom:7px; }
   #herbCard .hc-tabs button { appearance:none; cursor:pointer; font:inherit; font-size:11px;
                               color:#8fa3bd; background:transparent; border:0; border-radius:7px;
@@ -308,20 +305,24 @@
      改为可收起的底部抽屉 —— 点卡头展开/收起，默认收起只留一行药名与标签。 */
   #herbCard .hc-fold { display:none; }
   @media (max-width: 720px) {
-    #herbCard { display:block; left:10px; right:10px; bottom:74px; width:auto;
+    /* 只在中药展厅显示；甲骨文展厅里它必须保持隐藏，否则会留下一个空胶囊 */
+    body.herb-mode #herbCard { display:block; left:10px; right:10px; bottom:74px; width:auto;
                 max-height:min(52vh, 400px); padding:9px 11px 10px; }
     #herbCard .hc-fold { display:block; position:absolute; right:9px; top:7px; width:24px; height:24px;
                          border:0; background:transparent; color:#8fa3bd; font-size:15px; line-height:1;
                          cursor:pointer; }
+    #herbCard > #hcBody { height:auto; max-height:none; }
+    #herbCard.folded > #hcBody { height:auto; max-height:none; }
+    /* 整张卡纵向滚动：否则雪上一枝蒿这类内容更高的条目，底部物候期会被裁掉 */
+    #herbCard .hc-pane { flex:none; max-height:none; overflow:visible; }
+
     #herbCard.folded { max-height:none; }
-    #herbCard.folded .hc-origin, #herbCard.folded .hc-rule, #herbCard.folded .hc-tabs,
+    #herbCard.folded .hc-origin, #herbCard.folded .hc-tabs,
     #herbCard.folded .hc-pane, #herbCard.folded .hc-pheno { display:none; }
     #herbCard.folded > #hcBody { max-height:none; }
-    #herbCard .hc-seal { width:30px; height:30px; font-size:16px; border-radius:7px; }
     #herbCard .hc-name b { font-size:15px; letter-spacing:2px; }
     #herbCard .hc-name span { display:none; }
     #herbCard .hc-chips { margin-top:4px; }
-    #herbCard .hc-pane { max-height:min(26vh, 190px); }
   }
 
   /* ── 部位热点：写实植株上的标签本身就是入口 ──────────────────────────────
@@ -332,6 +333,11 @@
                     transition:opacity .25s, color .18s, border-color .18s, background .18s; }
   #realLabels .rl:hover { color:#fff0d0; border-color:rgba(255,196,107,.55);
                           background:rgba(10,16,26,.75); }
+  /* 不可见（未 .on）的标签不能继续吃掉指针事件，否则就是一块“隐形触控死区” */
+  #realLabels .rl:not(.on) { pointer-events:none; }
+  /* 部位特写时整层隐藏，彻底消除整株标签可能留下的隐形热区 */
+  body.part-open #realLabels { display:none; }
+
   #realLabels .rl i { position:relative; }
   #realLabels .rl i::after { content:""; position:absolute; left:50%; top:50%; width:16px; height:16px;
                              margin:-8px 0 0 -8px; border-radius:50%;
@@ -494,6 +500,8 @@
     margin:8px auto 0; text-align:center; text-indent:0;
     text-shadow:0 1px 4px rgba(0,0,0,.8);
   }
+  /* 部位特写时隐藏整株标题，否则「三七 / Sanqi」+ 简介会压在放大模型上 */
+  body.part-open #label { opacity:0 !important; }
   /* 竖屏：标题必须让位给植株，也必须让开左上角站名与右上角状态胶囊。
      桌面上一行放得下的标题，在 390px 上会折成三行并压在花序上；
      这里收紧字号行距，并把整块下移到 topbar 之下（16px + 标题行 ≈ 37px）。 */
@@ -687,13 +695,17 @@
   .row .cbtn { padding:5px 15px; transform:translateX(-4px); align-self:center; font-size:13.5px; }
 
   #stats {
-    /* 右上角读数挪到【状态胶囊下方】。top 由 frame() 按胶囊实际下缘动态设置
-       （诊断展开时 stats 会由 1 行变 3 行，且胶囊宽度随状态文字变化），
-       此处只给初始值兜底，避免首帧闪现在胶囊位置上。 */
-    position:fixed; right:16px; top:52px; z-index:10; font-size:11px;
+    /* 右下角读数：与左上标题、右上状态胶囊、左下返回键各占一角。
+       位置固定，不再随状态胶囊下缘动态变化。 */
+    position:fixed; right:18px; bottom:22px; z-index:10; font-size:11px;
     color:#8fa3bd; text-align:right; line-height:1.7; font-family:Menlo,monospace;
     text-shadow:0 1px 4px rgba(0,0,0,.8); }
   #stats b { color:#cfe0f4; }
+  /* 窄屏横屏时控制条会横向逼近右缘，读数上移一档避免压住控制条；
+     竖屏下 #stats 本身已被下面的媒体查询隐藏。 */
+  @media (max-width: 950px) {
+    #stats { bottom: 78px; }
+  }
 
   /* ── 背景：药坊炮制演示 ────────────────────────────────────────────────
      嵌在 3D 画布之上的整屏 2D 层，透明度很低，只当"作坊壁画"。
@@ -748,7 +760,7 @@
      竖屏下横向空间紧张（手机尤甚）：
      ① 五色预设圆点（#swatches）隐藏 —— 取色棒（#btnPicker）保留：
         取色棒才是「任意颜色」的功能入口，圆点只是快捷方式；
-     ② 右上角参数读数（#stats：fps/particles/glyph）隐藏。
+     ② 参数读数（#stats：fps/particles/glyph）隐藏。
      顺带收紧控制条间距与内边距，保证 340px 级窄屏下
      各按钮不会被挤出屏幕右缘。
      桌面与横屏完全不受影响；竖屏下按 Ctrl(⌘)+Shift+D 进入诊断模式时，
@@ -923,9 +935,17 @@
                      margin-top:-2.5px; border-radius:50%; background:var(--gold);
                      box-shadow:0 0 8px rgba(255,196,107,.9); opacity:0; transition:opacity .2s; }
   #btnBack:hover::before { opacity:1; }
-  #btnBack .bk-arrow { font-size:16px; line-height:1; transition:transform .2s; }
+  #btnBack .bk-arrow { width:8px; height:13px; flex:none; display:block; transition:transform .2s; }
   #btnBack:hover .bk-arrow { transform:translateX(-2px); }
-  @media (max-width:760px){ #btnBack{ left:10px; bottom:70px; padding:7px 11px; font-size:11px; } }
+  /* 返回展厅：纯文字链接，去掉外层胶囊（桌面与手机通用） */
+  #btnBack {
+    padding:0; border:0; border-radius:0; background:transparent;
+    box-shadow:none; backdrop-filter:none; -webkit-backdrop-filter:none;
+    gap:5px; bottom:33px; font-size:14px; line-height:1.7;
+  }
+  #btnBack:hover { border:0; color:#fff0d0; transform:none; box-shadow:none; }
+  #btnBack::before { display:none; }
+  @media (max-width:760px){ #btnBack{ left:10px; bottom:24px; } }
 
   /* 按钮：去掉高饱和蓝底，改中性玻璃 + 金色描边反馈 */
   .cbtn {
@@ -1013,11 +1033,6 @@
   #herbCard .hc-name span { font-size: var(--fs-1); color: var(--tx-4); }
   #herbCard .hc-origin { font-size: var(--fs-2); color: var(--tx-3); }
   #herbCard .hc-origin small { font-size: var(--fs-1); color: var(--tx-4); }
-  #herbCard .hc-seal {
-    width: 40px; height: 40px;
-    font-size: 21px;
-    border-radius: 10px;
-  }
   #herbCard .chip { font-size: var(--fs-1); padding: 4px 8px; }
   #herbCard .hc-row b { flex-basis: 62px; font-size: var(--fs-2); }
   #herbCard .hc-row small { font-size: var(--fs-1); }
@@ -1045,6 +1060,8 @@
   #partModal.open .pm-card {
     animation: modalIn .34s var(--ease-out) both;
   }
+  /* 一镜到底过渡期间先隐藏讲解卡，等部位落到位后再滑入 */
+  #partModal.transitioning .pm-card { animation: none !important; opacity: 0 !important; }
   @keyframes modalIn {
     from { opacity: 0; transform: translateY(14px) scale(.97); }
     to   { opacity: 1; transform: none; }
@@ -1068,12 +1085,15 @@
     font-size: var(--fs-2);
     padding: 3px 9px;
     border-radius: 999px;
-    background: rgba(8, 14, 22, 0.68);
+    /* 不叠 backdrop-filter：标签每帧跟随 3D 投影移动，模糊背景在 WebGL
+       画布上方会触发合成层重绘，部分浏览器/GPU 上表现为标签闪烁。 */
+    background: rgba(8, 14, 22, 0.78);
     border: 1px solid rgba(150, 185, 230, 0.20);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
     color: var(--tx-1);
-    transition: all .18s var(--ease);
+    /* 只过渡颜色类属性；transform 由 JS 每帧写位，不能带 .18s 过渡，
+       否则标签会追着目标点拖动、看起来发飘/抖动。 */
+    transition: color .18s var(--ease), border-color .18s var(--ease),
+                background .18s var(--ease), box-shadow .18s var(--ease);
   }
   .olab small { font-size: var(--fs-1); color: var(--tx-3); }
   .olab[style*="pointer"] { cursor: pointer; }
@@ -1312,47 +1332,6 @@
   #onboard .oc-hint { margin-top:10px; font-size:var(--fs-1); letter-spacing:.5px;
     color:var(--tx-4); text-align:center; }
 
-  /* ── 骨架屏（首屏加载） ────────────────────────────────────────── */
-  #boot {
-    position: fixed; inset: 0; z-index: 70;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    gap: 14px;
-    background: #04060a;
-    transition: opacity .5s var(--ease), visibility 0s linear .5s;
-  }
-  #boot.gone { opacity: 0; visibility: hidden; }
-  #boot .bt-mark {
-    font: 600 34px/1 "Songti SC", "STSong", serif;
-    color: var(--gold);
-    letter-spacing: 6px;
-    text-shadow: 0 0 30px rgba(255, 196, 107, .32);
-  }
-  #boot .bt-bar {
-    width: 132px; height: 2px;
-    border-radius: 2px;
-    background: rgba(255, 196, 107, 0.14);
-    overflow: hidden;
-    position: relative;
-  }
-  #boot .bt-bar::after {
-    content: "";
-    position: absolute; inset: 0;
-    width: 40%;
-    border-radius: 2px;
-    background: linear-gradient(90deg, transparent, var(--gold), transparent);
-    animation: bootSlide 1.15s ease-in-out infinite;
-  }
-  @keyframes bootSlide {
-    0%   { transform: translateX(-100%); }
-    100% { transform: translateX(320%); }
-  }
-  #boot .bt-tx {
-    font-size: var(--fs-2);
-    color: var(--tx-4);
-    letter-spacing: 2px;
-  }
-
   /* ── 焦点可见性（无障碍） ──────────────────────────────────────── */
   .cbtn:focus-visible, .sect:focus-visible, .pm-chip:focus-visible,
   .hp-item:focus-visible, .hc-go button:focus-visible, .ob-go:focus-visible {
@@ -1373,16 +1352,140 @@
   @media (max-width: 720px) {
     #bar { bottom: 14px; gap: 7px; padding: 7px 11px; }
     .cbtn { height: 30px; padding: 0 10px; }
-    #herbCard { left: 10px; right: 10px; bottom: 70px; width: auto; padding: 11px 13px 12px; }
+    /* 后置的 position:relative（原为给顶部金线做定位参照）会把底部抽屉顶到左上角、
+       并让 left/right 失效；这里恢复 fixed 并清掉 top，抽屉才会贴着底栏展开。 */
+    #herbCard { position: fixed; top: auto; left: 10px; right: 10px; bottom: 70px;
+                width: auto; padding: 11px 13px 12px;
+                max-height: min(calc(100vh - 160px), 520px); }
     #onboard .ob-card { padding: 22px 20px 20px; }
     #onboard h2 { font-size: var(--fs-5); letter-spacing: 2px; }
+  }
+
+  /* ── 中药属性卡：桌面端排版放宽 ─────────────────────────────────────
+     用户反馈字小、行挤：加宽卡片、放大正文与英文小字、拉开行距与分区间距。
+     同时把后置规则误设的 position:relative 改回 fixed（常驻卡应锚定视口，
+     内容多时由中间 .hc-pane 滚动，而不是整张卡继续往下长、压到底部控制栏）。
+     仅作用于 >720px，移动端底部抽屉保持原样。 */
+  @media (min-width: 721px) {
+    #herbCard {
+      position: fixed;
+      width: 372px;
+      padding: 16px 18px 17px;
+      max-height: min(calc(100vh - 184px), 580px);
+      font-size: 14px;
+      line-height: 1.7;
+    }
+    #herbCard > #hcBody { height: 100%; max-height: none; }
+    #herbCard .hc-pane { max-height: none; }
+
+    #herbCard .hc-name b { font-size: 21px; letter-spacing: 3px; }
+    #herbCard .hc-name span { font-size: 10.5px; }
+    #herbCard .hc-chips { gap: 6px; margin-top: 7px; }
+    #herbCard .chip { font-size: 11px; padding: 4px 9px; }
+
+    #herbCard .hc-origin { margin-top: 9px; font-size: 12.5px; line-height: 1.55; padding-bottom: 0; margin-bottom: 12px; }
+    #herbCard .hc-origin small { font-size: 10.5px; margin-top: 2px; }
+
+    #herbCard .hc-tabs { gap: 6px; margin-bottom: 9px; }
+    #herbCard .hc-tabs button { font-size: 12px; padding: 6px 11px; }
+
+    #herbCard .hc-kv { gap: 12px; margin-top: 7px; }
+    #herbCard .hc-kv b { flex-basis: 64px; }
+    #herbCard .hc-kv span { line-height: 1.65; }
+    #herbCard .hc-kv small { font-size: 10.5px; line-height: 1.4; margin-top: 2px; }
+    #herbCard .hc-p { line-height: 1.7; margin-bottom: 8px; }
+    #herbCard .hc-row b { flex-basis: 68px; }
+    #herbCard .hc-row small { font-size: 10.5px; line-height: 1.4; }
+
+    #herbCard .hc-act { gap: 7px; margin: 6px 0 9px; }
+    #herbCard .hc-act i { font-size: 11.5px; padding: 5px 10px; }
+    #herbCard .hc-go { gap: 8px; margin-top: 10px; }
+    #herbCard .hc-go button { font-size: 12px; padding: 8px 4px; }
+
+    #herbCard .hc-pheno { margin-top: 11px; padding-top: 10px; }
+    #herbCard .ph-head b { font-size: 12px; }
+    #herbCard .ph-head small { font-size: 9px; }
+    #herbCard .ph-row { margin-top: 11px; }
+    #herbCard .ph-cell { font-size: 10.5px; padding-top: 13px; }
+    #herbCard .ph-cell small { font-size: 9px; }
+  }
+
+  /* 捏合推近 → 部位特写的过渡遮罩：到阈值时淡入，切换完成后再淡出 */
+  #pvSwoosh { position:fixed; inset:0; z-index:39; pointer-events:none; opacity:0;
+    background:radial-gradient(circle at 50% 46%, rgba(255,196,107,.10) 0%,
+               rgba(4,6,10,.78) 66%, rgba(4,6,10,.94) 100%); }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     手机竖屏适配（2026-11-24）
+     · 甲骨文：左上角标题让位给返回键，状态胶囊保留在右上
+     · 本草：返回键左上、站名右上
+     · 植物特写：讲解卡默认折叠到标题，点标题/箭头展开
+     · 特写信息：放大化学式/结构/切面与标签
+     ═══════════════════════════════════════════════════════════════════ */
+  @media (orientation: portrait) and (max-width: 900px) {
+    /* 返回键：左上角，替代原左下角浮键 */
+    /* 与顶部站名/状态胶囊同一水平中线：按钮高 32，top 8 → 中心 24，
+       正好等于 topbar（top 14 + 20px 行盒/胶囊中心）的中线 */
+    /* 纯文字返回键：与右上角文字同字号/行高，底边自然对齐 */
+    #btnBack { left: 12px; top: 14px; bottom: auto; padding: 0; height: 20px;
+               font-size: 14px; line-height: 20px; }
+    /* 甲骨文右上角是 11px 的状态胶囊，文字底边要再往下一点 */
+    body:not(.herb-mode) #btnBack { top: 15px; }
+
+    /* 甲骨文：左上标题移除；状态胶囊仍在右上 */
+    body:not(.herb-mode) #topbar h1 { display: none; }
+
+    /* 本草：站名靠右上 */
+    body.herb-mode #topbar { justify-content: flex-end; }
+    body.herb-mode #topbar .titlerow { margin-left: auto; text-align: right; }
+    body.herb-mode #topbar h1 { font-size: 14px; line-height: 20px; letter-spacing: 1.5px; }
+
+    /* iPad 竖屏（721–900px）也要用底部抽屉，而不是桌面左侧大卡 */
+    #herbCard { position:fixed; top:auto; left:10px; right:10px; bottom:74px;
+                width:auto; max-height:min(68vh, 560px); padding:9px 11px 10px;
+                overflow-y:auto; -webkit-overflow-scrolling:touch;
+                overscroll-behavior:contain; touch-action:pan-y; }
+    #herbCard .hc-fold { display:block; position:absolute; right:9px; top:7px; width:24px; height:24px;
+                         border:0; background:transparent; color:#8fa3bd; font-size:15px; line-height:1;
+                         cursor:pointer; }
+    /* 覆盖 max-width:720 里更高优先级的 52vh 限制，让整张卡能展开到内容高度 */
+    body.herb-mode #herbCard { max-height:min(68vh, 560px); }
+    /* 特写期间整张属性卡必须隐藏：它和 body.herb-mode 的 display:block 同权重，
+       且那条规则在后，不加 !important 会盖掉 part-open 的隐藏。 */
+    body.part-open #herbCard { display:none !important; }
+
+    #herbCard.folded { max-height:none; }
+    #herbCard.folded .hc-origin, #herbCard.folded .hc-tabs,
+    #herbCard.folded .hc-pane, #herbCard.folded .hc-pheno { display:none; }
+    #herbCard.folded > #hcBody { max-height:none; }
+    #herbCard .hc-name b { font-size:15px; letter-spacing:2px; }
+    #herbCard .hc-name span { display:none; }
+    #herbCard .hc-chips { margin-top:4px; }
+
+    /* 植物特写讲解卡：默认折叠，只留标题 + 展开箭头；关闭交给返回键/点空白 */
+    #partModal { padding-bottom: 62px; }
+    #partModal .pm-close { display: none; }
+    #partModal .pm-card { max-height: min(64vh, 520px); }
+    #partModal .pm-card.folded { max-height: none; }
+    #partModal .pm-card.folded #pmBody { display: none; }
+    #partModal .pm-head { cursor: pointer; padding-right: 36px; }
+    #partModal .pm-fold {
+      display: flex; align-items: center; justify-content: center;
+      position: absolute; right: -6px; top: -6px; width: 30px; height: 30px;
+      border: 0; background: transparent; color: #8fa3bd; font-size: 15px;
+      line-height: 1; cursor: pointer; z-index: 2;
+    }
+    #partModal .pm-card.folded .pm-fold { transform: rotate(180deg); }
+
+    /* 特写右侧信息：标签与 3D 模块整体放大 */
+    #pvLabels span { font-size: 12px; padding: 4px 10px;
+                    max-width: calc(100vw - 16px); white-space: normal; line-height: 1.35; }
+    #pvLabels small { font-size: 10px; }
   }
 </style>
 </head>
 <body>
 <canvas id="stage"></canvas>
-<!-- 首屏骨架：3D 初始化期间挡住画面，避免用户看到半成品的黑屏 -->
-<div id="boot"><div class="bt-bar"></div><div class="bt-tx">载入中 · Loading</div></div>
 <!-- 首次进入引导：只出现一次，讲清三个核心操作 -->
 <div id="onboard">
   <div class="ob-card" id="obCard">
@@ -1392,8 +1495,8 @@
     </div>
     <div class="ob-museum">
       <span class="ob-museum-line"></span>
-      <span>云南中医药大学中医西学博物馆</span>
-      <span class="ob-museum-en">Yunnan University of Chinese Medicine · Museum of Western Learning in TCM</span>
+      <span>中醫西學博物館</span>
+      <span class="ob-museum-en">Museum of Western Studies on Chinese Medicine</span>
       <span class="ob-museum-line"></span>
     </div>
     <div class="ob-badge">医</div>
@@ -1415,7 +1518,7 @@
         </button>
         <button class="oc-switch" id="ocHerb" data-mode="herb">
           <span class="oc-ico">药</span>
-          <span class="oc-name">中药<small>Herbs</small></span>
+          <span class="oc-name">本草<small>Herbs</small></span>
           <span class="oc-track"><span class="oc-knob"></span></span>
         </button>
       </div>
@@ -1433,6 +1536,7 @@
   <span id="plSection">药物切面 · 菊花心<small>Cross-section</small></span>
 </div>
 <div id="err"></div>
+<div id="pvSwoosh"></div>
 
 <div id="topbar" class="panel3d">
   <div class="titlerow">
@@ -1445,7 +1549,7 @@
 <video id="camVideo" playsinline muted></video>
 
 <!-- 左下角返回键：回到展厅选择页（入口独立页 index.html） -->
-<button id="btnBack" type="button" title="返回展厅选择"><span class="bk-arrow">‹</span> 返回展厅</button>
+<button id="btnBack" type="button" title="返回展厅选择"><svg class="bk-arrow" viewBox="0 0 12 20" aria-hidden="true"><path d="M10 1 L2 10 L10 19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> 返回展厅</button>
 <div id="bar">
   <!-- 板块切换放在控制栏最左侧：与「手势控制 / 字形 / 颜色」同一条操作带，
        不再占用标题行。窄屏用单字（甲/药）避免把控制条挤出屏幕。 -->
@@ -1453,7 +1557,6 @@
     <button class="sect on" data-sect="oracle"><span class="sl">甲骨文</span><span class="ss">甲</span><i>Oracle</i></button>
     <button class="sect" data-sect="herb"><span class="sl">中药</span><span class="ss">药</span><i>Herbs</i></button>
   </div>
-  <div class="sep"></div>
   <div class="group">
     <div class="cbtn" id="btnCam" title="Gesture control">🎥 手势控制</div>
     <div class="cbtn" id="btnFs" title="Fullscreen">⛶ 全屏</div>
@@ -1517,14 +1620,19 @@
 <div id="partModal">
   <div class="pm-card">
     <button class="pm-close" id="pmClose" aria-label="关闭">×</button>
-    <div class="pm-kicker">药用部位 · MEDICINAL PART</div>
-    <h2 id="pmTitle"></h2>
-    <div class="pm-en" id="pmEn"></div>
-    <p class="pm-desc" id="pmDesc"></p>
-    <div class="pm-use-title">使用方法 · HOW TO USE</div>
-    <div id="pmUse"></div>
-    <div class="pm-use-title">炮制方法 · PROCESSING</div>
-    <div class="pm-chips" id="pmChips"></div>
+    <div class="pm-head" id="pmHead" role="button" tabindex="0" aria-expanded="true">
+      <div class="pm-kicker" id="pmKicker">药用部位 · MEDICINAL PART</div>
+      <h2 id="pmTitle"></h2>
+      <button class="pm-fold" id="pmFold" type="button" aria-label="展开/收起">⌄</button>
+    </div>
+    <div id="pmBody">
+      <div class="pm-en" id="pmEn"></div>
+      <p class="pm-desc" id="pmDesc"></p>
+      <div class="pm-use-title" id="pmUseTitle">使用方法 · HOW TO USE</div>
+      <div id="pmUse"></div>
+      <div class="pm-use-title" id="pmProcTitle">炮制方法 · PROCESSING</div>
+      <div class="pm-chips" id="pmChips"></div>
+    </div>
   </div>
 </div>
 <div id="procModal">
@@ -2625,6 +2733,7 @@
   { ch: '下', code: 'U60584', py: 'xia', tag: '甲骨文·xia', intro: '甲骨文『下』（xia），共1962画。字形释义待学者详释。' },
   { ch: '上', code: 'U60583', py: 'shang', tag: '甲骨文·shang', intro: '甲骨文『上』（shang），共1960画。字形释义待学者详释。' },
 ];</script>
+<script>window.ORACLE_GLYPH_EN = {"㐁":"Lick","㐭":"Granary","㐱":"Bushy","㓞":"Engrave","㕯":"Slow-Tongued","㗊":"Public Opinion","㘝":"Take In","㚔":"Prosperous","㝡":"Very","㝵":"Get","㡭":"Continue","㢀":"Side Room","㦰":"Break Off","㫃":"Flags Flying","㱿":"Husk","㵢":"Marsh","㹞":"Bark","㽙":"Official","㿝":"Sweet","䆁":"Syrup","䇂":"Fault","䌺":"Flourishing","䖵":"Insects","䜣":"Joy","䝭":"Wages","䢔":"Mixed","䵼":"Boil","一":"One","丁":"Male Adult","七":"Seven","万":"Ten Thousand","三":"Three","上":"Top","下":"Under","不":"No","丑":"Clown","专":"Monopolize","丘":"Hill","丙":"Third","东":"East","丝":"Silk","丞":"Assist","丧":"Mourning","丩":"Join Or","中":"Central","丮":"Catch","丯":"Dense","丰":"Abundant","丹":"Cinnabar","为":"Do","丽":"Beautiful","乂":"Govern","乃":"Then","乇":"Depend On","义":"Right Conduct","乍":"First Time","乐":"Happy","乘":"Ride","乙":"Second","九":"Nine","买":"Buy","乳":"Breastfeeding","亅":"Hook","争":"Dispute","事":"Affair","二":"Two","于":"In","云":"Cloud","五":"Five","井":"Well","亘":"Extend Across","亚":"Asia","亟":"Urgently","亡":"Death","亢":"High","交":"Mix","亥":"Twelfth Earthly","亦":"Also","京":"Capital City","亯":"Receive","亲":"Relatives","亳":"Capital Of","人":"Man","今":"Now","介":"Forerunner","从":"From","仓":"Granary","令":"Command","以":"By Means","任":"Trust To","企":"Plan A","伊":"Third Person","伐":"Cut Down","休":"Rest","众":"Multitude","会":"Assemble","传":"Summon","佑":"Help","何":"What","余":"I","使":"Cause","侄":"Nephew","侑":"Help","侗":"Big","侜":"Lies","侯":"Marquis","侵":"Invade","係":"Bind","俔":"Like","保":"Protect","俞":"Consent","偁":"State","偪":"Compel","備":"Prepare","僕":"Slave","儿":"Son","允":"Grant","元":"First","兄":"Elder Brother","兆":"Omen","先":"First","光":"Light","克":"Gram","兑":"Lake","兕":"Female Rhinoceros","入":"Enter","八":"Eight","公":"Fair","六":"Number Six","兮":"Exclamatory Particle","共":"Together With","兴":"Thrive","兵":"Soldier","其":"His","典":"Law","兹":"Now","内":"Inside","冉":"Tender","冊":"Book","册":"Book","再":"Again","冑":"Helmet","冓":"Secluded Place","冕":"Crown","冗":"Excessive","农":"Agriculture","冠":"Cap","凡":"All","凫":"Wild Duck","出":"Go Out","函":"Correspondence","凿":"Chisel","刀":"Knife","刃":"Edged Tool","分":"Divide","刈":"Cut Off","刍":"Mow","刚":"Hard","刜":"Chop","初":"Beginning","利":"Gains","刪":"Cut","剌":"Slash","剮":"Cut","劓":"Cut Off","力":"Power","劦":"Cooperate","助":"Help","劳":"Labor","勹":"Wrap","勿":"Must Not","匀":"Equal","匄":"Beg For","化":"Change","北":"North","匚":"Box","匡":"Correct","区":"Area","匿":"Hide","十":"Ten","千":"Thousand","卅":"Thirty","升":"Arise","午":"Seventh Earthly","卌":"Forty","协":"United","卒":"Soldier","单":"Single","南":"South","卜":"Divination","占":"Divine","卢":"Cottage","卣":"Wine Pot","卩":"Seal","卯":"Fourth Earthly","印":"Print","危":"Dangerous","卲":"Eminent","即":"Promptly","厀":"Knee","历":"History","厚":"Thick","厷":"Fore-Arm","去":"Go Away","又":"And","叉":"Crotch","及":"Extend","友":"Friend","取":"Take","受":"Receive","叟":"Old Man","口":"Mouth","古":"Old","叩":"Knock","召":"Imperial Decree","可":"May","叱":"Scold","史":"History","右":"Right","叵":"Cannot","司":"Take Charge","各":"Each","合":"Combine","吉":"Lucky","同":"Same","名":"Name","向":"Toward","吕":"Musical Note","君":"Sovereign","吝":"Stingy","吢":"Vomiting Of","听":"Hear","启":"Open","吹":"Blow","吽":"Bellow","吾":"I","呈":"Submit","告":"Tell","员":"Member","周":"Zhou Dynasty","和":"Harmony","咎":"Fault","咙":"Throat","咸":"Together","品":"Article","哭":"Weep","唐":"Tang Dynasty","唯":"Only","商":"Commerce","啚":"Low","啬":"Miserly","喜":"Like","嘉":"Excellent","嚚":"Argumentative","四":"Four","囟":"Fontanelle","因":"Cause","困":"Surround","囿":"Pen Up","圉":"Stable","圍":"Surround","土":"Earth","在":"At","圭":"Jade Pointed","坎":"Pit","坐":"Sit","坠":"Fall Down","垂":"Let Down","埜":"Open Country","埶":"Art","基":"Foundation","堇":"Yellow Loam","塞":"Stop Up","墻":"Wall","壬":"Ninth Heavenly","声":"Sound","壶":"Pot","夆":"Resist","夌":"Dawdle","复":"Return","夕":"Evening","夙":"Early","多":"Much","大":"Big","天":"Sky","太":"Very","夫":"Man","央":"Center","失":"Lose","夷":"Ancient Barbarian","夸":"Extravagant","奏":"Memorialize Emperor","奔":"Run Fast","奚":"Where? What?","奠":"Pay Respect","奭":"Red","女":"Woman","奴":"Slave","好":"Good","如":"If","妃":"Wife","妆":"Adorn Oneself","妇":"Married Women","妊":"Conceive","妞":"Girl","妥":"Satisfactory","妬":"Jealous","妹":"Younger Sister","妻":"Wife","妾":"Concubine","姓":"Clan","委":"Appoint","姜":"Ginger","姬":"Beauty","姸":"Beautiful","娘":"Mother","娠":"Pregnant","娥":"Beautiful","娩":"Give Birth","娶":"Marry","婢":"Servant Girl","婤":"Lovely","婪":"Covet","媚":"Charming","媟":"Lust After","媳":"Daughter-In-Law","嬉":"Enjoy","子":"Child","孕":"Pregnancy","孙":"Grandchild","孚":"Brood Over","孟":"First","季":"Quarter Of","学":"Learning","孽":"Evil","宀":"Roof","宁":"Calm","它":"It","宅":"Residence","守":"Defend","安":"Peaceful","宋":"Song Dynasty","宓":"Quiet","宕":"Stone Quarry","宗":"Lineage","官":"Official","定":"Decide","宛":"Seem","宜":"Suitable","宝":"Treasure","宣":"Declare","室":"Room","宪":"Constitution","宫":"Palace","宰":"Slaughter","害":"Injure","家":"House","宾":"Guest","宿":"Stop","寅":"Respect","寇":"Bandits","寒":"Cold","寖":"Gradually","寤":"Few","寧":"Repose","对":"Correct","寻":"Seek","射":"Shoot","将":"Will","尊":"Respect","尌":"Standing Up","小":"Small","尓":"You","尤":"Especially","尨":"Shaggy Haired","尸":"Corpse","尹":"Govern","尻":"End Of","尽":"Exhaust","尾":"Tail","履":"Footwear","屮":"Sprout","屯":"Village","屰":"Disobedient","山":"Mountain","岁":"Year","岛":"Island","岩":"Cliff","岳":"Mountain Peak","川":"Stream","州":"Administrative Division","巡":"Patrol","工":"Labor","左":"Left","巫":"Wizard","己":"Self","巳":"Sixth Earthly","巴":"Greatly Desire","市":"Market","师":"Teacher","帚":"Broom","帛":"Silks","帝":"Supreme Ruler","带":"Belt","干":"Oppose","年":"Year","并":"Combine","幼":"Infant","幽":"Quiet","庆":"Congratulate","庚":"7th Heavenly","庞":"Disorderly","度":"Degree","庭":"Courtyard","庶":"Numerous","庸":"Usual","廌":"Unicorn","廣":"Broad","延":"Delay","建":"Build","廾":"Two Hands","廿":"Twenty","异":"Different","弃":"Reject","弋":"Catch","弓":"Bow","弔":"Condole","引":"Pull","弗":"Not","弘":"Enlarge","弟":"Young Brother","弹":"Pellet","归":"Return","录":"Copy","彗":"Broomstick","彘":"Swine","彝":"Yi","彡":"Hair","往":"Go","征":"Invade","律":"Statute","後":"Behind","徒":"Disciple","徕":"Induce","得":"Obtain","御":"Drive","徵":"Summon","心":"Heart","必":"Surely","念":"Think Of","恒":"Constant","恙":"Illness","息":"Breath","悖":"Contradictory To","惄":"Long For","懋":"Splendid","戈":"Halberd","戉":"Battle-Axe","戊":"5th Heavenly","戋":"Small","戌":"Eleventh Earthly","戍":"Defend Borders","戎":"Arms","成":"Completed","我":"Our","戒":"Warn","戕":"Kill","戚":"Relative","戠":"Sword","截":"Cut Off","戴":"Wear On","户":"Door","执":"Hold","扶":"Support","承":"Inherit","抑":"Press Down","抔":"Take Or","折":"Break Off","振":"Raise","擒":"Catch","攴":"Rap","攸":"Distant","改":"Change","效":"Result","敏":"Fast","教":"Teach","敝":"Break","敢":"Dare","散":"Scatter","敦":"Esteem","文":"Literature","斗":"Dipper","斤":"Catty","斧":"Axe","新":"New","方":"Square","斿":"Swim","旁":"Side","旅":"Trip","旋":"Revolve","族":"Family Clan","旡":"Choke On","既":"Already","日":"Sun","旦":"Dawn","旨":"Purpose","旬":"Ten-Day Period","昃":"Afternoon","昌":"Light Of","明":"Bright","昏":"Dusk","易":"Change","昔":"Formerly","昜":"Open Out","星":"Star","春":"Spring","昷":"Feed A","昼":"Daytime","晋":"Advance","晕":"Halo","晨":"Early Morning","晶":"Crystal","智":"Wisdom","暴":"Violent","曣":"Fair Weather","曰":"Say","曲":"Crooked","更":"More","曹":"Ministry Officials","曼":"Long","曾":"Already","替":"Change","月":"Moon","有":"Have","朋":"Friend","服":"Clothes","朙":"Bright","望":"Look At","朝":"Dynasty","木":"Wood","未":"Not Yet","朮":"Skill","朱":"Cinnabar","朿":"Stab","杏":"Apricot","杕":"Alone","杜":"Stop","杞":"Willow","束":"Bind","来":"Come","杲":"Bright Sun","析":"Split Wood","林":"Forest","枚":"Stalk Of","枼":"Table","柏":"Cypress","柳":"Willow Tree","栅":"Fence","栎":"Chestnut-Leaved Oak","栗":"Chestnut Tree","栽":"Cultivate","桑":"Mulberry","梦":"Dream","棋":"Chess","棘":"Jujube Tree","森":"Forest","椎":"Hammer","楚":"Clear","榆":"Elm Tree","橐":"Sack","橹":"Oar","檀":"Sandalwood","欠":"Owe","次":"Order","止":"Stop","正":"Right","此":"This","步":"Step","武":"Military","歺":"Vicious","死":"Die","殁":"Die","殷":"Many","母":"Mother","每":"Every","毓":"Give Birth","比":"Compare","民":"People","气":"Steam","水":"Water","永":"Long","求":"Seek","汊":"Branching Stream","汝":"You","汫":"Pit","沁":"Soak Into","沓":"Connected","沙":"Sand","沚":"Islet","沬":"Dusk","河":"River","泉":"Spring","注":"Concentrate","泷":"Raining","泺":"River","洒":"Sprinkle","洗":"Wash","洛":"River","洱":"Lake","涉":"Ford Stream","涛":"Large Waves","涵":"Soak","淮":"River","深":"Deep","渊":"Surge Up","渔":"Fish","温":"Lukewarm","潾":"Clear Water","濒":"Approach","濘":"Mud","濞":"County","濯":"Wash Out","瀼":"River","火":"Fire","災":"Calamity","灾":"Calamity","炎":"Flame","炘":"Brilliant","烕":"Destroy","焚":"Burn","焱":"Flames","煮":"Cook","熊":"Bear","熯":"By Fire","熹":"Dim Light","燎":"Burn","燕":"Swallow","燮":"Harmonize","爰":"Lead On","爵":"Feudal Title","父":"Father","爿":"Half Of","牛":"Ox","牝":"Female Of","牟":"Make","牡":"Male Of","牢":"Prison","牧":"Tend Cattle","物":"Thing","牵":"Drag","犬":"Dog","犹":"Like","狐":"Fox","狩":"Hunt","献":"Offer","率":"Lead","玉":"Jade","王":"King","璞":"Unpolished Gem","璧":"Piece Of","甗":"Earthenware Vessel","甘":"Sweetness","生":"Life","用":"Use","甫":"Begin","田":"Field","由":"Cause","甲":"Armor","申":"State To","男":"Male","画":"Painting","畀":"Give","畋":"Till Land","畏":"Fear","畐":"Fill","畜":"Livestock","疋":"Roll","疐":"Fall","疑":"Doubt","疾":"Illness","痍":"Wound","癸":"10th Heavenly","登":"Rise","白":"White","百":"One Hundred","皀":"Kernel","皆":"All","皇":"Royal","皿":"Shallow Container","盂":"Basin","益":"Profit","监":"Supervise","盖":"Cover","盗":"Rob","盜":"Rob","盟":"Swear","目":"Eye","直":"Straight","相":"Mutual","盾":"Shield","省":"Province","眉":"Eyebrows","真":"Real","眢":"Eyes Without","瞽":"Blind","矢":"Arrow","石":"Stone","砅":"Cross On","磬":"Musical Instrument","示":"Show","祀":"Sacrifice","祈":"Pray","祉":"Happiness","祊":"River","祏":"Shrine","祐":"Divine Intervention","祖":"Ancestor","祭":"Sacrifice To","祸":"Misfortune","祼":"Libation","禦":"Defend","禺":"District","禽":"Birds","禾":"Grain","秉":"Grasp","秋":"Autumn","秦":"Feudal State","稚":"Young","稠":"Dense","稼":"Sow Grain","稽":"Examine","穆":"Majestic","穧":"Sheaf","立":"Stand","竟":"Finally","童":"Child","競":"Contend","竹":"Bamboo","笹":"Small Bamboo","箙":"Quiver","粦":"Phosphorus","糞":"Manure","糸":"Silk","縶":"Confine","终":"End","编":"Knit","缶":"Earthen Crock","网":"Net","罙":"Deep","罝":"Net For","置":"Place","羁":"Halter","羆":"Brown Bear","羊":"Sheep","羌":"Qiang Nationality","美":"Beautiful","羞":"Disgrace","羡":"Envy","翊":"Flying","翌":"Bright","習":"Practice","翟":"Plumes","翦":"Scissors","老":"Old","耋":"Aged","耑":"Specialized","耤":"Plough","耳":"Ear","聋":"Deaf","联":"Connect","聽":"Hear","聿":"Writing Brush","肇":"Begin","肉":"Flesh","肘":"Elbow","肵":"Table","腹":"Abdomen","膏":"Grease","臣":"Minister","臤":"Hard","臧":"Good","自":"Self","臬":"Law","臭":"Smell","至":"Reach","致":"Send","臺":"Tower","臾":"Moment","舂":"Grind","舊":"Old","舌":"Tongue","舞":"Dance","舟":"Boat","般":"Sort","良":"Good","艰":"Difficult","艿":"Taro","芟":"Mow","苑":"Pasture","若":"If","荐":"Repeat","荛":"Fuel","莫":"Do Not","莽":"Thicket","萬":"Ten Thousand","葬":"Bury","蒿":"Mugwort","蓐":"Straw Bed","蔑":"Disdain","虍":"Tiger","虎":"Tiger","虐":"Cruel","虫":"Insect","虹":"Rainbow","蚤":"Flea","蛊":"Poison","蛛":"Spider","蝉":"Cicada","行":"Go","衛":"Guard","衣":"Clothes","袁":"Robe","裘":"Fur Garments","襄":"Aid","西":"West","視":"Look At","见":"See","角":"Horn","解":"Loosen","言":"Words","訊":"Inquire","讯":"Inquire","谷":"Valley","豆":"Beans","豊":"Abundant","豕":"Pig","豖":"Shackled Pig","豚":"Small Pig","象":"Elephant","豭":"Boar","豹":"Leopard","買":"Buy","贝":"Cowrie","贞":"Virtuous","败":"Defeated","贪":"Greedy","贮":"Store","赤":"Red","走":"Walk","跻":"Ascend","身":"Body","车":"Chariot","辇":"Hand-Cart","辔":"Bridle Of","辛":"Bitter","辟":"Law","辭":"Words","辰":"Early Morning","辳":"Agriculture","边":"Edge","辽":"Distant","达":"Arrive At","远":"Distant","迺":"Then","追":"Pursue","逆":"Disobey","逐":"Chase","途":"Way","通":"Pass Through","速":"Quick","逢":"Come Upon","逴":"Argue","逸":"Flee","遘":"Meet","遝":"Mixed","遣":"Send","遲":"Late","邑":"Area","邦":"Nation","郭":"Outer Part","鄏":"Place","酉":"Wine","酌":"Serve Wine","配":"Match","酒":"Wine","醜":"Ugly Looking","釆":"Distinguish","采":"Collect","重":"Heavy","量":"Measure","镬":"Cauldron","镸":"Long","长":"Long","门":"Gate","问":"Ask About","闻":"Hear","阜":"Mound","阴":"Dark","降":"Descend","陟":"Climb","陶":"Pottery","陷":"Submerge","陽":"Active","隹":"Short-Tailed Bird","雀":"Sparrow","集":"Assemble","雇":"Employ","雉":"Pheasant","雚":"Heron","雝":"Marsh","雨":"Rain","雩":"Offer Sacrifice","雪":"Snow","雷":"Thunder","雹":"Hail","震":"Shake","霋":"Slight","霍":"Quickly","霖":"Long Spell","霝":"Drops Of","霾":"Misty","非":"Not","面":"Face","韋":"Tanned Leather","頁":"Page","须":"Must","风":"Wind","食":"Eat","饮":"Drink","饱":"Eat Heartily","首":"Head","馘":"Cut Off","香":"Fragrant","马":"Horse","驱":"Spur A","驳":"Varicolored","驶":"Sail","骤":"Procedure","高":"High","髭":"Mustache","鬥":"Struggle","鬯":"Sacred Wine","鬰":"Luxuriant","鬼":"Ghost","鱼":"Fish","鲁":"Foolish","鲧":"Giant Fish","鳖":"Soft-shelled Turtle","鸡":"Chicken","鸣":"Cry Of","鹵":"Saline Soil","鹿":"Deer","麑":"Fawn","麓":"Foothill","麥":"Wheat","麦":"Wheat","黄":"Yellow","黍":"Millet","黑":"Black","黹":"Embroidery","鼍":"Large Reptile","鼎":"Cauldron","鼓":"Drum","鼠":"Rat","鼻":"Nose","齐":"Even","齒":"Teeth","龋":"Tooth Decay","龙":"Dragon","龚":"Give","龟":"Turtle Or","龠":"Flute"};</script>
 <script>
 'use strict';
 // ============================================================================
@@ -2675,19 +2784,32 @@ const SEND_TIMEOUT_MS = 10000;
 // 而公共 npm 镜像与 jsDelivr 可跑满带宽（本机实测 5.6 MB/s 与 1.5 MB/s），
 // 且与本地 libs/ 是同一 npm 包、逐字节一致（@mediapipe/hands@0.4.1675469240，
 // md5 已核对）——只换「送货地址」，模型本身零变化。
-// 启动手势前对三个源各发一个 550B 小文件探测（赛跑式，谁先连通用谁）：
-//   离线 / 局域网部署 → 本地 libs/ 秒赢，行为与从前完全一致；
-//   大陆联网 → npmmirror 秒赢；海外 → jsDelivr 兜底。
-// 三个源全探测失败时回落到本地，交给原有错误路径提示。
+//
+// 选源规则（2026-11-24 迁回站点定制）：
+//   · 自建站 / localhost / 局域网（http(s) 非 github.io）：
+//       直接使用同源 libs/，不探测、不换源 —— 线上站点模型与页面同源，
+//       首字节即本地磁盘，没有任何理由再去公共 CDN 拉 16MB。
+//   · GitHub Pages（*.github.io）：npmmirror / jsDelivr / 本地 libs/ 三源赛跑
+//       （那里的 libs/ 正是被限速的 GitHub 路径，CDN 通常秒赢）。
+//   · file://：本地 libs/ 被 CORS 拦截，只在两个 https CDN 间赛跑；
+//       全失败返回 null，由 toggleCamera 提示「联网或启动本地服务」。
 const HANDS_VER = '0.4.1675469240';      // 与 libs/ 内文件逐字节同源的 npm 包版本（md5 已核对）
 const HANDS_SOURCES = [
   'https://registry.npmmirror.com/@mediapipe/hands/' + HANDS_VER + '/files/',
   'https://cdn.jsdelivr.net/npm/@mediapipe/hands@' + HANDS_VER + '/',
   'libs/'
 ];
+const HANDS_FORCE_LOCAL = location.protocol !== 'file:'
+  && !/(^|\.)github\.io$/i.test(location.hostname);
+// file:// 下无法 fetch 本地 libs/（origin 'null' 被 CORS 拦截），探测它只会
+// 在控制台留下一条红错；直接从候选里去掉，让两个 https CDN 源上场。
+const HANDS_PROBE_SOURCES = location.protocol === 'file:'
+  ? HANDS_SOURCES.filter(s => s !== 'libs/')
+  : HANDS_SOURCES;
 let handsSrc = null;                     // 探测结果缓存：整个会话复用，开关摄像头不重探
 function pickHandsSource() {
   if (handsSrc) return Promise.resolve(handsSrc);
+  if (HANDS_FORCE_LOCAL) { handsSrc = 'libs/'; return Promise.resolve(handsSrc); }
   return new Promise(resolve => {
     let settled = false;
     const running = [];
@@ -2698,12 +2820,12 @@ function pickHandsSource() {
         clearTimeout(r.timer);
         if (r.base !== base) r.ctl.abort();
       }
-      console.info('[hands] 模型资源源:', base);
+      if (base) console.info('[hands] 模型资源源:', base);
       resolve(base);
     };
     // 每个源产出一个「成功或失败都收场」的探测；全部失败才回落本地（settle 幂等）。
     // 探测不用 no-store：URL 已版本固化，缓存条目正好被随后的 locateFile 加载复用。
-    const probes = HANDS_SOURCES.map(base => new Promise(done => {
+    const probes = HANDS_PROBE_SOURCES.map(base => new Promise(done => {
       const ctl = new AbortController();
       const timer = setTimeout(() => ctl.abort(), 4000);
       running.push({ base, ctl, timer });
@@ -2711,7 +2833,9 @@ function pickHandsSource() {
         .then(r => { clearTimeout(timer); if (r.ok) settle(base); done(); })
         .catch(() => { clearTimeout(timer); done(); });
     }));
-    Promise.all(probes).then(() => settle('libs/'));
+    // file:// 下本地 libs/ 不可能作为兜底（CORS 明确拦截），全失败就返回 null，
+    // 由 toggleCamera 给出「联网或启动本地服务」的可操作提示。
+    Promise.all(probes).then(() => settle(location.protocol === 'file:' ? null : 'libs/'));
   });
 }
 // ── 手势转动幅度（位置跟随模式）────────────────────────────────────────────
@@ -3867,12 +3991,9 @@ async function toggleCamera() {
   }
   btn.textContent = '⏳ 加载手势模型…';
   try {
-    // file:// 必须最先拦：Safari 在 file:// 下允许 getUserMedia（摄像头能亮），
-    // 却禁止 fetch 本地文件 —— MediaPipe 的 .wasm/.binarypb 全靠 fetch 取回，
-    // 于是 JS 侧只看到一句 "Load failed"，极难定位。故此处提前给出可操作提示。
-    if (location.protocol === 'file:')
-      throw new Error('手势模型无法在 file:// 下加载（Safari 禁止 fetch 本地 wasm）'
-        + ' —— 请在项目目录运行 python3 serve.py，改用 http://localhost:8138/gesture3d.html 打开');
+    // file:// 下本地 libs/ 的 wasm 会被 CORS 拦截，但 pickHandsSource 会自动
+    // 改用 npm CDN 的 https 源（与本地文件同版本、逐字节一致）。联网时手势
+    // 照常可用；两个 CDN 都不可用（离线）时，取到资源源后会给出明确提示。
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia)
       throw new Error('当前环境不支持摄像头（请改用 http://localhost 访问）');
     if (!window.Hands) throw new Error('MediaPipe 未加载（libs/hands.js 缺失或加载失败）');
@@ -3900,6 +4021,8 @@ async function toggleCamera() {
 
     if (!cam.hands) {
       const base = await srcP;                                // 就近择优：离线/局域网→本地 libs/；大陆→npmmirror；海外→jsDelivr
+      if (!base) throw new Error('手势模型需要联网加载（file:// 下浏览器禁止读取本地 wasm）'
+        + ' —— 请联网，或双击「启动本地服务.command」/ 运行 python3 serve.py 后改用 http://localhost:8138/ 打开');
       cam.hands = new Hands({
         locateFile: f => libUrl(base, f)                      // 与探测共用同一 URL 拼装（libs/ 才带 ?v）
       });
@@ -3918,6 +4041,11 @@ async function toggleCamera() {
     feedLoop();
   } catch (e) {
     btn.textContent = '🎥 手势控制';
+    // 失败时把已拿到的摄像头轨道关掉：否则权限/模型错误后指示灯常亮，
+    // 且下次点击可能因设备被自己占用而报 NotReadableError。
+    if (cam.stream) { cam.stream.getTracks().forEach(t => t.stop()); cam.stream = null; }
+    cam.on = false;
+    document.getElementById('gestureBox').style.display = 'none';
     banner('摄像头不可用：' + camErrAdvice(e) + ' —— 已回退鼠标模式（按住=握拳聚形，松开=气散）');
   }
 }
@@ -4091,14 +4219,17 @@ cvs_listen();
 function cvs_listen() {
   const cvs = document.getElementById('stage');
   cvs.addEventListener('pointerdown', e => {
+    if (PINCH.active) return;                     // 双指捏合期间不进入旋转/拖拽
     unlockAudio();
     const [vw, vh] = viewSize();
     virtualHand.active = true; virtualHand.down = true;
     virtualHand.x = e.clientX / W; virtualHand.y = e.clientY / H;
-    points.rotation.y = 0; points.rotation.x = 0;   // 按下归零：散乱云不可见
+    // 甲骨文按下归零（散乱云不可见）；本草里不能重置，否则放大后一拖拽，
+    // 模型会为了守住支点而整体飞走——应该从当前角度继续转。
+    if (!herbActive()) { points.rotation.y = 0; points.rotation.x = 0; }
   });
   cvs.addEventListener('pointermove', e => {
-    if (!virtualHand.active) return;
+    if (PINCH.active || !virtualHand.active) return;
     virtualHand.x = e.clientX / W; virtualHand.y = e.clientY / H;
     // 鼠标挥动速度（世界单位/秒），供「风」力使用
     const now = performance.now();
@@ -4116,6 +4247,7 @@ function cvs_listen() {
     virtualHand._lt = now; virtualHand._lwx = wx; virtualHand._lwy = wy;
   });
   cvs.addEventListener('pointerup', () => {
+    if (PINCH.active) { virtualHand.down = false; return; }
     virtualHand.down = false;
     if (cam.on) virtualHand.active = false;   // 摄像头模式：松开鼠标即把输入权交还摄像头
   });
@@ -4199,7 +4331,15 @@ function showLabel(ch, tag, show) {
   const l = document.getElementById('label');
   // 短语的 ch 含 \n（供粒子排版分行），直接写进 HTML 会被折叠成空格，故另用 labelCh
   const head = (curGlyph3D && curGlyph3D.labelCh) || ch || '';
-  l.querySelector('.big').textContent = head ? (head.replace(/\n/g, ' · ') + labelSuffix(curGlyph3D)) : '';
+  const big = head ? (head.replace(/\n/g, ' · ') + labelSuffix(curGlyph3D)) : '';
+  // 甲骨文字形只给「字」本身配一个英文词（如 心 → Heart），详细释义不翻译。
+  // 与中药标题「三七 / Sanqi」一致：英文与字名并排，不另起一行。
+  // 比心 / 短语 / 楷体模式没有字义对应，不显示斜杠。
+  const enMap = window.ORACLE_GLYPH_EN || {};
+  const en = (curGlyph3D && !curGlyph3D.mode)
+    ? (enMap[curGlyph3D.ch] || enMap[[...String(curGlyph3D.ch || '')][0]] || '')
+    : '';
+  l.querySelector('.big').textContent = (show && big && en) ? (big + ' / ' + en) : big;
   l.querySelector('.small').textContent = show ? (tag || '') : '';
   l.querySelector('.intro').textContent = show ? (curGlyph3D.intro || '') : '';
   l.style.opacity = show ? 1 : 0;
@@ -4972,10 +5112,9 @@ let lastT = performance.now(), fps = 60;
 // 顿挫度量：按真实帧间隔统计「最差帧」，而不是平均值 —— 卡顿看的是最差值。
 // 1 秒一个窗口，显示最近窗口内最长的帧间隔与 >50ms 的帧数。
 let jankWin = 0, jankMax = 0, jankOver = 0, jankMaxShow = 0, jankOverShow = 0;
-// 右上角诊断项（检测帧率 / 相机 / 顿挫）默认隐藏；Ctrl(⌘)+Shift+D 切换
+// 诊断项（检测帧率 / 相机 / 顿挫）默认隐藏；Ctrl(⌘)+Shift+D 切换
 let statsDiag = false;
-let statsSig = '';           // 右上角读数的内容签名：不变则不重建 DOM（见 frame()）
-let statsTop = -1;           // 右上角读数当前 top 缓存（同上；它排在胶囊下方，位置由胶囊下缘算出）
+let statsSig = '';           // 右下角读数的内容签名：不变则不重建 DOM（见 frame()）
 addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'D' || e.key === 'd')) {
     statsDiag = !statsDiag;
@@ -5903,7 +6042,7 @@ const SQ_LABELS = [
   { t: '须根',        e: 'Fibrous roots',       c: [-0.58, -1.58,  0.02], off: [ -86,  -2] },
   { t: '茎',          e: 'Stem',                c: [ 0.04,  0.24,  0.04], off: [  58, -10] },
   { t: '叶 · 三枝七叶', e: 'Leaves, 3 × 7 leaflets', c: [ 0.72,  1.02,  0.16], off: [  76, -18] },
-  { t: '红果 · 花',    e: 'Berries & flowers',   c: [ 0.04,  1.42,  0.02], off: [  78, -30] },
+  { t: '果实 · 红籽',  e: 'Red berries (fruit)', c: [ 0.04,  1.42,  0.02], off: [  78, -30] },
   { t: '菊花心 · 断面', e: 'Chrysanthemum-heart section', c: [ 0.22, -0.72,  0.16], off: [ 104,  16] },
   { t: '皂苷 Rg₁/Rb₁', e: 'Notoginsenosides',    c: [ 0.95, -0.42,  0.28], off: [  64,  30] },
   { t: '饮片 · 菊花心', e: 'Decoction slices',    c: [-0.88, -0.58,  0.30], off: [ -78,  -6] },
@@ -6311,7 +6450,89 @@ function buildXue() {
 // 没有叶脉和花的结构 —— 与"和现实无区别"这个目标是根本矛盾的。
 // 这里改用 three.js 的真实网格 + PBR 材质，让它有实体、有厚度、受光有明暗。
 // 几何全部程序化生成（不依赖外部 GLB），因为块根/裂叶/盔状花都是可参数化的形态。
-const XUE3D = { built: false, group: null, parts: {}, open: 0, openTgt: 0 };
+const XUE3D = { built: false, group: null, parts: {}, open: 0, openTgt: 0, lights: null, glow: null };
+// 默认构图基线：在 1706×961 的默认视口下，比原始 0.10 基线约下移 8px
+// （0.048 世界单位；其中上一版已下移 3px，本次再下移 5px）。
+const XUE_BASE_Y = 0.052;
+// 雪上一枝蒿的块根/花序特写，在当前自适应构图倍率上再放大 1.5 倍。
+const XUE_PART_BOOST = 1.5;
+
+// ── 两味药共用的 PBR 渲染基线 ────────────────────────────────────────────
+// 三七是外部扫描/烘焙的 GLB：2048 颜色图 + 法线 + 金属粗糙度图，颜色贴图走 sRGB。
+// 雪上一枝蒿是程序化网格，之前用 512 颜色图 + 凹凸图 + 常量粗糙度，颜色图还停在
+// LinearEncoding —— 两条渲染管线不同，观感自然一个像实物、一个像塑料模型。
+// 下面这些工具把雪上一枝蒿拉到与三七同一条管线：sRGB 颜色、切线空间法线、
+// 粗糙度/环境光遮蔽图、同角度同强度的灯光、同样的各向异性过滤。
+function plantAniso() {
+  try { return Math.min(8, renderer.capabilities.getMaxAnisotropy()); }
+  catch (e) { return 8; }
+}
+function xueColorTex(cv) {
+  const t = new THREE.CanvasTexture(cv);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.SRGBColorSpace;   // 与 GLB 的 baseColor 贴图同一色彩空间
+  t.anisotropy = plantAniso();
+  t.needsUpdate = true;
+  return t;
+}
+// 从灰度凹凸图一次生成三张 PBR 贴图：
+// - 法线：皱褶参与光照，侧面高光不再是一整片平滑色块；
+// - 粗糙度：凸起处略亮、凹槽更哑，打破常量 roughness 的塑料感；
+// - AO：凹槽压暗，给程序化网格补上 GLB 里烘焙进颜色图的接触阴影。
+// h=1 为凸起、h=0 为凹槽（与 makeTuberBump 的灰阶约定一致）。
+function xueBumpMaps(bumpTex, opt) {
+  const o = opt || {};
+  const img = bumpTex.image;
+  const S = img.width;
+  const sc = document.createElement('canvas'); sc.width = sc.height = S;
+  const sg = sc.getContext('2d'); sg.drawImage(img, 0, 0);
+  const src = sg.getImageData(0, 0, S, S).data;
+  const nc = document.createElement('canvas'); nc.width = nc.height = S;
+  const rc = document.createElement('canvas'); rc.width = rc.height = S;
+  const ac = document.createElement('canvas'); ac.width = ac.height = S;
+  const ng = nc.getContext('2d'), rg = rc.getContext('2d'), ag = ac.getContext('2d');
+  const nim = ng.createImageData(S, S), rim = rg.createImageData(S, S), aim = ag.createImageData(S, S);
+  const nd = nim.data, rd = rim.data, ad = aim.data;
+  const strength = o.strength === undefined ? 2.6 : o.strength;
+  const roughIn = o.roughIn === undefined ? 0.70 : o.roughIn;   // 凸起/脊
+  const roughOut = o.roughOut === undefined ? 0.92 : o.roughOut; // 凹槽
+  const aoIn = o.aoIn === undefined ? 0.62 : o.aoIn;
+  const H = (x, y) => {
+    x = (x + S) % S; y = (y + S) % S;
+    const i = (y * S + x) * 4;
+    return (src[i] * 0.299 + src[i + 1] * 0.587 + src[i + 2] * 0.114) / 255;
+  };
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const h = H(x, y);
+      const dx = (H(x + 1, y) - H(x - 1, y)) * strength;
+      const dy = (H(x, y + 1) - H(x, y - 1)) * strength;
+      let nx = -dx, ny = dy, nz = 1;
+      const l = Math.hypot(nx, ny, nz) || 1;
+      nx /= l; ny /= l; nz /= l;
+      const i = (y * S + x) * 4;
+      nd[i] = (nx * 0.5 + 0.5) * 255;
+      nd[i + 1] = (ny * 0.5 + 0.5) * 255;
+      nd[i + 2] = (nz * 0.5 + 0.5) * 255;
+      nd[i + 3] = 255;
+      const rough = roughOut - (roughOut - roughIn) * h;
+      rd[i] = rd[i + 1] = rd[i + 2] = Math.max(0, Math.min(255, rough * 255));
+      rd[i + 3] = 255;
+      const ao = aoIn + (1 - aoIn) * h;
+      ad[i] = ad[i + 1] = ad[i + 2] = Math.max(0, Math.min(255, ao * 255));
+      ad[i + 3] = 255;
+    }
+  }
+  ng.putImageData(nim, 0, 0); rg.putImageData(rim, 0, 0); ag.putImageData(aim, 0, 0);
+  const finish = (cv) => {
+    const t = new THREE.CanvasTexture(cv);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.anisotropy = plantAniso();
+    t.needsUpdate = true;
+    return t;
+  };
+  return { normal: finish(nc), roughness: finish(rc), ao: finish(ac) };
+}
 
 // ── 程序化贴图 ──────────────────────────────────────────────────────────
 // 单色 MeshStandardMaterial 在展馆距离上仍然是"塑料感"的来源：
@@ -6327,50 +6548,61 @@ function makeTuberBump() {
   g.fillStyle = '#808080';
   g.fillRect(0, 0, S, S);
   // 纵向深沟：块根最典型的皱褶，粗细不一、贯穿全长
-  for (let i = 0; i < 46; i++) {
+  for (let i = 0; i < 64; i++) {
     const x = Math.random() * S;
-    const w = 2 + Math.random() * 9;
+    const w = 2 + Math.random() * 12;
     g.beginPath();
     g.moveTo(x, -10);
     let cx = x;
     for (let y = 0; y <= S; y += 18) {
-      cx += (Math.random() - 0.5) * 13;
+      cx += (Math.random() - 0.5) * 15;
       g.lineTo(cx, y);
     }
-    g.strokeStyle = 'rgba(20,20,20,' + (0.30 + Math.random() * 0.45).toFixed(2) + ')';
+    g.strokeStyle = 'rgba(18,18,18,' + (0.38 + Math.random() * 0.50).toFixed(2) + ')';
     g.lineWidth = w; g.stroke();
     // 沟旁一道高光棱：光从侧面来时这条边最关键
     g.beginPath();
     g.moveTo(x + w * 0.7, -10);
     let cx2 = x + w * 0.7;
     for (let y = 0; y <= S; y += 18) {
-      cx2 += (Math.random() - 0.5) * 13;
+      cx2 += (Math.random() - 0.5) * 15;
       g.lineTo(cx2, y);
     }
-    g.strokeStyle = 'rgba(215,215,215,0.22)';
+    g.strokeStyle = 'rgba(220,220,220,0.30)';
     g.lineWidth = w * 0.55; g.stroke();
+  }
+  // 低频凹坑：块根不是一根车削出来的圆柱，表面有深浅不一的塌陷
+  for (let i = 0; i < 58; i++) {
+    const x = Math.random() * S, y = Math.random() * S;
+    const r = 6 + Math.random() * 34;
+    const grd = g.createRadialGradient(x, y, 0, x, y, r);
+    grd.addColorStop(0, 'rgba(40,40,40,' + (0.10 + Math.random() * 0.20).toFixed(2) + ')');
+    grd.addColorStop(0.7, 'rgba(105,105,105,.05)');
+    grd.addColorStop(1, 'rgba(128,128,128,0)');
+    g.fillStyle = grd;
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
   }
   // 横向环纹（须根脱落痕）：比纵沟浅得多，只在局部短段出现。
   // 之前画成贯穿整周的强横线，与纵沟交叉后整根读成「格纹布」——
   // 真实块根的横痕是断续的短弧，不是绕一圈的环。
-  for (let i = 0; i < 26; i++) {
+  for (let i = 0; i < 30; i++) {
     const y = S * (0.18 + Math.random() * 0.66);
     const x0 = S * Math.random() * 0.7;
     const w = S * (0.10 + Math.random() * 0.22);
     g.beginPath();
     g.moveTo(x0, y);
     g.bezierCurveTo(x0 + w * 0.35, y + 4, x0 + w * 0.65, y - 4, x0 + w, y);
-    g.strokeStyle = 'rgba(60,60,60,' + (0.10 + Math.random() * 0.12).toFixed(2) + ')';
-    g.lineWidth = 1.2 + Math.random() * 2.2; g.stroke();
+    g.strokeStyle = 'rgba(60,60,60,' + (0.12 + Math.random() * 0.15).toFixed(2) + ')';
+    g.lineWidth = 1.2 + Math.random() * 2.6; g.stroke();
   }
   // 细颗粒
-  for (let i = 0; i < 4200; i++) {
-    const a = 0.05 + Math.random() * 0.18;
+  for (let i = 0; i < 5200; i++) {
+    const a = 0.05 + Math.random() * 0.20;
     g.fillStyle = Math.random() < 0.5
       ? 'rgba(30,30,30,' + a.toFixed(2) + ')'
       : 'rgba(200,200,200,' + (a * 0.7).toFixed(2) + ')';
     g.beginPath();
-    g.arc(Math.random() * S, Math.random() * S, 0.8 + Math.random() * 2.6, 0, Math.PI * 2);
+    g.arc(Math.random() * S, Math.random() * S, 0.8 + Math.random() * 2.8, 0, Math.PI * 2);
     g.fill();
   }
   const t = new THREE.CanvasTexture(cv);
@@ -6383,37 +6615,70 @@ function makeTuberTex() {
   cv.width = S; cv.height = S;
   const g = cv.getContext('2d');
   // 底色：纵向由深到浅，模拟受光的柱面。
-  // 真实块根干燥后是暗棕至黑褐，上一版中段 #8a6a44 太亮，整丛读成红薯。
+  // 真实块根干燥后是棕褐，但展台是纯黑背景，sRGB 管线 + 主光下
+  // 原来的 #241a11–#5d442b 会压成一团近黑，块根细节读不出来。
+  // 这里整体提亮约 1.4–1.5 倍到中段 #8f6c45：保持棕褐，又不至于发橙/像红薯。
   const bg = g.createLinearGradient(0, 0, S, 0);
-  bg.addColorStop(0.00, '#241a11');
-  bg.addColorStop(0.22, '#43301e');
-  bg.addColorStop(0.48, '#5d442b');
-  bg.addColorStop(0.72, '#3e2c1b');
-  bg.addColorStop(1.00, '#1f1810');
+  bg.addColorStop(0.00, '#3a2818');
+  bg.addColorStop(0.22, '#6a4e30');
+  bg.addColorStop(0.48, '#8f6c45');
+  bg.addColorStop(0.72, '#63482c');
+  bg.addColorStop(1.00, '#332314');
   g.fillStyle = bg; g.fillRect(0, 0, S, S);
-  // 纵向深皱：块根表面最典型的特征
-  for (let i = 0; i < 90; i++) {
+  // 纵向深皱：块根表面最典型的特征。每条皱褶画暗沟 + 侧方亮棱，
+  // 即使不看凹凸图，颜色本身也有"沟—脊"的明暗关系。
+  for (let i = 0; i < 120; i++) {
     const x = Math.random() * S;
-    g.beginPath();
-    g.moveTo(x, -10);
+    const w = 0.8 + Math.random() * 3.2;
+    const pts = [[x, -10]];
     let cx = x;
     for (let y = 0; y <= S; y += 22) {
-      cx += (Math.random() - 0.5) * 9;
-      g.lineTo(cx, y);
+      cx += (Math.random() - 0.5) * 13;
+      pts.push([cx, y]);
     }
-    g.strokeStyle = 'rgba(38,26,15,' + (0.06 + Math.random() * 0.20).toFixed(3) + ')';
-    g.lineWidth = 0.7 + Math.random() * 2.4;
-    g.stroke();
+    const strokePts = (dx) => {
+      g.beginPath();
+      g.moveTo(pts[0][0] + dx, pts[0][1]);
+      for (let k = 1; k < pts.length; k++) g.lineTo(pts[k][0] + dx, pts[k][1]);
+      g.stroke();
+    };
+    g.strokeStyle = 'rgba(30,20,11,' + (0.10 + Math.random() * 0.24).toFixed(3) + ')';
+    g.lineWidth = w;
+    strokePts(0);
+    if (Math.random() < 0.62) {
+      g.strokeStyle = 'rgba(168,136,92,' + (0.05 + Math.random() * 0.10).toFixed(3) + ')';
+      g.lineWidth = 1.0 + Math.random() * 1.2;
+      strokePts(w * 0.8 + 1.2);
+    }
   }
   // 横向浅环（须根脱落痕），只在中段出现
-  for (let i = 0; i < 24; i++) {
+  for (let i = 0; i < 30; i++) {
     const y = S * (0.22 + Math.random() * 0.6);
     g.beginPath();
     g.moveTo(S * (0.06 + Math.random() * 0.1), y);
     g.bezierCurveTo(S * 0.35, y + 5, S * 0.65, y - 5, S * (0.84 + Math.random() * 0.08), y);
-    g.strokeStyle = 'rgba(44,30,18,' + (0.05 + Math.random() * 0.13).toFixed(3) + ')';
-    g.lineWidth = 0.8 + Math.random() * 1.6;
+    g.strokeStyle = 'rgba(44,30,18,' + (0.07 + Math.random() * 0.15).toFixed(3) + ')';
+    g.lineWidth = 0.8 + Math.random() * 2.0;
     g.stroke();
+  }
+  // 大块色斑：干燥块根的颜色不是均匀的棕，先铺低频深浅，再叠高频颗粒。
+  for (let i = 0; i < 86; i++) {
+    const x = Math.random() * S, y = Math.random() * S;
+    const r = 18 + Math.random() * 72;
+    const grd = g.createRadialGradient(x, y, 0, x, y, r);
+    const dark = Math.random() < 0.55;
+    grd.addColorStop(0, dark ? 'rgba(20,13,7,.23)' : 'rgba(166,130,86,.14)');
+    grd.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = grd;
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+  }
+  // 皮孔：横向的小白点，和纵向深沟一起构成块根表皮的识别特征
+  for (let i = 0; i < 190; i++) {
+    const x = Math.random() * S, y = Math.random() * S;
+    g.fillStyle = 'rgba(200,174,132,' + (0.10 + Math.random() * 0.20).toFixed(3) + ')';
+    g.beginPath();
+    g.ellipse(x, y, 1.4 + Math.random() * 3.4, 0.7 + Math.random() * 1.5, 0, 0, Math.PI * 2);
+    g.fill();
   }
   // 斑点与细颗粒
   for (let i = 0; i < 2600; i++) {
@@ -6422,10 +6687,7 @@ function makeTuberTex() {
                                       : 'rgba(190,160,120,' + (a * 0.35).toFixed(3) + ')';
     g.fillRect(Math.random() * S, Math.random() * S, 1 + Math.random() * 2, 1 + Math.random() * 2);
   }
-  const t = new THREE.CanvasTexture(cv);
-  t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.needsUpdate = true;
-  return t;
+  return xueColorTex(cv);
 }
 function makeLeafTex() {
   const S = 512, cv = document.createElement('canvas');
@@ -6433,35 +6695,63 @@ function makeLeafTex() {
   const g = cv.getContext('2d');
   // 底色：整体偏深的油绿，只在两侧做很轻的明暗差。
   // 早先用强横向渐变，叶片正面被拉成一条亮带，整片叶子读成塑料片。
+  // 比上一版提亮约 1.3 倍：原来的深绿在 sRGB + PBR 下接近墨绿，
+  // 远看容易和黑底糊在一起；提亮后才接得上三七叶片的明度。
   const bg = g.createLinearGradient(0, 0, S, 0);
-  bg.addColorStop(0.00, '#255c31');
-  bg.addColorStop(0.30, '#2e6b39');
-  bg.addColorStop(0.55, '#357741');
-  bg.addColorStop(0.80, '#2b6537');
-  bg.addColorStop(1.00, '#224f2c');
+  bg.addColorStop(0.00, '#336f3d');
+  bg.addColorStop(0.30, '#428a4b');
+  bg.addColorStop(0.55, '#4d9a58');
+  bg.addColorStop(0.80, '#3b8246');
+  bg.addColorStop(1.00, '#2f6639');
   g.fillStyle = bg; g.fillRect(0, 0, S, S);
+  // 低频色斑：三七叶不是一块均匀的绿，有受光偏黄和背光偏蓝的斑块。
+  // 先铺大斑，再画叶脉，叶脉才不会被斑驳盖住。
+  for (let i = 0; i < 90; i++) {
+    const x = Math.random() * S, y = Math.random() * S;
+    const r = 16 + Math.random() * 58;
+    const grd = g.createRadialGradient(x, y, 0, x, y, r);
+    const light = Math.random() < 0.5;
+    grd.addColorStop(0, light ? 'rgba(176,198,110,.12)' : 'rgba(10,38,22,.13)');
+    grd.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = grd;
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+  }
   // 掌状脉：五条主脉自叶基（画布下方中央）放射到各裂片尖，
   // 这是掌状深裂叶最直观的特征 —— 羽状脉会让叶子读成"竹叶"。
   const bx = S * 0.5, by = S * 0.99;
   const tips = [[0.04, 0.06], [0.24, 0.02], [0.5, 0.01], [0.76, 0.02], [0.96, 0.06]];
   tips.forEach((tp, i) => {
     const tx = tp[0] * S, ty = tp[1] * S;
-    g.beginPath();
-    g.moveTo(bx, by);
-    g.quadraticCurveTo((bx + tx) * 0.5 + (i - 2) * 8, (by + ty) * 0.55, tx, ty);
-    g.strokeStyle = 'rgba(198,226,172,.34)'; g.lineWidth = 3.4; g.stroke();
+    const vein = () => {
+      g.beginPath();
+      g.moveTo(bx, by);
+      g.quadraticCurveTo((bx + tx) * 0.5 + (i - 2) * 8, (by + ty) * 0.55, tx, ty);
+    };
+    // 脉旁暗沟 → 脉体亮线：只画一条亮线仍然像印上去的，明暗成对才有隆起感
+    vein(); g.strokeStyle = 'rgba(9,32,16,.38)'; g.lineWidth = 6.2; g.stroke();
+    vein(); g.strokeStyle = 'rgba(214,232,176,.56)'; g.lineWidth = 3.6; g.stroke();
     // 侧脉：从主脉向两侧斜出
-    for (let k = 1; k <= 7; k++) {
-      const u = k / 8;
+    for (let k = 1; k <= 8; k++) {
+      const u = k / 9;
       const px = bx + (tx - bx) * u, py = by + (ty - by) * u;
       for (const sd of [-1, 1]) {
         g.beginPath();
         g.moveTo(px, py);
         g.lineTo(px + sd * (10 + 18 * u), py - 16 - 10 * u);
-        g.strokeStyle = 'rgba(186,216,160,.16)'; g.lineWidth = 1.2; g.stroke();
+        g.strokeStyle = 'rgba(186,216,160,.27)'; g.lineWidth = 1.25; g.stroke();
       }
     }
   });
+  // 网状细脉：在侧脉之间补短线，凑近看不会只剩一片平涂的绿
+  for (let i = 0; i < 620; i++) {
+    const x = Math.random() * S, y = Math.random() * S * 0.96;
+    const a = Math.random() * Math.PI * 2, l = 3 + Math.random() * 10;
+    g.beginPath();
+    g.moveTo(x, y);
+    g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l);
+    g.strokeStyle = 'rgba(160,196,132,' + (0.06 + Math.random() * 0.08).toFixed(3) + ')';
+    g.lineWidth = 0.7; g.stroke();
+  }
   // 斑驳：叶面色深浅不匀
   for (let i = 0; i < 1800; i++) {
     const a = 0.02 + Math.random() * 0.07;
@@ -6471,35 +6761,157 @@ function makeLeafTex() {
     g.arc(Math.random() * S, Math.random() * S, 1 + Math.random() * 3.5, 0, Math.PI * 2);
     g.fill();
   }
+  return xueColorTex(cv);
+}
+// 茎：三七的茎有细纵棱、节和轻微紫褐斑。之前雪上一枝蒿的茎是一根纯色棒，
+// 在叶片和块根都有纹理的旁边非常显眼 —— 这是"质感不一致"里最容易被看到的一处。
+function makeStemTex() {
+  const S = 512, cv = document.createElement('canvas');
+  cv.width = S; cv.height = S;
+  const g = cv.getContext('2d');
+  const bg = g.createLinearGradient(0, 0, S, 0);
+  bg.addColorStop(0.00, '#4a5f39');
+  bg.addColorStop(0.28, '#73884f');
+  bg.addColorStop(0.55, '#88995c');
+  bg.addColorStop(0.80, '#6b7d47');
+  bg.addColorStop(1.00, '#43532f');
+  g.fillStyle = bg; g.fillRect(0, 0, S, S);
+  // 纵向细棱：茎表面不是光滑圆柱
+  for (let i = 0; i < 90; i++) {
+    const x = Math.random() * S;
+    g.beginPath(); g.moveTo(x, -8);
+    let cx = x;
+    for (let y = 0; y <= S; y += 20) { cx += (Math.random() - 0.5) * 5; g.lineTo(cx, y); }
+    g.strokeStyle = Math.random() < 0.55
+      ? 'rgba(28,40,20,' + (0.05 + Math.random() * 0.14).toFixed(3) + ')'
+      : 'rgba(190,205,150,' + (0.03 + Math.random() * 0.09).toFixed(3) + ')';
+    g.lineWidth = 0.7 + Math.random() * 2.0; g.stroke();
+  }
+  // 节：横向的浅环，和极淡的紫褐晕
+  for (const y of [0.20, 0.55, 0.84]) {
+    const yy = y * S;
+    const ring = g.createLinearGradient(0, yy - 12, 0, yy + 14);
+    ring.addColorStop(0, 'rgba(60,45,40,0)');
+    ring.addColorStop(0.45, 'rgba(66,48,44,.20)');
+    ring.addColorStop(1, 'rgba(60,45,40,0)');
+    g.fillStyle = ring; g.fillRect(0, yy - 12, S, 26);
+    for (let i = 0; i < 40; i++) {
+      g.fillStyle = 'rgba(35,28,24,' + (0.03 + Math.random() * 0.08).toFixed(3) + ')';
+      g.fillRect(Math.random() * S, yy - 4 + Math.random() * 8, 1 + Math.random() * 4, 1);
+    }
+  }
+  // 细颗粒与气孔
+  for (let i = 0; i < 1800; i++) {
+    const a = 0.02 + Math.random() * 0.07;
+    g.fillStyle = Math.random() < 0.5
+      ? 'rgba(22,32,16,' + a.toFixed(3) + ')'
+      : 'rgba(205,215,165,' + (a * 0.6).toFixed(3) + ')';
+    g.fillRect(Math.random() * S, Math.random() * S, 1 + Math.random() * 2, 1 + Math.random() * 3);
+  }
+  return xueColorTex(cv);
+}
+function makeStemBump() {
+  const S = 512, cv = document.createElement('canvas');
+  cv.width = S; cv.height = S;
+  const g = cv.getContext('2d');
+  g.fillStyle = '#808080'; g.fillRect(0, 0, S, S);
+  for (let i = 0; i < 78; i++) {
+    const x = Math.random() * S, w = 1 + Math.random() * 5;
+    g.beginPath(); g.moveTo(x, -8);
+    let cx = x;
+    for (let y = 0; y <= S; y += 18) { cx += (Math.random() - 0.5) * 6; g.lineTo(cx, y); }
+    g.strokeStyle = 'rgba(32,32,32,' + (0.15 + Math.random() * 0.3).toFixed(2) + ')';
+    g.lineWidth = w; g.stroke();
+    g.beginPath(); g.moveTo(x + w * 0.65, -8);
+    let cx2 = x + w * 0.65;
+    for (let y = 0; y <= S; y += 18) { cx2 += (Math.random() - 0.5) * 6; g.lineTo(cx2, y); }
+    g.strokeStyle = 'rgba(210,210,210,.18)'; g.lineWidth = w * 0.45; g.stroke();
+  }
+  for (const y of [0.20, 0.55, 0.84]) {
+    g.fillStyle = 'rgba(42,42,42,.28)';
+    g.fillRect(0, y * S - 2, S, 4);
+    g.fillStyle = 'rgba(205,205,205,.16)';
+    g.fillRect(0, y * S + 2, S, 2);
+  }
+  for (let i = 0; i < 2200; i++) {
+    g.fillStyle = Math.random() < 0.5 ? 'rgba(50,50,50,.12)' : 'rgba(200,200,200,.10)';
+    g.beginPath();
+    g.arc(Math.random() * S, Math.random() * S, 0.7 + Math.random() * 1.8, 0, Math.PI * 2);
+    g.fill();
+  }
   const t = new THREE.CanvasTexture(cv);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.anisotropy = plantAniso();
   t.needsUpdate = true;
   return t;
 }
-function makeFlowerTex() {
-  const S = 256, cv = document.createElement('canvas');
+function makeFlowerBump() {
+  const S = 512, cv = document.createElement('canvas');
   cv.width = S; cv.height = S;
   const g = cv.getContext('2d');
-  const bg = g.createLinearGradient(0, 0, 0, S);
-  bg.addColorStop(0, '#8e8ee0');
-  bg.addColorStop(0.5, '#6a6cc4');
-  bg.addColorStop(1, '#3f4189');
-  g.fillStyle = bg; g.fillRect(0, 0, S, S);
-  // 纵向细纹（花瓣的脉）
-  for (let i = 0; i < 70; i++) {
+  g.fillStyle = '#808080'; g.fillRect(0, 0, S, S);
+  // 花瓣纵脉：与颜色图同一方向，但作为法线参与受光
+  for (let i = 0; i < 90; i++) {
     const x = Math.random() * S;
-    g.beginPath(); g.moveTo(x, 0); g.lineTo(x + (Math.random() - 0.5) * 18, S);
-    g.strokeStyle = 'rgba(48,48,120,' + (0.05 + Math.random() * 0.16).toFixed(3) + ')';
-    g.lineWidth = 0.8 + Math.random() * 1.6; g.stroke();
+    g.beginPath(); g.moveTo(x, 0);
+    g.quadraticCurveTo(x + (Math.random() - 0.5) * 22, S * 0.5, x + (Math.random() - 0.5) * 30, S);
+    g.strokeStyle = 'rgba(50,50,50,' + (0.12 + Math.random() * 0.22).toFixed(2) + ')';
+    g.lineWidth = 1 + Math.random() * 2.6; g.stroke();
+    if (Math.random() < 0.4) {
+      g.strokeStyle = 'rgba(205,205,205,.16)'; g.lineWidth = 0.8; g.stroke();
+    }
   }
-  for (let i = 0; i < 700; i++) {
-    g.fillStyle = 'rgba(200,200,255,' + (0.02 + Math.random() * 0.07).toFixed(3) + ')';
-    g.fillRect(Math.random() * S, Math.random() * S, 1.5, 1.5);
+  // 花瓣基部的细颗粒
+  for (let i = 0; i < 1000; i++) {
+    g.fillStyle = Math.random() < 0.5 ? 'rgba(45,45,45,.10)' : 'rgba(215,215,215,.10)';
+    g.beginPath();
+    g.arc(Math.random() * S, Math.random() * S, 0.8 + Math.random() * 2.2, 0, Math.PI * 2);
+    g.fill();
   }
   const t = new THREE.CanvasTexture(cv);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.anisotropy = plantAniso();
   t.needsUpdate = true;
   return t;
+}
+
+function makeFlowerTex() {
+  const S = 512, cv = document.createElement('canvas');
+  cv.width = S; cv.height = S;
+  const g = cv.getContext('2d');
+  const bg = g.createLinearGradient(0, 0, 0, S);
+  bg.addColorStop(0, '#9e9eed');
+  bg.addColorStop(0.5, '#7a7cd4');
+  bg.addColorStop(1, '#4c4e9a');
+  g.fillStyle = bg; g.fillRect(0, 0, S, S);
+  // 低频色斑：花瓣从喉部到盔顶、从中心到边缘有色差，先铺再画脉
+  for (let i = 0; i < 60; i++) {
+    const x = Math.random() * S, y = Math.random() * S;
+    const r = 14 + Math.random() * 56;
+    const grd = g.createRadialGradient(x, y, 0, x, y, r);
+    grd.addColorStop(0, Math.random() < 0.5 ? 'rgba(190,190,255,.12)' : 'rgba(38,34,96,.13)');
+    grd.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = grd;
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+  }
+  // 纵向细纹（花瓣的脉）：暗沟 + 亮线成对，近距离才有绸缎感
+  for (let i = 0; i < 130; i++) {
+    const x = Math.random() * S, sway = (Math.random() - 0.5) * 26;
+    const vein = () => {
+      g.beginPath(); g.moveTo(x, 0);
+      g.quadraticCurveTo(x + sway, S * 0.5, x + sway * 1.4, S);
+    };
+    vein(); g.strokeStyle = 'rgba(34,34,92,' + (0.10 + Math.random() * 0.16).toFixed(3) + ')';
+    g.lineWidth = 1.0 + Math.random() * 1.8; g.stroke();
+    if (Math.random() < 0.45) {
+      vein(); g.strokeStyle = 'rgba(194,194,255,.13)'; g.lineWidth = 0.7; g.stroke();
+    }
+  }
+  for (let i = 0; i < 1100; i++) {
+    g.fillStyle = 'rgba(200,200,255,' + (0.02 + Math.random() * 0.08).toFixed(3) + ')';
+    g.fillRect(Math.random() * S, Math.random() * S, 1.5, 1.5);
+  }
+  return xueColorTex(cv);
 }
 
 // 把一串 (y, 半径) 剖面绕轴旋转成回转体 —— 块根、茎、花盔都用它。
@@ -6562,6 +6974,87 @@ function tubeBetween(a, b, r0, r1, mat, seg) {
   m.position.copy(a).addScaledVector(dir, 0.5);
   m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
   return m;
+}
+// 带拐点的须根：两点直线管在特写下像一根铁丝，真实根有弯曲和粗细变化。
+// 用两段锥形管在中点折一下，几何代价很小，根的走势自然得多。
+function curvedRoot(a, b, r0, r1, mat) {
+  const mid = a.clone().lerp(b, 0.42 + Math.random() * 0.22);
+  const off = Math.max(r0, 0.003) * 16;
+  mid.x += (Math.random() - 0.5) * off;
+  mid.z += (Math.random() - 0.5) * off;
+  mid.y += (Math.random() - 0.5) * off * 0.45;
+  const rm = Math.max(r0 * 0.58, r1);
+  const grp = new THREE.Group();
+  grp.add(tubeBetween(a, mid, r0, rm, mat, 4));
+  grp.add(tubeBetween(mid, b, rm, r1, mat, 4));
+  return grp;
+}
+
+// 把同一材质的块根主体 + 所有须根合并成一个网格。
+// 加密须根后每株会多出上百个小 draw call，合并后仍只有一个；
+// 合并后的网格仍带 userData.part='tuber'，点击/特写/射线拾取逻辑不变。
+function mergeXueTuberMeshes(root, mats) {
+  if (!root) return;
+  root.updateMatrixWorld(true);
+  const invRoot = new THREE.Matrix4().copy(root.matrixWorld).invert();
+  const buckets = new Map();
+  root.traverse(o => {
+    if (!o.isMesh || !o.material || mats.indexOf(o.material) < 0) return;
+    let p = o;
+    while (p && p !== root && !(p.userData && p.userData.part)) p = p.parent;
+    if (!p || p === root || p.userData.part !== 'tuber') return;
+    if (!buckets.has(o.material)) buckets.set(o.material, []);
+    buckets.get(o.material).push(o);
+  });
+  for (const [mat, meshes] of buckets) {
+    if (meshes.length < 2) continue;
+    const geos = [];
+    let vtx = 0, idx = 0;
+    for (const m of meshes) {
+      const rel = new THREE.Matrix4().multiplyMatrices(invRoot, m.matrixWorld);
+      const g = m.geometry.clone();
+      g.applyMatrix4(rel);
+      if (!g.index) {
+        const n = g.attributes.position.count;
+        const ind = new Uint32Array(n);
+        for (let i = 0; i < n; i++) ind[i] = i;
+        g.setIndex(new THREE.BufferAttribute(ind, 1));
+      }
+      geos.push(g);
+      vtx += g.attributes.position.count;
+      idx += g.index.count;
+    }
+    const pos = new Float32Array(vtx * 3);
+    const nor = new Float32Array(vtx * 3);
+    const uv = new Float32Array(vtx * 2);
+    const ind = new Uint32Array(idx);
+    let vo = 0, io = 0;
+    for (const g of geos) {
+      pos.set(g.attributes.position.array, vo * 3);
+      nor.set(g.attributes.normal.array, vo * 3);
+      uv.set(g.attributes.uv.array, vo * 2);
+      const gi = g.index.array;
+      for (let i = 0; i < gi.length; i++) ind[io++] = gi[i] + vo;
+      vo += g.attributes.position.count;
+      g.dispose();
+    }
+    const merged = new THREE.BufferGeometry();
+    merged.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    merged.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+    merged.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    merged.setIndex(new THREE.BufferAttribute(ind, 1));
+    merged.computeBoundingSphere();
+    const mm = new THREE.Mesh(merged, mat);
+    mm.userData.part = 'tuber';
+    for (const m of meshes) {
+      if (m.parent) m.parent.remove(m);
+    }
+    // 被搬空的 curvedRoot 组也一起清掉，避免留下空 group
+    for (const ch of [...root.children]) {
+      if (ch.isGroup && ch.children.length === 0) root.remove(ch);
+    }
+    root.add(mm);
+  }
 }
 
 // 一片掌状深裂叶（乌头属叶形）：五裂片连成一整片叶面，裂缺深而不透。
@@ -6630,16 +7123,24 @@ function buildXue3D() {
   const tuberBump = makeTuberBump();
   const leafTex = makeLeafTex();
   const flowerTex = makeFlowerTex();
+  const stemTex = makeStemTex();
+  const stemBump = makeStemBump();
+  const flowerBump = makeFlowerBump();
 
-  // 块根颜色：真实雪上一枝蒿是暗褐 / 紫褐，不是橙黄。
-  // 上一版 0x8a6a48 在强光下偏橙，整株读成"一窝红薯"。
+  // 块根：颜色贴图走 sRGB；法线/粗糙度/AO 从同一张凹凸图生成。
+  // 颜色不再靠深色常量 double-darken，而是让 sRGB 贴图给真实棕褐，材质色只做轻微暖调。
+  const tuberMaps = xueBumpMaps(tuberBump, {
+    strength: 3.8, roughIn: 0.80, roughOut: 0.985, aoIn: 0.52,
+  });
   const tuberMat = new THREE.MeshStandardMaterial({
-    map: tuberTex, bumpMap: tuberBump, bumpScale: 0.016,
-    color: 0x6b5236, roughness: 0.95, metalness: 0.0, side: THREE.DoubleSide,
+    map: tuberTex, normalMap: tuberMaps.normal, normalScale: new THREE.Vector2(1.55, 1.55),
+    roughnessMap: tuberMaps.roughness, aoMap: tuberMaps.ao, aoMapIntensity: 0.72,
+    color: 0xf2e6d6, roughness: 1.0, metalness: 0.0, side: THREE.DoubleSide,
   });
   const tuberMatYoung = new THREE.MeshStandardMaterial({
-    map: tuberTex, bumpMap: tuberBump, bumpScale: 0.012,
-    color: 0x7d6242, roughness: 0.96, metalness: 0.0, side: THREE.DoubleSide,
+    map: tuberTex, normalMap: tuberMaps.normal, normalScale: new THREE.Vector2(1.25, 1.25),
+    roughnessMap: tuberMaps.roughness, aoMap: tuberMaps.ao, aoMapIntensity: 0.60,
+    color: 0xecdcc2, roughness: 1.0, metalness: 0.0, side: THREE.DoubleSide,
   });
   // 三枚块根：主根居中直立，两枚副根贴着地面向外撇。
   // 上一版长径比给到 10:1（h=1.32 / r=0.126），正视只剩一道窄条 ——
@@ -6666,11 +7167,13 @@ function buildXue3D() {
       [1.00 * sp.h, 0.22 * sp.r],
     ];
     const g = lathe(prof, 28, {
-      rings: 40, wobble: 0.06,
+      rings: 44, wobble: 0.09,
       // 贴图按「实际长度」重复：环向周长约 2πr ≈ 1.66，纵向 h ≈ 1.30，
       // 两者不匹配时皱纹被拉成方格。以纵向为基准换算环向次数。
       uRepeat: Math.max(1, Math.round((2 * Math.PI * sp.r) / (sp.h * 0.55))),
-      vRepeat: 1.6,
+      // 贴图本身不是上下无缝的：v 方向重复 1.6 次会在块根中部出现一条横向接缝。
+      // 只在纵向铺一次，接缝消失；纹理被轻微拉长，但 512² 的细节仍够用。
+      vRepeat: 1.0,
     });
     const m = new THREE.Mesh(g, sp.young ? tuberMatYoung : tuberMat);
     m.position.set(sp.x, sp.y, sp.z);
@@ -6678,20 +7181,37 @@ function buildXue3D() {
     m.userData.part = 'tuber';       // 部位视图靠这个标记把块根整组取出来
     root.add(m);
     tubers.push(m);
-    // 须根：块根下部斜出的细根，是"块根"最好的体积参照物
-    const nb = sp.young ? 5 : 8;
+    // 须根：块根下部斜出的细根，是"块根"最好的体积参照物。
+    // 之前每枚只有 5–8 根光溜溜的主根，凑近看像三条萝卜插了几根牙签；
+    // 三七的根系是几百根细根+分叉，这里加密到每枚 12–22 根，并补一级分叉。
+    const nb = sp.young ? 12 : 22;
     for (let i = 0; i < nb; i++) {
-      const a = (i / nb) * Math.PI * 2 + sp.rot;
-      const yy = sp.y + sp.h * (0.04 + 0.16 * (i % 3) / 3);
-      const rr = sp.r * (0.18 + 0.10 * (i % 2));
+      const a = (i / nb) * Math.PI * 2 + sp.rot + (Math.random() - 0.5) * 0.55;
+      const yy = sp.y + sp.h * (0.015 + Math.random() * 0.20);
+      const rr = sp.r * (0.10 + Math.random() * 0.26);
       const from = new THREE.Vector3(
         sp.x + Math.cos(a) * rr, yy, sp.z + Math.sin(a) * rr);
-      const L = 0.10 + (i % 4) * 0.045;
+      const L = 0.06 + Math.random() * 0.24;
+      const out = L * (0.25 + Math.random() * 0.65);
       const to = new THREE.Vector3(
-        from.x + Math.cos(a) * L * 0.7, yy - L, from.z + Math.sin(a) * L * 0.7);
-      const rf = tubeBetween(from, to, 0.011, 0.0035, tuberMat, 5);
+        from.x + Math.cos(a) * out, yy - L * (0.85 + Math.random() * 0.65),
+        from.z + Math.sin(a) * out);
+      const thick = 0.0050 + Math.random() * 0.0065;
+      const rf = curvedRoot(from, to, thick, thick * 0.28, tuberMat);
       rf.userData.part = 'tuber';
       root.add(rf);
+      // 一级分叉：真实须根很少是一根到底，有分叉才读得出"根"
+      if (Math.random() < 0.55) {
+        const mid = from.clone().lerp(to, 0.35 + Math.random() * 0.35);
+        const a2 = a + (Math.random() - 0.5) * 1.9;
+        const L2 = L * (0.28 + Math.random() * 0.42);
+        const to2 = new THREE.Vector3(
+          mid.x + Math.cos(a2) * L2 * 0.55, mid.y - L2,
+          mid.z + Math.sin(a2) * L2 * 0.55);
+        const br = curvedRoot(mid, to2, thick * 0.48, thick * 0.16, tuberMat);
+        br.userData.part = 'tuber';
+        root.add(br);
+      }
     }
     // 茎痕：块根顶端那一圈收缩的断口，乌头属鉴别的要点之一
     if (!sp.young) {
@@ -6705,8 +7225,14 @@ function buildXue3D() {
   });
 
   // ── 茎：细而有节，绿色偏紫 ──
+  // 和三七的茎一样走完整 PBR：颜色图 + 法线 + 粗糙度 + AO。
+  const stemMaps = xueBumpMaps(stemBump, {
+    strength: 1.8, roughIn: 0.72, roughOut: 0.92, aoIn: 0.68,
+  });
   const stemMat = new THREE.MeshStandardMaterial({
-    color: 0x62703f, roughness: 0.86, metalness: 0.0,
+    map: stemTex, normalMap: stemMaps.normal, normalScale: new THREE.Vector2(0.9, 0.9),
+    roughnessMap: stemMaps.roughness, aoMap: stemMaps.ao, aoMapIntensity: 0.62,
+    color: 0xe8f0d8, roughness: 1.0, metalness: 0.0,
   });
   const stemProf = [
     [0.00, 0.026],
@@ -6716,7 +7242,7 @@ function buildXue3D() {
     [1.58 + 0.40, 0.012],
     [1.98 + 0.30, 0.006],
   ];
-  const stem = new THREE.Mesh(lathe(stemProf, 14, { rings: 44 }), stemMat);
+  const stem = new THREE.Mesh(lathe(stemProf, 14, { rings: 44, uRepeat: 2, vRepeat: 2.6 }), stemMat);
   stem.position.y = 0.06;
   root.add(stem);
 
@@ -6756,14 +7282,19 @@ function buildXue3D() {
     t.needsUpdate = true;
     return t;
   })();
+  const leafMaps = xueBumpMaps(leafBump, {
+    strength: 2.5, roughIn: 0.62, roughOut: 0.90, aoIn: 0.60,
+  });
   const leafMat = new THREE.MeshStandardMaterial({
-    map: leafTex, bumpMap: leafBump, bumpScale: 0.012,
-    color: 0x7fae6a, roughness: 0.74, metalness: 0.0, side: THREE.DoubleSide,
+    map: leafTex, normalMap: leafMaps.normal, normalScale: new THREE.Vector2(1.25, 1.25),
+    roughnessMap: leafMaps.roughness, aoMap: leafMaps.ao, aoMapIntensity: 0.62,
+    color: 0xd8e4c4, roughness: 1.0, metalness: 0.0, side: THREE.DoubleSide,
   });
-  const leafMatDark = new THREE.MeshStandardMaterial({
-    map: leafTex, bumpMap: leafBump, bumpScale: 0.012,
-    color: 0x5f8a52, roughness: 0.78, metalness: 0.0, side: THREE.DoubleSide,
-  });
+  const leafMatDark = leafMat.clone();
+  leafMatDark.color.setHex(0xbccbae);
+  leafMatDark.normalScale = new THREE.Vector2(1.05, 1.05);
+  const leafMatPale = leafMat.clone();
+  leafMatPale.color.setHex(0xe4ecd2);
   // 叶片沿 +Z 生长、叶面法线 +Y、叶基在原点。摆放时先绕 Y 转到方位角，
   // 再绕 X 前倾近 90°：叶片立起来、叶尖向外下垂，正面朝向观察者。
   // curl 从 0.42 提到 0.95 —— 真实乌头叶是明显下垂、边缘上卷的，
@@ -6776,7 +7307,9 @@ function buildXue3D() {
     { y: 0.73, ang: 3.38, len: 0.80, wid: 1.08, tilt: 0.60, s: 0.82, rad: 0.30, curl: 0.92 },
   ];
   leafPos.forEach((L, i) => {
-    const lf = new THREE.Mesh(xueLobedLeafGeo(L.len, L.wid, L.curl), i % 2 ? leafMatDark : leafMat);
+    const lf = new THREE.Mesh(
+      xueLobedLeafGeo(L.len, L.wid, L.curl),
+      i === 1 ? leafMatDark : (i === 4 ? leafMatPale : leafMat));
     lf.rotation.order = 'YXZ';
     const rad = L.rad;
     const base = new THREE.Vector3(Math.sin(L.ang) * rad, L.y, Math.cos(L.ang) * rad);
@@ -6794,13 +7327,33 @@ function buildXue3D() {
   // 上一版是四团蓝点：盔不成盔、没有侧萼、没有距，远看只是"一些蓝色像素"。
   // 乌头属的花被片结构很特殊 —— 上萼片膨大成兜状"盔"，盔后伸出小"距"，
   // 两侧各一枚宽卵形侧萼片。把这些做出来，花序才有辨识度。
+  const flowerMaps = xueBumpMaps(flowerBump, {
+    strength: 1.8, roughIn: 0.46, roughOut: 0.72, aoIn: 0.72,
+  });
   const flowerMat = new THREE.MeshStandardMaterial({
-    map: flowerTex, color: 0x7a80dc, roughness: 0.55, metalness: 0.0,
-    side: THREE.DoubleSide,
+    map: flowerTex, normalMap: flowerMaps.normal, normalScale: new THREE.Vector2(1.1, 1.1),
+    roughnessMap: flowerMaps.roughness, aoMap: flowerMaps.ao, aoMapIntensity: 0.58,
+    color: 0xe0e4ff, roughness: 1.0, metalness: 0.0, side: THREE.DoubleSide,
   });
   const flowerMatDeep = new THREE.MeshStandardMaterial({
-    map: flowerTex, color: 0x4e52a8, roughness: 0.62, metalness: 0.0,
-    side: THREE.DoubleSide,
+    map: flowerTex, normalMap: flowerMaps.normal, normalScale: new THREE.Vector2(1.0, 1.0),
+    roughnessMap: flowerMaps.roughness, aoMap: flowerMaps.ao, aoMapIntensity: 0.60,
+    color: 0xc8ccff, roughness: 1.0, metalness: 0.0, side: THREE.DoubleSide,
+  });
+  // 同一串花里每朵的开放程度/受光不同，共用两个材质会读成"复制粘贴"。
+  // 克隆时贴图共享，只改颜色乘子，几乎不增加显存。
+  const flowerMatPale = flowerMat.clone();
+  flowerMatPale.color.setHex(0xf0f4ff);
+  const flowerMatCool = flowerMat.clone();
+  flowerMatCool.color.setHex(0xc8d0ff);
+  const flowerMatDeepCool = flowerMatDeep.clone();
+  flowerMatDeepCool.color.setHex(0xaeb4f0);
+  // 盔内部：给开口一个更深的喉部，花才不是一只空心的蓝壳。
+  const flowerThroatMat = new THREE.MeshStandardMaterial({
+    color: 0x2d2760, roughness: 0.82, metalness: 0.0, side: THREE.DoubleSide,
+  });
+  const flowerAntherMat = new THREE.MeshStandardMaterial({
+    color: 0xc9b46e, roughness: 0.7, metalness: 0.0,
   });
   // ── 花：盔状（乌头属唯一的辨识点）──
   // 关键教训：用 lathe 旋转 360° 做盔，得到的一定是"球/铃"—— 回转体没有开口，
@@ -6856,6 +7409,24 @@ function buildXue3D() {
     // 盔：开口兜状壳
     const helm = new THREE.Mesh(helmShared, mat);
     f.add(helm);
+    // 喉部：盔口内的一团暗色花被/雄蕊群。没有它，开口只是一个空壳，
+    // 受光后从缺口直接看到背景，花会显得像纸片折的。
+    const throat = new THREE.Mesh(new THREE.SphereGeometry(0.105, 14, 10), flowerThroatMat);
+    throat.scale.set(1.18, 0.58, 1.0);
+    throat.position.set(0, 0.095, -0.012);
+    f.add(throat);
+    // 雄蕊群：4 枚内伸的细丝 + 淡黄花药，只在特写距离明显，
+    // 但能避免盔口内部是一团纯色暗块。
+    for (let s = 0; s < 4; s++) {
+      const ang = -0.58 + s * 0.38;
+      const from = new THREE.Vector3(Math.sin(ang) * 0.024, 0.050, Math.cos(ang) * 0.016);
+      const to = new THREE.Vector3(
+        Math.sin(ang) * 0.072, 0.185 + s * 0.012, Math.cos(ang) * 0.055);
+      f.add(tubeBetween(from, to, 0.0032, 0.0018, flowerThroatMat, 4));
+      const anther = new THREE.Mesh(new THREE.SphereGeometry(0.011, 6, 5), flowerAntherMat);
+      anther.position.copy(to);
+      f.add(anther);
+    }
     // 喙：盔顶前伸的小尖，乌头的"鹰嘴"就是这个
     const beak = new THREE.Mesh(new THREE.ConeGeometry(0.052, 0.155, 10), matDeep);
     beak.position.set(0, 0.545, 0.115);
@@ -6905,7 +7476,9 @@ function buildXue3D() {
     const to = new THREE.Vector3(
       Math.sin(R.a) * R.pl, R.y + R.pl * 0.30, Math.cos(R.a) * R.pl);
     root.add(tubeBetween(from, to, 0.009, 0.006, stemMat, 6));
-    const fl = xueFlower(i % 2 ? flowerMatDeep : flowerMat, flowerMat);
+    const fl = xueFlower(
+      i % 3 === 0 ? flowerMatPale : (i % 3 === 1 ? flowerMat : flowerMatCool),
+      i % 4 === 0 ? flowerMatDeepCool : flowerMatDeep);
     fl.position.copy(to);
     fl.rotation.order = 'YXZ';
     // 花的朝向：不要把盔口正对镜头 —— 那样只看见一张"鼓脸"。
@@ -6924,19 +7497,40 @@ function buildXue3D() {
   root.position.set(0, -0.62, 0);
   root.scale.setScalar(0.72);
   root.visible = false;
+
   scene.add(root);
 
-  // 专用灯光：PBR 材质必须有方向光才显出体积（粒子层靠自身发光，不需要）
-  const lights = new THREE.Group();
-  lights.add(new THREE.AmbientLight(0xffffff, 0.85));
-  const ld1 = new THREE.DirectionalLight(0xfff2dc, 1.75); ld1.position.set(2.4, 3.6, 2.8); lights.add(ld1);
-  const ld2 = new THREE.DirectionalLight(0xc8d8ff, 0.65); ld2.position.set(-2.6, 1.8, -2.2); lights.add(ld2);
-  const ld3 = new THREE.DirectionalLight(0xffe0b0, 0.40); ld3.position.set(0, -2.2, 1.8); lights.add(ld3);
-  lights.visible = false;
-  scene.add(lights);
+  // 须根加密后会有上百个小网格；按材质合并块根主体+须根，保住 draw call。
+  mergeXueTuberMeshes(root, [tuberMat, tuberMatYoung]);
+
+  // AO 贴图要用第二套 UV。合并后的块根网格也要补 uv2；
+  // 必须放在 merge 之后，否则合并后的新几何会丢掉这层属性。
+  root.traverse(o => {
+    if (!o.isMesh || !o.material || !o.material.aoMap) return;
+    const g = o.geometry;
+    if (!g || !g.attributes.uv || g.attributes.uv2) return;
+    g.setAttribute('uv2', new THREE.BufferAttribute(g.attributes.uv.array.slice(), 2));
+  });
+
+  // 与三七同角度、同强度的灯光组。雪上一枝蒿之前额外加了一盏底部暖光，
+  // 把块根下缘照得发亮，体积感反而比三七平；这里统一成同一套 key/fill。
+  const lights = makePlantLights();
+  // 雪上一枝蒿专属：一盏很弱的前向补光，只把朝向观察者的这一面提一点亮度，
+  // 不参与三七的照明，也不改主光/补光的角度与强度。
+  const xueFront = new THREE.DirectionalLight(0xfff4e4, 0.34);
+  xueFront.position.set(0.7, 1.4, 5.2);
+  xueFront.userData.baseI = 0.34;
+  lights.add(xueFront);
+
+  // 脚下的暖光：三七有，雪上一枝蒿之前没有，所以后者像悬在黑色背景里的贴图。
+  // 块根底端与三七主根落在同一高度，共用一套地面光晕即可。
+  const glow = makeGroundGlow(2.8, 0.72, -1.585);
+  XUE3D.glow = glow;
 
   XUE3D.group = root;
   XUE3D.lights = lights;
+  XUE3D.baseScale = root.scale.x;
+  XUE3D.baseY = XUE_BASE_Y;       // xue3dTick 的呼吸基线（比原始基线约下移 8px）
   XUE3D.built = true;
   return root;
 }
@@ -6973,7 +7567,20 @@ function buildXueLabelEls() {
       d.title = '点击查看部位';
       d.addEventListener('click', e => {
         e.stopPropagation();
-        if (typeof selectMedPart === 'function') selectMedPart(l.part);
+        if (PART_TRANS.active || performance.now() < HERB_ZOOM.suppressClickUntil) return;
+        const info = l.part === 'flower' ? MED_FLOWER[HERB] : MED_INFO[HERB];
+        const host = (XUE3D.group && XUE3D.group.visible) ? XUE3D.group : XUE.points;
+        host.updateMatrixWorld();
+        const world = new THREE.Vector3(info.anchor[0], info.anchor[1], info.anchor[2])
+          .applyMatrix4(host.matrixWorld);
+        if (!beginPartTransition(l.part, world) && typeof selectMedPart === 'function') selectMedPart(l.part);
+      });
+    } else {
+      // 叶、茎等非入药部位：至少给出明确反馈，而不是点了没反应
+      d.style.cursor = 'pointer';
+      d.addEventListener('click', e => {
+        e.stopPropagation();
+        showHerbToast(l.t, '雪上一枝蒿以块根入药；花序仅作识别。叶、茎不入药。');
       });
     }
     box.appendChild(d);
@@ -6983,6 +7590,8 @@ function buildXueLabelEls() {
 function updateXueLabels() {
   const box = document.getElementById('herbLabels');
   if (!box) return;
+  // 部位特写里不显示整株的标注，否则会浮在块根/花序特写上
+  if (PV.on) { box.classList.remove('on'); return; }
   // 标注投影的宿主：优先实体模型（现在常态显示的就是它），
   // 回落到粒子层 —— 两者的坐标系一致（同一个 points.rotation）。
   const host = (XUE3D.group && XUE3D.group.visible) ? XUE3D.group : XUE.points;
@@ -7111,7 +7720,9 @@ function xueTick(dt, t) {
   XUE.points.rotation.x += 0.10;
   XUE.points.rotation.z += 0.02;
   XUE.points.position.y = 0.02;
-  updateXueLabels();
+  // 实体模型可见时由紧随其后的 xue3dTick() 更新标签（同一帧写两次只会
+  // 让标签目标点在两套矩阵间来回跳）；粒子层显示时才在这里更新。
+  if (!(XUE3D.group && XUE3D.group.visible)) updateXueLabels();
 }
 
 // 实体模型的每帧驱动：跟随手势整体旋转 + 呼吸 + 展开时块根轻微外撇。
@@ -7123,7 +7734,11 @@ function xue3dTick(dt, t) {
   g.rotation.copy(points.rotation);
   g.rotation.x += 0.04;
   g.rotation.z += 0.015;
-  g.position.y = 0.10 + Math.sin(t * 0.9) * 0.010;   // 极轻的呼吸，别像静物标本
+  // 先回到基准变换，再叠乘捏合缩放（否则每帧乘 k 会指数放大）
+  g.scale.setScalar(XUE3D.baseScale || 0.72);
+  g.position.set(0, (XUE3D.baseY === undefined ? XUE_BASE_Y : XUE3D.baseY) +
+                    Math.sin(t * 0.9) * 0.010, 0);
+  applyHerbZoom(g);
   const badge = document.getElementById('stateBadge');
   if (badge && document.body.classList.contains('herb-mode')) {
     const txt = XUE3D.open > 0.5 ? '散气 · 块根开裂' : '聚气 · 一枝蒿敛形';
@@ -7142,16 +7757,16 @@ const MED_INFO = {
   xue:   { text: '块根（干燥）',     en: 'Aconiti Brachypodi Radix', anchor: [0.02, -0.98, 0.16], hitR: 120, off: [96, -6],
            desc: '毛茛科植物短柄乌头 Aconitum brachypodum Diels 的干燥块根。秋末冬初采挖，去净须根，洗净，晒干。呈长圆柱形或长纺锤形，表面棕黄色，断面白色粉性。味苦、辛，性温，有大毒。' },
 };
-// 花也是药用部位：三七花（花蕾）、雪上一枝蒿花序
+// 三七顶端呈现的是果期红籽（果实）；雪上一枝蒿顶端是花序
 const MED_FLOWER = {
   sanqi: {
-    text: '花（三七花）', en: 'Notoginseng Flower', anchor: [0.02, 1.32, 0.06], hitR: 76, off: [96, -6],
-    desc: '五加科植物三七的干燥花蕾，夏末秋初花开放前采收。呈半球形或球形，表面灰绿色至黄绿色，由多数小花蕾密集而成。味甘，性凉，归肝、心经；清热生津、平肝降压。模型为果期，红色浆果所在位置即原花序。',
+    text: '果实（三七红籽）', en: 'Notoginseng Fruit', anchor: [0.02, 1.32, 0.06], hitR: 76, off: [96, -6],
+    desc: '五加科植物三七的核果状浆果，成熟时鲜红色，俗称「红籽」。果实聚成伞形果序，内含种子，秋季果熟。三七以根及根茎入药，果实不作药用，主要留作采种育苗。',
     rows: [
-      ['性味', 'Property', '甘，凉；归肝、心经', 'Sweet, cool; Liver & Heart'],
-      ['功效', 'Actions', '清热生津、平肝降压', 'Clears heat, calms liver, lowers BP'],
-      ['用法', 'Usage', '3–5 g，沸水泡服', '3–5 g, taken as infusion'],
-      ['注意', 'Caution', '脾胃虚寒者慎用', 'Caution in cold-deficiency of spleen/stomach'],
+      ['形态', 'Morphology', '核果状浆果，成熟时鲜红，聚成伞形果序', 'Drupe-like berries, bright red, in an umbel'],
+      ['果期', 'Fruiting', '秋季果熟，由绿转红', 'Ripens in autumn, green turning red'],
+      ['用途', 'Use', '采种育苗；非《中国药典》药用部位', 'Seed propagation; not an official medicinal part'],
+      ['注意', 'Note', '果实不作药用，不能替代三七根', 'Not used as medicine; not a root substitute'],
     ],
   },
   xue: {
@@ -7161,6 +7776,33 @@ const MED_FLOWER = {
       ['成分', 'Constituent', '二萜类生物碱（乌头碱等）', 'Diterpene alkaloids (aconitine etc.)'],
       ['禁忌', 'Warning', '严禁入口，仅可识别', 'Never ingest; identification only'],
     ],
+  },
+};
+// 三七的叶、茎：不是药典药用部位，但同样给出部位特写与说明
+const MED_EXTRA = {
+  sanqi: {
+    leaf: {
+      text: '叶（三七叶）', en: 'Notoginseng Leaf',
+      desc: '五加科植物三七的掌状复叶。3–4 轮，每轮 5–7 小叶，叶缘具锯齿，叶脉明显。叶中含人参皂苷 Rg1、Rb1 及黄酮类成分，民间曾代茶饮，但非《中国药典》规定的药用部位，不能替代三七根。',
+      rows: [
+        ['形态', 'Morphology', '掌状复叶，3–4 轮；每轮 5–7 小叶，叶缘锯齿', 'Palmately compound, 3–4 whorls; 5–7 leaflets'],
+        ['结构', 'Anatomy', '上/下表皮、栅栏组织、海绵组织、叶脉维管束', 'Epidermis, palisade/spongy mesophyll, veins'],
+        ['成分', 'Constituents', '人参皂苷 Rg1、Rb1，黄酮类', 'Ginsenosides Rg1/Rb1, flavonoids'],
+        ['用途', 'Uses', '民间代茶饮；非药典药用部位', 'Folk tea; not an official medicinal part'],
+        ['注意', 'Note', '皂苷组成与根不同，不能替代三七根', 'Different saponin profile; not a root substitute'],
+      ],
+    },
+    stem: {
+      text: '茎（地上茎）', en: 'Aerial Stem',
+      desc: '三七的地上茎，圆柱形，绿色或微带紫色，表面有纵棱。地上茎不入药；采挖时剪去茎叶，只保留地下的根及根茎。根茎（剪口）位于茎与根相接处。',
+      rows: [
+        ['形态', 'Morphology', '圆柱形，绿色或带紫，表面纵棱', 'Cylindrical, green to purplish, longitudinally ridged'],
+        ['结构', 'Structure', '外皮、皮层、髓部', 'Epidermis, cortex, pith'],
+        ['维管束', 'Vascular', '外韧维管束环列，纤维帽 + 韧皮部 + 木质部', 'Collateral bundles in a ring: fibres, phloem, xylem'],
+        ['用途', 'Uses', '地上茎不入药，采挖时剪去', 'Not used; cut away at harvest'],
+        ['剪口', 'Jiankou', '根茎为茎根相接处，保留入药', 'Rhizome at stem-root junction is retained'],
+      ],
+    },
   },
 };
 const FLOWER_INSET = { sanqi: { built: false, points: null }, xue: { built: false, points: null } };
@@ -7362,9 +8004,56 @@ function ensureMedInset(name) {
   rec.built = true;
   return obj;
 }
+// 植物特写讲解卡：手机竖屏默认折叠到标题，点标题/箭头展开。
+// 与中药属性卡（#herbCard 的 hc-fold）同一套交互语言。
+function isMobilePortrait() {
+  return window.innerWidth <= 900 && window.innerHeight > window.innerWidth;
+}
+// 本草整株的基准缩放：桌面/手机沿用 2.6；iPad 竖屏（高度大、宽度宽）
+// 按视口比例收一档，否则植株会顶出左右边缘。
+function herbMainScale() {
+  if (!isMobilePortrait()) return 2.6;
+  return 2.6 * Math.min(1,
+    844 / Math.max(640, window.innerHeight),
+    900 / Math.max(720, window.innerWidth));
+}
+function herbMainBaseY() {
+  return -1.55 * herbMainScale() / 2.6;
+}
+function setPartCardFolded(folded) {
+  const card = document.querySelector('#partModal .pm-card');
+  const head = document.getElementById('pmHead');
+  const btn = document.getElementById('pmFold');
+  if (!card) return;
+  card.classList.toggle('folded', !!folded);
+  if (head) head.setAttribute('aria-expanded', folded ? 'false' : 'true');
+  if (btn) btn.setAttribute('aria-label', folded ? '展开' : '收起');
+  // 折叠会改变卡片高度，部位构图的“安全区”要跟着重算。
+  // 必须同步重排：一镜到底在 selectMedPart() 返回后立刻读取 pivot 的终点，
+  // 若拖到下一帧才排，终点会被记成卡片未展开时的错误构图。
+  if (typeof layoutPartView === 'function') {
+    try { layoutPartView(); } catch (e) {}
+  }
+}
+(function initPartCardFold() {
+  const head = document.getElementById('pmHead');
+  if (!head) return;
+  const toggle = () => {
+    if (!isMobilePortrait()) return;
+    const card = document.querySelector('#partModal .pm-card');
+    if (!card) return;
+    setPartCardFolded(!card.classList.contains('folded'));
+  };
+  head.addEventListener('click', toggle);
+  head.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+  });
+})();
+
 function selectMedPart(part) {
-  const isFlower = part === 'flower';
-  const info = isFlower ? MED_FLOWER[HERB] : MED_INFO[HERB];
+  const info = part === 'flower' ? MED_FLOWER[HERB]
+             : part === 'root' ? MED_INFO[HERB]
+             : ((MED_EXTRA[HERB] || {})[part] || MED_INFO[HERB]);
   const title = document.getElementById('pmTitle');
   const en = document.getElementById('pmEn');
   const desc = document.getElementById('pmDesc');
@@ -7372,7 +8061,16 @@ function selectMedPart(part) {
   if (title) title.textContent = info.text;
   if (en) en.textContent = info.en;
   if (desc) desc.textContent = info.desc || '';
-  const rows = isFlower ? MED_FLOWER[HERB].rows : MED_USE[HERB];
+  const extra = part === 'leaf' || part === 'stem';
+  // 三七的果实不是《中国药典》药用部位，按「植物部位」介绍；雪上一枝蒿的花序仍走原分支
+  const plantPart = extra || (HERB === 'sanqi' && part === 'flower');
+  const kicker = document.getElementById('pmKicker');
+  const useTitle = document.getElementById('pmUseTitle');
+  const procTitle = document.getElementById('pmProcTitle');
+  if (kicker) kicker.textContent = plantPart ? '植物部位 · PLANT PART' : '药用部位 · MEDICINAL PART';
+  if (useTitle) useTitle.textContent = plantPart ? '部位信息 · PART INFO' : '使用方法 · HOW TO USE';
+  if (procTitle) procTitle.textContent = plantPart ? '补充说明 · NOTES' : '炮制方法 · PROCESSING';
+  const rows = info.rows || (part === 'flower' ? MED_FLOWER[HERB].rows : MED_USE[HERB]);
   if (use) use.innerHTML = rows.map(r =>
     '<div class="mu-row"><b>' + r[0] + '<small>' + r[1] + '</small></b>'
     + '<span>' + r[2] + '<small>' + r[3] + '</small></span></div>').join('');
@@ -7398,6 +8096,7 @@ function selectMedPart(part) {
   if (modal) {
     modal.classList.add('open');
     document.body.classList.add('part-open');
+    setPartCardFolded(isMobilePortrait());
     enableCardDrag(modal.querySelector('.pm-card'));
   }
 }
@@ -7421,7 +8120,7 @@ function enableCardDrag(card) {
   card.dataset.dragReady = '1';
   let sx = 0, sy = 0, ox = 0, oy = 0, drag = false;
   card.addEventListener('pointerdown', e => {
-    if (e.target.closest('button, a, input')) return;
+    if (e.target.closest('button, a, input, .pm-head')) return;
     drag = true; sx = e.clientX; sy = e.clientY;
     ox = card._ox || 0; oy = card._oy || 0;
     card.classList.add('dragging');
@@ -7462,6 +8161,8 @@ function pvPick(clientX, clientY) {
 }
 document.getElementById('stage').addEventListener('pointerdown', e => {
   if (!PV.on || !PV.pivot) return;
+  // 触控板二指点击 = 鼠标右键，不能拿来拖模块，否则会误触发并产生跳动
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
   if (e.target.closest && e.target.closest('#partModal')) return;
   const hit = pvPick(e.clientX, e.clientY);
   if (hit) {
@@ -7485,8 +8186,13 @@ window.addEventListener('pointermove', e => {
                 Math.abs(camera.position.z - PV.sel.position.z) / window.innerHeight;
       PV.sel.position.x += dx * k;
       PV.sel.position.y -= dy * k;
-      PV.sel.position.x = Math.max(-3.1, Math.min(3.1, PV.sel.position.x));
-      PV.sel.position.y = Math.max(-1.7, Math.min(1.8, PV.sel.position.y));
+      // 按当前视口与模块所在深度动态限位。旧的写死 ±3.1/±1.7 比桌面端
+      // 默认摆放位置还窄，第一下拖动会把模块硬拽回边界，看起来像瞬移，
+      // 右侧也会因此成为拖不过去的“死区”。
+      const limX = (window.innerWidth / 2 - 24) * k;
+      const limY = (window.innerHeight / 2 - 24) * k;
+      PV.sel.position.x = Math.max(-limX, Math.min(limX, PV.sel.position.x));
+      PV.sel.position.y = Math.max(-limY, Math.min(limY, PV.sel.position.y));
       PV.sel.userData.moved = true;
     } else if (PV.pivot) {
       PV.pivot.rotation.y += dx * 0.012;
@@ -7500,14 +8206,6 @@ window.addEventListener('pointermove', e => {
     document.getElementById('stage').style.cursor = h ? 'move' : '';
   }
 });
-document.getElementById('stage').addEventListener('dblclick', e => {
-  if (!PV.on || !PV.atts) return;
-  const hit = pvPick(e.clientX, e.clientY);
-  if (!hit) return;
-  const home = hit.userData.home;
-  if (home) { hit.position.set(home[0], home[1], home[2]); hit.rotation.set(0, 0, 0); }
-  else { layoutPartView(); hit.position.set(hit.userData.home[0], hit.userData.home[1], hit.userData.home[2]); }
-});
 window.addEventListener('pointerup', () => {
   PV.drag = false; PV.sel = null; _pvDrag = null;
   const st = document.getElementById('stage');
@@ -7518,17 +8216,29 @@ document.getElementById('stage').addEventListener('wheel', e => {
   e.preventDefault();
   const h = pvPick(e.clientX, e.clientY);
   if (h) {
-    const s = Math.max(0.5, Math.min(2.5, (h.scale.x || 1) * (1 - Math.sign(e.deltaY) * 0.1)));
-    h.scale.setScalar(s);
+    // 附件不响应滚轮缩放：触控板二指滚动极易误触，会把模块“放大/推前”，
+    // 松手后再拖动也回不到原尺寸。只保留拖动与植株缩放。
     return;
   }
   PV.zoom = Math.max(0.6, Math.min(2.2, (PV.zoom || 1) * (1 - Math.sign(e.deltaY) * 0.1)));
   PV.pivot.scale.setScalar(PV.zoom);
 }, { passive: false });
 
-function closePartModal() {
+function cancelHerbTransition() {
+  if (!PART_TRANS.active) return;
+  PART_TRANS.active = false;
+  PART_TRANS.handoff = false;
+  PART_TRANS.pivotFrom = PART_TRANS.pivotTo = null;
+  HERB_ZOOM.active = false;
+  HERB_ZOOM.locked = false;
+  HERB_ZOOM.rot = null;
+  HERB_ZOOM.k = 1;
+  const ov = document.getElementById('pvSwoosh');
+  if (ov) ov.style.opacity = '0';
+}
+function finishPartClose() {
   const modal = document.getElementById('partModal');
-  if (modal) modal.classList.remove('open');
+  if (modal) modal.classList.remove('open', 'transitioning');
   document.body.classList.remove('part-open');
   closeProcModal();
   exitPartView();
@@ -7540,6 +8250,34 @@ function closePartModal() {
   if (MED_INSET.xue.points) MED_INSET.xue.points.visible = false;
   if (FLOWER_INSET.sanqi.points) FLOWER_INSET.sanqi.points.visible = false;
   if (FLOWER_INSET.xue.points) FLOWER_INSET.xue.points.visible = false;
+  resetHerbView();
+}
+// 退出特写：画面先淡出，恢复整株后再淡入。
+let _partCloseFade = 0;
+function closePartModal() {
+  if (_partCloseFade) return;
+  if (PART_TRANS.active) cancelHerbTransition();
+  if (!PV.on || !PV.pivot) { finishPartClose(); return; }
+  const stage = document.getElementById('stage');
+  const modal = document.getElementById('partModal');
+  if (modal) modal.classList.remove('open');
+  const pvLabels = document.getElementById('pvLabels');
+  if (pvLabels) pvLabels.style.display = 'none';
+  PV.drag = false; PV.sel = null;
+  // 只保留淡入：先立即切到整株（不做淡出），再让整株淡入。
+  stage.style.transition = 'none';
+  stage.style.opacity = '0';
+  stage.style.pointerEvents = 'none';
+  finishPartClose();
+  requestAnimationFrame(() => {
+    stage.style.transition = 'opacity .14s ease';
+    stage.style.opacity = '1';
+    _partCloseFade = setTimeout(() => {
+      stage.style.transition = '';
+      stage.style.pointerEvents = '';
+      _partCloseFade = 0;
+    }, 180);
+  });
 }
 if (typeof document !== 'undefined') {
   document.getElementById('pmClose').addEventListener('click', closePartModal);
@@ -7605,8 +8343,17 @@ const PART_INFO = {
       ['三七粉', 'Powder', '研细粉，一次 1–3 g 吞服；外用适量撒敷。便于控制剂量，急症出血常用。'],
     ]},
     flower: { formula: 'Rg1 · Rb1 · 三七皂苷', procs: [
-      ['三七花茶', 'Infusion', '取干燥花蕾 3–5 g，沸水冲泡代茶饮。清热生津、平肝降压，用于津伤口渴、咽痛音哑、肝阳上亢之眩晕头痛。'],
-      ['花蕾煎服', 'Decoction', '花蕾 3–5 g 煎汤服，或与他药配伍，用于高血压属肝阳上亢者。'],
+      ['红籽采收', 'Harvest', '秋季果实成熟转红时采收，俗称「红籽」。果实不作药用，主要留作采种育苗。'],
+      ['播种育苗', 'Propagation', '去除果肉取出种子，经催芽处理后播种；三七通常栽培三年以上方可采挖。'],
+      ['辨识', 'ID', '核果状浆果成熟时鲜红，聚成伞形果序；花期同一位置为黄绿色小花。'],
+    ]},
+    leaf: { formula: 'Rg1 · Rb1 · 黄酮', procs: [
+      ['叶的用途', 'Folk use', '三七叶含人参皂苷，民间曾代茶饮；非《中国药典》规定的药用部位，不作常规药用。'],
+      ['辨识', 'ID', '掌状复叶，3–4 轮，每轮 5–7 小叶；叶缘锯齿，叶脉明显。'],
+    ]},
+    stem: { formula: '纤维 · 导管\n皂苷微量', procs: [
+      ['不入药', 'Not used', '地上茎不入药；采挖时剪去茎叶，只保留地下的根及根茎。'],
+      ['剪口来源', 'Jiankou', '根茎（剪口）位于茎与根相接处，是去茎后保留入药的部位。'],
     ]},
   },
   xue: {
@@ -7734,6 +8481,94 @@ function pvSectionFlower() {
   grp.add(m);
   const rim = new THREE.Mesh(new THREE.TorusGeometry(0.383, 0.010, 8, 80),
     new THREE.MeshBasicMaterial({ color: 0x5f7440 }));
+  rim.position.set(0, 0, 0.04);
+  grp.add(rim);
+  grp.position.set(2.02, -0.30, 0.12);
+  grp.userData.real = true;
+  return grp;
+}
+
+// 三七果实（红籽）横切面：红色果皮、淡黄果肉、两枚种子。
+// 与花蕾切面同一套画法/材质 —— 果实视图不能再配花蕾图。
+function pvSectionFruit() {
+  const S = 640, cv = document.createElement('canvas');
+  cv.width = cv.height = S;
+  const g = cv.getContext('2d');
+  const cx = S / 2, cy = S / 2, R = S * 0.465;
+  g.clearRect(0, 0, S, S);
+
+  // 果皮：深红→亮红
+  const skin = g.createRadialGradient(cx, cy, R * 0.05, cx, cy, R);
+  skin.addColorStop(0.00, '#e25a40');
+  skin.addColorStop(0.42, '#c53427');
+  skin.addColorStop(0.80, '#9c1f16');
+  skin.addColorStop(1.00, '#78140d');
+  g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.fillStyle = skin; g.fill();
+  g.save(); g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.clip();
+
+  // 果肉：淡黄
+  const flesh = g.createRadialGradient(cx, cy, R * 0.08, cx, cy, R * 0.82);
+  flesh.addColorStop(0.00, '#faf0cd');
+  flesh.addColorStop(0.58, '#f0dfb0');
+  flesh.addColorStop(1.00, '#ddc189');
+  g.beginPath(); g.arc(cx, cy, R * 0.82, 0, Math.PI * 2); g.fillStyle = flesh; g.fill();
+
+  // 果肉与果皮之间的维管束：细密放射纹
+  g.strokeStyle = 'rgba(170, 94, 48, .38)'; g.lineWidth = 1.4;
+  for (let i = 0; i < 48; i++) {
+    const a = i / 48 * Math.PI * 2;
+    g.beginPath();
+    g.moveTo(cx + Math.cos(a) * R * 0.80, cy + Math.sin(a) * R * 0.80);
+    g.lineTo(cx + Math.cos(a) * R * 0.995, cy + Math.sin(a) * R * 0.995);
+    g.stroke();
+  }
+
+  // 两枚种子：淡黄白；腹侧一道种脐
+  const seeds = [[-0.24, 0.02, 0.30, 0.19, -0.42], [0.24, 0.03, 0.30, 0.19, 0.42]];
+  for (const [sx, sy, rx, ry, rot] of seeds) {
+    g.save();
+    g.translate(cx + R * sx, cy + R * sy);
+    g.rotate(rot);
+    g.beginPath();
+    g.ellipse(0, 0, R * rx, R * ry, 0, 0, Math.PI * 2);
+    const sg = g.createRadialGradient(-R * rx * 0.30, -R * ry * 0.35, R * 0.02, 0, 0, R * rx);
+    sg.addColorStop(0.00, '#fffdf1');
+    sg.addColorStop(0.55, '#f5e9c8');
+    sg.addColorStop(1.00, '#d8bf91');
+    g.fillStyle = sg; g.fill();
+    g.strokeStyle = 'rgba(150, 112, 66, .55)'; g.lineWidth = 2; g.stroke();
+    g.beginPath();
+    g.moveTo(-R * rx * 0.55, R * ry * 0.12);
+    g.quadraticCurveTo(0, R * ry * 0.55, R * rx * 0.55, R * ry * 0.10);
+    g.strokeStyle = 'rgba(138, 94, 52, .45)'; g.lineWidth = 1.6; g.stroke();
+    g.restore();
+  }
+
+  // 果皮上的细小油点
+  for (let i = 0; i < 260; i++) {
+    const a = Math.random() * Math.PI * 2, rr = R * (0.86 + Math.random() * 0.12);
+    g.fillStyle = 'rgba(255, 196, 138, ' + (0.05 + Math.random() * 0.10) + ')';
+    g.beginPath();
+    g.arc(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr, 0.6 + Math.random() * 1.6, 0, Math.PI * 2);
+    g.fill();
+  }
+  g.restore();
+
+  // 外缘：深红果皮
+  g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2);
+  g.strokeStyle = 'rgba(110, 20, 13, .95)'; g.lineWidth = R * 0.045; g.stroke();
+
+  const tex = new THREE.CanvasTexture(cv);
+  tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 8; tex.needsUpdate = true;
+  const capMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false });
+  const sideMat = new THREE.MeshStandardMaterial({ color: 0x8c2117, roughness: 0.96, metalness: 0, transparent: true, opacity: 0.96 });
+  const geo = new THREE.CylinderGeometry(0.38, 0.38, 0.06, 72, 1, false);
+  const m = new THREE.Mesh(geo, [sideMat, capMat, capMat]);
+  m.rotation.x = Math.PI / 2;
+  const grp = new THREE.Group();
+  grp.add(m);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.383, 0.010, 8, 80),
+    new THREE.MeshBasicMaterial({ color: 0x6d1911 }));
   rim.position.set(0, 0, 0.04);
   grp.add(rim);
   grp.position.set(2.02, -0.30, 0.12);
@@ -7890,6 +8725,234 @@ function pvSectionReal() {
   return grp;
 }
 
+// 三七叶横切：上/下表皮、栅栏组织、海绵组织、叶脉维管束
+function pvSectionLeaf() {
+  const S = 640, cv = document.createElement('canvas');
+  cv.width = cv.height = S;
+  const g = cv.getContext('2d');
+  const cx = S / 2, cy = S / 2, R = S * 0.465;
+  const body = g.createRadialGradient(cx - R * .06, cy - R * .08, R * .05, cx, cy, R);
+  body.addColorStop(0, '#fbfdf0'); body.addColorStop(.55, '#eef4d9');
+  body.addColorStop(.88, '#d6e3b7'); body.addColorStop(1, '#aebf8a');
+  g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.fillStyle = body; g.fill();
+  g.save(); g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.clip();
+  const x0 = cx - R * .74, x1 = cx + R * .74;
+  const yTop = cy - R * .16, thick = R * .34;
+  // 上表皮
+  g.beginPath();
+  for (let x = x0; x <= x1; x += 4) {
+    const y = yTop + Math.sin((x - x0) / R * 9) * 2.2;
+    x === x0 ? g.moveTo(x, y) : g.lineTo(x, y);
+  }
+  g.strokeStyle = '#4b7436'; g.lineWidth = R * .026; g.lineJoin = 'round'; g.stroke();
+  // 栅栏组织（竖向细胞）
+  const nPal = 16;
+  for (let i = 0; i < nPal; i++) {
+    const x = x0 + (i + .5) * (x1 - x0) / nPal;
+    const w = (x1 - x0) / nPal * .62, h = thick * .40, y = yTop + R * .02;
+    g.beginPath(); g.roundRect(x - w / 2, y, w, h, w * .35);
+    g.fillStyle = 'rgba(126,170,84,' + (0.55 + Math.random() * .25) + ')'; g.fill();
+    g.strokeStyle = 'rgba(74,112,50,.75)'; g.lineWidth = 1.6; g.stroke();
+    g.beginPath(); g.arc(x, y + h * .55, w * .16, 0, 7);
+    g.fillStyle = 'rgba(60,92,42,.55)'; g.fill();
+  }
+  // 海绵组织 + 气隙
+  for (let i = 0; i < 80; i++) {
+    const x = x0 + Math.random() * (x1 - x0);
+    const y = yTop + thick * .48 + Math.random() * thick * .42;
+    const r = R * (.016 + Math.random() * .022);
+    g.beginPath(); g.arc(x, y, r, 0, 7);
+    g.fillStyle = 'rgba(168,205,126,' + (0.22 + Math.random() * .30) + ')'; g.fill();
+    g.strokeStyle = 'rgba(92,130,62,.45)'; g.lineWidth = 1; g.stroke();
+  }
+  // 下表皮 + 气孔
+  g.beginPath();
+  for (let x = x0; x <= x1; x += 4) {
+    const y = yTop + thick + Math.sin((x - x0) / R * 11 + 1) * 2;
+    x === x0 ? g.moveTo(x, y) : g.lineTo(x, y);
+  }
+  g.strokeStyle = '#5b853f'; g.lineWidth = R * .022; g.stroke();
+  for (let i = 0; i < 10; i++) {
+    const x = x0 + R * (.08 + Math.random() * .78), y = yTop + thick;
+    g.beginPath(); g.ellipse(x, y, R * .017, R * .007, 0, 0, 7);
+    g.fillStyle = '#f6fbe9'; g.fill();
+    g.strokeStyle = 'rgba(70,104,48,.6)'; g.lineWidth = 1; g.stroke();
+  }
+  // 主脉维管束（中央）+ 两侧小脉
+  const midY = yTop + thick * .5;
+  const drawBundle = (bx, by, rx, ry) => {
+    g.beginPath(); g.ellipse(bx, by, rx, ry, 0, 0, 7);
+    g.fillStyle = 'rgba(238,228,190,.95)'; g.fill();
+    g.strokeStyle = 'rgba(130,104,52,.8)'; g.lineWidth = R * .010; g.stroke();
+    for (let i = 0; i < 6; i++) {
+      g.beginPath();
+      g.arc(bx + (Math.random() - .5) * rx * 1.1, by - ry * .28 + (Math.random() - .5) * ry * .35, R * .010, 0, 7);
+      g.fillStyle = 'rgba(176,84,58,.78)'; g.fill();
+    }
+    for (let i = 0; i < 5; i++) {
+      g.beginPath();
+      g.arc(bx + (Math.random() - .5) * rx * 1.1, by + ry * .34 + (Math.random() - .5) * ry * .25, R * .009, 0, 7);
+      g.fillStyle = 'rgba(100,170,156,.80)'; g.fill();
+    }
+  };
+  drawBundle(cx, midY, R * .11, thick * .55);
+  drawBundle(cx - R * .34, midY + thick * .05, R * .045, thick * .28);
+  drawBundle(cx + R * .34, midY + thick * .05, R * .045, thick * .28);
+  // 细细胞壁纹理
+  g.strokeStyle = 'rgba(110,150,76,.18)'; g.lineWidth = 1;
+  for (let i = 0; i < 40; i++) {
+    const x = x0 + Math.random() * (x1 - x0), y = yTop + Math.random() * thick;
+    g.beginPath(); g.moveTo(x, y); g.lineTo(x + (Math.random() - .5) * 18, y + Math.random() * 12); g.stroke();
+  }
+  g.restore();
+  // 外圈
+  g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2);
+  g.strokeStyle = 'rgba(78,108,54,.95)'; g.lineWidth = R * .045; g.stroke();
+  for (let i = 0; i < 70; i++) {
+    const a = Math.random() * Math.PI * 2, rr = R * (.975 + Math.random() * .03);
+    g.beginPath();
+    g.moveTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr);
+    g.lineTo(cx + Math.cos(a) * (rr + R * .035), cy + Math.sin(a) * (rr + R * .035));
+    g.strokeStyle = 'rgba(70,98,48,.5)'; g.lineWidth = 1 + Math.random(); g.stroke();
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 8; tex.needsUpdate = true;
+  const capMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false });
+  const sideMat = new THREE.MeshStandardMaterial({ color: 0x6f8a4e, roughness: .98, metalness: 0, transparent: true, opacity: .96 });
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.06, 72, 1, false), [sideMat, capMat, capMat]);
+  m.rotation.x = Math.PI / 2;
+  const grp = new THREE.Group(); grp.add(m);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.383, 0.010, 8, 80),
+    new THREE.MeshBasicMaterial({ color: 0x4f6a38 }));
+  rim.position.set(0, 0, 0.04); grp.add(rim);
+  grp.position.set(2.02, -0.30, 0.12);
+  grp.userData.real = true;
+  return grp;
+}
+
+// 三七茎横切：表皮、皮层、环列维管束、髓部
+function pvSectionStem() {
+  const S = 640, cv = document.createElement('canvas');
+  cv.width = cv.height = S;
+  const g = cv.getContext('2d');
+  const cx = S / 2, cy = S / 2, R = S * 0.465;
+  const body = g.createRadialGradient(cx, cy, R * .04, cx, cy, R);
+  body.addColorStop(0, '#f6f0db'); body.addColorStop(.7, '#eef0d6'); body.addColorStop(1, '#c9cfa4');
+  g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.fillStyle = body; g.fill();
+  g.save(); g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.clip();
+  // 皮层
+  g.beginPath(); g.arc(cx, cy, R * .91, 0, Math.PI * 2);
+  g.fillStyle = 'rgba(196,210,152,.34)'; g.fill();
+  // 环列维管束
+  const NB = 12;
+  for (let i = 0; i < NB; i++) {
+    const a = i / NB * Math.PI * 2;
+    const bx = cx + Math.cos(a) * R * .58, by = cy + Math.sin(a) * R * .58;
+    g.save(); g.translate(bx, by); g.rotate(a);
+    // 纤维帽（外）
+    g.beginPath(); g.ellipse(0, -R * .095, R * .085, R * .030, 0, 0, 7);
+    g.fillStyle = 'rgba(96,124,66,.85)'; g.fill();
+    g.strokeStyle = 'rgba(66,90,44,.9)'; g.lineWidth = 1.4; g.stroke();
+    // 韧皮部
+    g.beginPath(); g.ellipse(0, -R * .045, R * .075, R * .028, 0, 0, 7);
+    g.fillStyle = 'rgba(124,178,144,.85)'; g.fill();
+    // 木质部
+    g.beginPath(); g.ellipse(0, R * .022, R * .078, R * .048, 0, 0, 7);
+    g.fillStyle = 'rgba(214,172,96,.92)'; g.fill();
+    g.strokeStyle = 'rgba(150,108,48,.8)'; g.lineWidth = 1.2; g.stroke();
+    for (let k = 0; k < 5; k++) {
+      g.beginPath();
+      g.arc((Math.random() - .5) * R * .10, R * .02 + (Math.random() - .5) * R * .05, R * .010, 0, 7);
+      g.fillStyle = 'rgba(248,236,200,.9)'; g.fill();
+    }
+    g.restore();
+  }
+  // 形成层环
+  g.beginPath(); g.arc(cx, cy, R * .40, 0, Math.PI * 2);
+  g.strokeStyle = 'rgba(120,150,80,.55)'; g.lineWidth = R * .012; g.stroke();
+  // 髓部
+  g.beginPath(); g.arc(cx, cy, R * .34, 0, Math.PI * 2);
+  g.fillStyle = 'rgba(244,236,208,.88)'; g.fill();
+  g.strokeStyle = 'rgba(170,150,96,.5)'; g.lineWidth = 1.4; g.stroke();
+  for (let i = 0; i < 45; i++) {
+    const a = Math.random() * Math.PI * 2, rr = Math.sqrt(Math.random()) * R * .32;
+    g.beginPath(); g.arc(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr, R * (.010 + Math.random() * .012), 0, 7);
+    g.strokeStyle = 'rgba(176,150,92,.30)'; g.lineWidth = 1; g.stroke();
+  }
+  // 髓射线
+  for (let i = 0; i < NB; i++) {
+    const a = i / NB * Math.PI * 2 + Math.PI / NB;
+    g.beginPath();
+    g.moveTo(cx + Math.cos(a) * R * .34, cy + Math.sin(a) * R * .34);
+    g.lineTo(cx + Math.cos(a) * R * .88, cy + Math.sin(a) * R * .88);
+    g.strokeStyle = 'rgba(150,166,104,.22)'; g.lineWidth = 1.2; g.stroke();
+  }
+  g.restore();
+  // 表皮环 + 边缘
+  g.beginPath(); g.arc(cx, cy, R * .965, 0, Math.PI * 2);
+  g.strokeStyle = '#6a5030'; g.lineWidth = R * .030; g.stroke();
+  g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2);
+  g.strokeStyle = 'rgba(96,120,62,.95)'; g.lineWidth = R * .045; g.stroke();
+  for (let i = 0; i < 70; i++) {
+    const a = Math.random() * Math.PI * 2, rr = R * (.975 + Math.random() * .03);
+    g.beginPath();
+    g.moveTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr);
+    g.lineTo(cx + Math.cos(a) * (rr + R * .035), cy + Math.sin(a) * (rr + R * .035));
+    g.strokeStyle = 'rgba(86,108,56,.5)'; g.lineWidth = 1 + Math.random(); g.stroke();
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 8; tex.needsUpdate = true;
+  const capMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false });
+  const sideMat = new THREE.MeshStandardMaterial({ color: 0x8a7a4e, roughness: .98, metalness: 0, transparent: true, opacity: .96 });
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.06, 72, 1, false), [sideMat, capMat, capMat]);
+  m.rotation.x = Math.PI / 2;
+  const grp = new THREE.Group(); grp.add(m);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.383, 0.010, 8, 80),
+    new THREE.MeshBasicMaterial({ color: 0x5e4c2c }));
+  rim.position.set(0, 0, 0.04); grp.add(rim);
+  grp.position.set(2.02, -0.30, 0.12);
+  grp.userData.real = true;
+  return grp;
+}
+
+// 茎的组织结构示意：环列维管束 + 髓
+function pvStructureStem() {
+  const pts = [], cols = [];
+  const C = [0.78, 0.95, 0.70], X = [0.98, 0.80, 0.42], P = [0.54, 0.86, 0.78];
+  const put = (x, y, r, c) => {
+    for (let i = 0; i < 6; i++) {
+      const a = i / 6 * Math.PI * 2;
+      pts.push(x + Math.cos(a) * r, y + Math.sin(a) * r, 0.01);
+      cols.push(c[0], c[1], c[2]);
+    }
+  };
+  const ring = (rad, n, r, c) => {
+    for (let i = 0; i < n; i++) {
+      const a = i / n * Math.PI * 2;
+      put(Math.cos(a) * rad, Math.sin(a) * rad, r, c);
+    }
+  };
+  ring(.62, 72, .008, C);
+  ring(.20, 40, .008, C);
+  for (let i = 0; i < 12; i++) {
+    const a = i / 12 * Math.PI * 2;
+    const bx = Math.cos(a) * .41, by = Math.sin(a) * .41;
+    put(bx, by, .028, X);
+    put(bx + Math.cos(a) * .055, by + Math.sin(a) * .055, .018, P);
+    put(bx - Math.cos(a) * .045, by - Math.sin(a) * .045, .012, C);
+  }
+  for (let i = 0; i < 12; i++) {
+    const a = i / 12 * Math.PI * 2 + Math.PI / 12;
+    const n = 7;
+    for (let k = 1; k <= n; k++) {
+      const rr = .22 + (i % 2 ? .18 : .14) * k / n;
+      pts.push(Math.cos(a) * rr, Math.sin(a) * rr, 0);
+      cols.push(C[0], C[1], C[2]);
+    }
+  }
+  return pvPoints(pts, cols, 0.040);
+}
+
 function pvStructure(kind) {
   const pts = [], cols = [];
   const bond = (x1, y1, x2, y2, c) => {
@@ -7996,7 +9059,7 @@ function pvFigure() {
 
 // 部位视图的构图：**按像素算**，不再靠手调的魔数。
 // 早前是写死 position(-0.55, 0.02) + scale(0.46/1)，结果两种药材、两个部位、
-// 四种视口下各有各的错：三七花在桌面被放大到 1593px 高（整块飞出屏幕），
+// 四种视口下各有各的错：三七果实在桌面被放大到 1593px 高（整块飞出屏幕），
 // 三七根顶部被裁掉 200px，块根又压住左侧属性卡。
 // 现在只做一件事：算出"卡片之外的那块安全区"，把部位按包围球塞进去。
 function layoutPartView() {
@@ -8007,10 +9070,20 @@ function layoutPartView() {
   const visH = 2 * 6.2 * Math.tan(camera.fov * Math.PI / 360);
   const wpp = visH / h;
 
+  // 雪上一枝蒿的块根/花序特写：按 1.5× 近景构图处理。
+  // 这两块不再为“避开左侧讲解卡”而右移 —— 用户确认压住卡片也无所谓，
+  // 统一按全屏安全区排，避免直接点开与转场进入落在不同位置。
+  const xueClosePart = PV.herbName === 'xue' &&
+    (PV.partName === 'root' || PV.partName === 'flower');
+  // 手机竖屏：部位模型占上半屏，化学式/结构/切面集中在下半屏的信息带里。
+  // 雪上一枝蒿块根/花序特写仍按原来的 1.5× 近景构图，不改。
+  const mobilePart = narrow && isMobilePortrait();
+
   // 属性卡（左侧那块 pm-card）占了画面的实际位置，必须读出来而不是猜。
+  // 雪上一枝蒿的块根/花序例外：故意忽略卡片占位，保持左下近景构图。
   let cardR = 0, cardTop = h;
   const card = document.querySelector('#partModal .pm-card');
-  if (card && getComputedStyle(card).display !== 'none') {
+  if (!xueClosePart && card && getComputedStyle(card).display !== 'none') {
     const q = card.getBoundingClientRect();
     cardR = q.right; cardTop = q.top;
   }
@@ -8018,8 +9091,11 @@ function layoutPartView() {
   const attrPx = narrow ? (w * 0.5) : (w - 150);
   let safe;
   if (narrow) {
-    // 竖屏：部位在上、卡片在下，横向用满整屏
-    safe = { x0: 18, x1: w - 18, y0: 62, y1: Math.max(200, cardTop - 14) };
+    // 竖屏：部位在上、信息带在下、卡片在最下。
+    // 手机竖屏给模型留上半屏（约 48% 高度），避免模型压住化学式/结构/切面；
+    // 雪上一枝蒿块根/花序特写例外，仍按原安全区放大。
+    const modelBottom = mobilePart ? Math.min(cardTop - 14, h * 0.42) : cardTop - 14;
+    safe = { x0: 18, x1: w - 18, y0: 62, y1: Math.max(200, modelBottom) };
   } else {
     // 安全区：左留出卡片+间距，右侧属性列只留必要宽度（原先 -200 过宽，
     // 把模型挤到偏左、贴近讲解卡）。收紧到 130，使模型落点更靠右、与卡片拉开。
@@ -8032,26 +9108,56 @@ function layoutPartView() {
     // 用包围球拟合：模型自转会改变包围盒宽高，包围球不会，所以不会每转一圈忽大忽小。
     const r = (PV.pivot.userData && PV.pivot.userData.pvR) || 0.9;
     const allowedR = 0.46 * Math.min(safe.x1 - safe.x0, safe.y1 - safe.y0);
-    const fit = Math.min(3.5, Math.max(0.18, (allowedR * wpp) / r));
-    const k = fit * (PV.zoom || 1);
+    // 雪上一枝蒿的块根/花序特写再放大 1.5×；其他部位（以及三七的全部部位）保持原适配。
+    const partBoost = xueClosePart ? (mobilePart ? 1.0 : XUE_PART_BOOST) : 1;
+    const fit = Math.min(3.5, Math.max(0.18, (allowedR * wpp) / r)) * partBoost;
+    // 手机竖屏的叶/花在包围球归一化后偏小，单独放大，填满上半屏。
+    const mobileBoost = !mobilePart ? 1
+      : (PV.partName === 'leaf' || PV.partName === 'flower') ? 1.4
+      : PV.partName === 'root' ? 1.15 : 1.1;
+    const k = fit * (PV.zoom || 1) * mobileBoost;
     PV.pivot.scale.setScalar(k);
+    // 雪上一枝蒿块根特写：在 1.5× 构图基础上整体往左下挪（屏幕像素）。
+    // 只调位置，不再改倍率；花序仍保持居中构图。y 由 18px 再下移到 48px。
+    const rootNudge = (PV.herbName === 'xue' && PV.partName === 'root');
+    const nudgeX = rootNudge ? (mobilePart ? 0 : -32) : 0;
+    const nudgeY = rootNudge ? (mobilePart ? 0 : 48) : 0;
     // 位置：让部位中心落在安全区中心（屏幕 y 向下，世界 y 向上，故取负）
-    PV.pivot.position.set((cx - w / 2) * wpp, (h / 2 - cy) * wpp, 0);
+    PV.pivot.position.set((cx - w / 2 + nudgeX) * wpp, (h / 2 - (cy + nudgeY)) * wpp, 0);
     PV._fit = fit;
   }
   // 右侧属性列：贴着 attrPx 排，纵向按屏高分三段
   const ax = (attrPx - w / 2) * wpp;
+  const stem = PV.partName === 'stem';
   if (PV.formula) {
-    PV.formula.position.set(narrow ? 0 : ax, narrow ? 0.30 : 1.02, 0.2);
-    PV.formula.scale.setScalar(narrow ? 0.62 : 1);
+    if (mobilePart) {
+      // 化学式：模型正下方单独一行，放大
+      PV.formula.position.set(0, -0.06, 0.2);
+      PV.formula.scale.setScalar(0.90);
+    } else {
+      PV.formula.position.set(narrow ? 0 : ax, narrow ? 0.30 : (stem ? 1.30 : 1.02), 0.2);
+      PV.formula.scale.setScalar(narrow ? 0.62 : 1);
+    }
   }
   if (PV.struct) {
-    PV.struct.position.set(narrow ? -0.50 : ax, narrow ? -0.30 : 0.10, 0.16);
-    PV.struct.scale.setScalar(1.55 * (narrow ? 0.52 : 1));
+    if (mobilePart) {
+      // 结构与切面左右并排，放在化学式下方，彼此留出间距
+      PV.struct.position.set(-0.54, -0.70, 0.16);
+      PV.struct.scale.setScalar(stem ? 0.76 : 1.05);
+    } else {
+      PV.struct.position.set(narrow ? -0.50 : ax, narrow ? -0.30 : (stem ? 0.00 : 0.10), 0.16);
+      // 茎的组织结构是整圈维管束示意，圆盘比分子骨架大，单独缩小一档
+      PV.struct.scale.setScalar(narrow ? (stem ? 0.62 : 1.55 * 0.52) : (stem ? 1.0 : 1.55));
+    }
   }
   if (PV.section) {
-    PV.section.position.set(narrow ? 0.50 : ax, narrow ? -0.30 : -0.86, 0.12);
-    PV.section.scale.setScalar(narrow ? 0.52 : 1);
+    if (mobilePart) {
+      PV.section.position.set(0.54, -0.70, 0.12);
+      PV.section.scale.setScalar(0.80);
+    } else {
+      PV.section.position.set(narrow ? 0.50 : ax, narrow ? -0.30 : (stem ? -1.05 : -0.86), 0.12);
+      PV.section.scale.setScalar(narrow ? 0.52 : 1);
+    }
   }
   for (const o of (PV.atts || [])) o.userData.home = o.position.toArray();
 }
@@ -8069,14 +9175,21 @@ function xuePickParts(tag) {
   // 用 clone 顶点【归一化】：把整组平移回自身中心、缩放到固定尺寸。
   // 不能直接对 clone 的 position 做减法 —— 顶点写在 geometry 里，clone 只会复制
   // position/quaternion/scale，模型仍然待在原地（早前版本就栽在这）。
-  let mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9];
+  // 在【组局部空间】里求包围盒：先取世界包围盒，再用 group.matrixWorld⁻¹
+  // 转回局部。否则捏合放大后（组带 scale/rotation）再开特写，归一化尺寸
+  // 会随缩放变化，块根时大时小。
+  g.updateWorldMatrix(true, false);
+  const invG = new THREE.Matrix4().copy(g.matrixWorld).invert();
+  const localBox = new THREE.Box3();
   for (const s of src) {
     s.updateWorldMatrix(true, false);
     const b = new THREE.Box3().setFromObject(s);
-    mn = [Math.min(mn[0], b.min.x), Math.min(mn[1], b.min.y), Math.min(mn[2], b.min.z)];
-    mx = [Math.max(mx[0], b.max.x), Math.max(mx[1], b.max.y), Math.max(mx[2], b.max.z)];
+    b.applyMatrix4(invG);
+    localBox.union(b);
   }
-  if (mn[0] > 1e8) return null;
+  if (localBox.isEmpty()) return null;
+  const mn = [localBox.min.x, localBox.min.y, localBox.min.z];
+  const mx = [localBox.max.x, localBox.max.y, localBox.max.z];
   const cx = (mn[0] + mx[0]) / 2, cy = (mn[1] + mx[1]) / 2, cz = (mn[2] + mx[2]) / 2;
   const ext = Math.max(mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2], 1e-3);
   // 统一缩放到这一尺寸（世界单位）。视口高约 5.8 世界单位，
@@ -8101,15 +9214,42 @@ function xuePickParts(tag) {
 }
 const xuePartRoot = () => xuePickParts('tuber');
 const xuePartFlower = () => xuePickParts('flower');
+// 从射线命中的网格向上找部位标记：块根(tuber) → root，花序(flower) → flower
+function xuePartFromObject(obj) {
+  let o = obj;
+  while (o) {
+    const p = o.userData && o.userData.part;
+    if (p === 'tuber') return 'root';
+    if (p === 'flower') return 'flower';
+    o = o.parent;
+  }
+  return null;
+}
 
 // 通用：把任意"已就绪的 pivot 组"摆进部位视图（GLB 版与程序化版共用）
-function enterPartViewWith(pvPivot, part) {
+function enterPartViewWith(pvPivot, part, half) {
   if (!pvPivot) return;
   // 进入部位视图 = 画面里【只留这一块】。
   // 早前这里只藏了三七的 GLB，雪上一枝蒿的整株 XUE3D.group 仍站着不动，
   // 于是"块根特写"背后还立着一整株植物，读起来像模型叠在一起。
   rememberHerbLayer();
   hideHerbLayerForPart();
+  // 雪上一枝蒿的 pivot 内容归一时用的是"世界中心"，可能并不在 pivot 原点；
+  // 先按实际包围盒居中，再用真实包围球半径参与构图。否则块根会偏离中心、
+  // 或被 0.9 的估算放大到几乎顶满整屏。
+  pvPivot.updateMatrixWorld(true);
+  const pb0 = new THREE.Box3().setFromObject(pvPivot);
+  if (!pb0.isEmpty()) {
+    const c0 = pb0.getCenter(new THREE.Vector3());
+    for (const ch of pvPivot.children) ch.position.sub(c0);
+    pvPivot.updateMatrixWorld(true);
+    const pb1 = new THREE.Box3().setFromObject(pvPivot);
+    pvPivot.userData.pvR = Math.max(0.3, pb1.getBoundingSphere(new THREE.Sphere()).radius);
+  } else if (half) {
+    pvPivot.userData.pvR = half;
+  }
+  const xl = document.getElementById('herbLabels');
+  if (xl) xl.classList.remove('on');
   pvPivot.userData.__pvPivot = true;      // 标记：退出时按它清场
   if (PV.group) { scene.remove(PV.group); PV.group.traverse(o => { if (o.geometry) o.geometry.dispose(); }); }
   PV.pivot = pvPivot; PV.zoom = 1; PV.drag = false;
@@ -8118,7 +9258,8 @@ function enterPartViewWith(pvPivot, part) {
 
   const g = new THREE.Group();
   const info = PART_INFO[HERB][part];
-  const formula = pvTextPoints(info.formula, 1.00, 1.30, [1.0, 1.0, 0.92], 2.02);
+  // 茎的「纤维 · 导管 / 皂苷微量」字数少，按同宽归一会被放大；单独收窄
+  const formula = pvTextPoints(info.formula, part === 'stem' ? 0.72 : 1.00, 1.30, [1.0, 1.0, 0.92], 2.02);
   PV.formula = formula;
   g.add(formula);
   const struct = pvStructure(HERB);
@@ -8143,7 +9284,7 @@ function enterPartView(part) {
   if (HERB === 'xue') {
     const r = part === 'root' ? xuePartRoot() : xuePartFlower();
     if (!r) return;
-    enterPartViewWith(r.pivot, part);
+    enterPartViewWith(r.pivot, part, r.half);
     return;
   }
   const m = buildRealPart(part);
@@ -8163,23 +9304,36 @@ function enterPartView(part) {
   scene.add(pivot);
   PV.pivot = pivot; PV.zoom = 1; PV.drag = false;
   PV.partMesh = m;
+  // 叶/茎的形状比例特殊（扁宽 / 细长），用实际包围球半径参与构图，
+  // 否则细长的茎会顶到屏幕标题、叶片会压到左侧讲解卡。
+  if (part === 'leaf' || part === 'stem') {
+    pivot.userData.pvR = Math.max(0.5, (m.userData.radius || 0.9) * S);
+  }
   PV.on = true; PV.time = 0; PV.herbName = HERB; PV.partName = part;
 
   if (PV.group) { scene.remove(PV.group); PV.group.traverse(o => { if (o.geometry) o.geometry.dispose(); }); }
   const g = new THREE.Group();
   const info = PART_INFO[HERB][part];
-  const formula = pvTextPoints(info.formula, 1.00, 1.30, [1.0, 1.0, 0.92], 2.02);
+  // 茎的「纤维 · 导管 / 皂苷微量」字数少，按同宽归一会被放大；单独收窄
+  const formula = pvTextPoints(info.formula, part === 'stem' ? 0.72 : 1.00, 1.30, [1.0, 1.0, 0.92], 2.02);
   PV.formula = formula;
   g.add(formula);
-  const struct = pvStructure(part === 'flower' ? 'sanqi' : HERB);
+  // 叶：皂苷结构 + 叶片横切；茎：维管束组织示意 + 茎横切。
+  let struct = null;
+  struct = part === 'stem' ? pvStructureStem() : pvStructure(part === 'flower' ? 'sanqi' : HERB);
   struct.position.set(2.02, 0.58, 0.16);
   struct.scale.setScalar(1.55);
-  PV.struct = struct;
   g.add(struct);
-  const section = part === 'flower' ? pvSectionFlower() : pvSectionReal();
+  PV.struct = struct;
+  let section = null;
+  // 三七顶端是果期红籽（果实）→ 用果实切面；花序切面只留给雪上一枝蒿
+  if (part === 'flower') section = pvSectionFruit();
+  else if (part === 'root') section = pvSectionReal();
+  else if (part === 'leaf') section = pvSectionLeaf();
+  else if (part === 'stem') section = pvSectionStem();
   PV.section = section;
-  g.add(section);
-  PV.atts = [formula, struct, section];
+  if (section) g.add(section);
+  PV.atts = [formula, struct, section].filter(Boolean);
   for (const o of PV.atts) o.userData.home = o.position.toArray();
   PV.sel = null;
   PV.figure = null;          // 小人删除
@@ -8195,6 +9349,7 @@ function enterPartView(part) {
 function rememberHerbLayer() {
   PV.prevLayer = {
     xue:      XUE3D.group ? XUE3D.group.visible : null,
+    xueGlow:  XUE3D.glow ? XUE3D.glow.visible : null,
     xuePts:   XUE.points ? XUE.points.visible : null,
     sqPts:    (typeof SANQI !== 'undefined' && SANQI.points) ? SANQI.points.visible : null,
     realMesh: REAL.mesh ? REAL.mesh.visible : null,
@@ -8204,9 +9359,10 @@ function rememberHerbLayer() {
 }
 function hideHerbLayerForPart() {
   if (XUE3D.group) XUE3D.group.visible = false;
+  if (XUE3D.glow) XUE3D.glow.visible = false;
   if (XUE.points) XUE.points.visible = false;
   if (typeof SANQI !== 'undefined' && SANQI.points) SANQI.points.visible = false;
-  for (const k of ['root', 'flower']) if (REAL.parts[k]) REAL.parts[k].visible = false;
+  for (const k in REAL.parts) if (REAL.parts[k]) REAL.parts[k].visible = false;
   if (REAL.mesh) REAL.mesh.visible = false;
   if (REAL.dust) REAL.dust.visible = false;
   if (REAL.glow) REAL.glow.visible = false;
@@ -8217,6 +9373,7 @@ function restoreHerbLayer() {
   const sqNow = HERB === 'sanqi';
   // 雪上一枝蒿：常态就是网格（XUE.points 只在散气过渡时露脸）
   if (XUE3D.group) XUE3D.group.visible = xueNow && (prev.xue !== false);
+  if (XUE3D.glow) XUE3D.glow.visible = xueNow && (prev.xueGlow !== false);
   if (XUE.points) XUE.points.visible = false;
   if (typeof SANQI !== 'undefined' && SANQI.points) {
     SANQI.points.visible = sqNow && !REAL.on && !!SANQI.on;
@@ -8258,12 +9415,12 @@ function exitPartView() {
 // 按 accessor 建 BufferGeometry，贴图用 Blob URL 交给 TextureLoader。
 const REAL = { on: false, mesh: null, group: null, loading: null, error: false, parts: {}, dust: null, glow: null, intro: 0 };
 
-// 从整株写实模型里按高度裁出"花"和"根茎"两块真实网格：
+// 从整株写实模型里按高度裁出"果实"和"根茎"两块真实网格：
 // 几何/UV/贴图都复用，只重建索引 —— 得到的就是同一株植物的真实局部，不是重新画的粒子。
-// kind：点它做什么。flower / root 是入药部位 → 打开部位视图；
+// kind：点它做什么。flower（三七顶端为果实「红籽」）/ root → 打开部位视图；
 // leaf / stem 不入药 → 用气泡说明它在这味药里的角色（市面图谱应用也这么做，避免"点了没反应"）。
 const REAL_LABELS = [
-  { t: '花 / 果序', en: 'Flower',  p: [0.02, 1.13, 0.02], e: [0.34, 1.16, 0.02], kind: 'flower' },
+  { t: '果实 / 果序', en: 'Fruit',  p: [0.02, 1.13, 0.02], e: [0.34, 1.16, 0.02], kind: 'flower' },
   { t: '叶',       en: 'Leaf',    p: [-0.30, 0.64, 0.05], e: [-0.64, 0.68, 0.05], kind: 'leaf' },
   { t: '茎',       en: 'Stem',    p: [0.03, 0.42, 0.05],  e: [0.36, 0.42, 0.05],  kind: 'stem' },
   { t: '根茎',     en: 'Rhizome', p: [0.03, 0.17, 0.05],  e: [0.36, 0.17, 0.05],  kind: 'root' },
@@ -8311,7 +9468,7 @@ function realLabelsInit() {
   box.innerHTML = REAL_LABELS.map(l =>
     '<div class="rl' + (l.kind === 'flower' || l.kind === 'root' ? ' hot' : '') + '" data-kind="' + l.kind + '">'
     + '<i></i>' + l.t + '<small>' + l.en + '</small>'
-    + (l.kind === 'flower' || l.kind === 'root' ? '<span class="rl-more">›</span>' : '') + '</div>').join('');
+    + '<span class="rl-more">›</span></div>').join('');
   realLabelEls = Array.from(box.children);
   // 标签本身就是入口：入药部位 → 打开部位视图；其余 → 一句话说明。
   // 这样"点得到"的地方和"看得见"的地方是同一处，不需要用户在模型上盲点。
@@ -8320,11 +9477,10 @@ function realLabelsInit() {
     el.addEventListener('click', e => {
       e.stopPropagation();
       if (!REAL.on || PV.on) return;
-      if (L.kind === 'flower' || L.kind === 'root') selectMedPart(L.kind);
-      else {
-        const tip = PART_TIPS[L.kind];
-        if (tip) showHerbToast(tip[0], tip[1]);
-      }
+      if (performance.now() < HERB_ZOOM.suppressClickUntil || PART_TRANS.active) return;
+      // 花 / 叶 / 茎 / 根茎 / 根 都进入同一套部位特写
+      const world = new THREE.Vector3(L.p[0], L.p[1], L.p[2]).applyMatrix4(REAL.mesh.matrixWorld);
+      beginPartTransition(L.kind, world);
     });
   });
 }
@@ -8347,15 +9503,42 @@ function pvLabelUpdate() {
   const box = document.getElementById('pvLabels');
   if (!box) return;
   if (!PV.on) { box.style.display = 'none'; return; }
-  const secEl = document.getElementById('plSection');
-  if (secEl) {
-    const isF = PV.partName === 'flower';
-    const key = isF ? 'f' : 'r';
-    if (secEl.dataset.k !== key) {
-      secEl.dataset.k = key;
-      secEl.innerHTML = isF
-        ? '花蕾切面 · 花萼与花瓣<small>Bud cross-section</small>'
-        : '药物切面 · 菊花心<small>Cross-section</small>';
+  // 主模型推近阶段先不显示化学式/结构/切面的贴标；交接后随部位一起出现
+  if (PART_TRANS.active && !PART_TRANS.handoff) {
+    box.style.display = 'none'; return;
+  }
+  // 右侧三块的标签随部位变化：三七果实/茎/叶、雪上一枝蒿花序各有各的切面
+  const mobileLabel = isMobilePortrait();
+  const labelKey = PV.partName + '|' + PV.herbName + (mobileLabel ? '|m' : '');
+  if (PV._labelPart !== labelKey) {
+    PV._labelPart = labelKey;
+    const part = PV.partName;
+    const sanqiFruit = part === 'flower' && PV.herbName === 'sanqi';
+    const fEl = document.getElementById('plFormula');
+    const sEl = document.getElementById('plStruct');
+    const secEl = document.getElementById('plSection');
+    if (mobileLabel) {
+      // 手机竖屏：标签只留短中文，避免长英文换行压到讲解卡
+      if (fEl) fEl.textContent = part === 'stem' ? '成分' : '化学式';
+      if (sEl) sEl.textContent = part === 'stem' ? '组织结构' : '化学结构';
+      if (secEl) {
+        secEl.textContent = sanqiFruit ? '果实切面'
+          : part === 'flower' ? '花蕾切面'
+          : part === 'leaf' ? '叶片横切'
+          : part === 'stem' ? '茎横切' : '药物切面';
+      }
+    } else {
+      if (fEl) fEl.innerHTML = part === 'stem' ? '成分<small>Composition</small>' : '化学式<small>Formula</small>';
+      if (sEl) sEl.innerHTML = part === 'stem' ? '组织结构<small>Anatomy</small>' : '化学结构<small>Structure</small>';
+      if (secEl) {
+        let html;
+        if (sanqiFruit) html = '果实切面 · 果皮与种子<small>Fruit cross-section</small>';
+        else if (part === 'flower') html = '花蕾切面 · 花萼与花瓣<small>Bud cross-section</small>';
+        else if (part === 'leaf') html = '叶片横切 · 叶脉<small>Leaf section</small>';
+        else if (part === 'stem') html = '茎横切 · 维管束<small>Stem cross-section</small>';
+        else html = '药物切面 · 菊花心<small>Cross-section</small>';
+        secEl.innerHTML = html;
+      }
     }
   }
   box.style.display = 'block';
@@ -8370,11 +9553,17 @@ function pvLabelUpdate() {
     const v = new THREE.Vector3();
     const narrow = window.innerWidth / window.innerHeight < 0.95;
     if (L.root) v.set((b.min.x + b.max.x) / 2, b.min.y - 0.16, b.max.z);
-    else if (narrow && L.id === 'plSection') v.set((b.min.x + b.max.x) / 2, b.min.y - 0.16, b.max.z);
-    else v.set((b.min.x + b.max.x) / 2, b.max.y + 0.22, b.max.z);
+    else if ((narrow || PV.partName === 'stem') && L.id === 'plSection') {
+      // 茎的组织图较宽，切面标签放到圆盘下方，避免压住结构图
+      v.set((b.min.x + b.max.x) / 2, b.min.y - 0.16, b.max.z);
+    } else v.set((b.min.x + b.max.x) / 2, b.max.y + 0.22, b.max.z);
     _sqVec.copy(v).project(camera);
     if (_sqVec.z > 1) { el.style.display = 'none'; continue; }
-    el.style.left = ((_sqVec.x * 0.5 + 0.5) * window.innerWidth).toFixed(1) + 'px';
+    // 长标签（如花蕾切面）中心可能落到屏幕外，按实际宽度钳进视口
+    const rawX = (_sqVec.x * 0.5 + 0.5) * window.innerWidth;
+    const lw = el.offsetWidth || 0;
+    const lx = Math.max(lw / 2 + 8, Math.min(window.innerWidth - lw / 2 - 8, rawX));
+    el.style.left = lx.toFixed(1) + 'px';
     el.style.top = ((-_sqVec.y * 0.5 + 0.5) * window.innerHeight).toFixed(1) + 'px';
   }
 }
@@ -8420,13 +9609,26 @@ function buildRealPart(kind) {
   if (!REAL.mesh) return null;
   const src = REAL.mesh.geometry;
   const pos = src.attributes.position.array, idx = src.index.array;
-  const lo = kind === 'flower' ? 1.00 : -1, hi = kind === 'flower' ? 2.0 : 0.42;
   const sel = [];
   for (let i = 0; i < idx.length; i += 3) {
-    const a = idx[i] * 3 + 1, b = idx[i + 1] * 3 + 1, c = idx[i + 2] * 3 + 1;
-    if (pos[a] >= lo && pos[a] <= hi && pos[b] >= lo && pos[b] <= hi && pos[c] >= lo && pos[c] <= hi) {
-      sel.push(idx[i], idx[i + 1], idx[i + 2]);
+    const i0 = idx[i], i1 = idx[i + 1], i2 = idx[i + 2];
+    const y0 = pos[i0 * 3 + 1], y1 = pos[i1 * 3 + 1], y2 = pos[i2 * 3 + 1];
+    let ok = false;
+    if (kind === 'flower') {
+      ok = y0 >= 1.00 && y1 >= 1.00 && y2 >= 1.00;
+    } else if (kind === 'root') {
+      ok = y0 <= 0.42 && y1 <= 0.42 && y2 <= 0.42;
+    } else {
+      // 叶 / 茎都在中段：用三角面质心的 y + 离中轴的径向距离区分。
+      // 茎居中（r<0.12），叶从中心向外展开（r≥0.10，y 0.65~1.02）。
+      const mx = (pos[i0 * 3] + pos[i1 * 3] + pos[i2 * 3]) / 3;
+      const my = (y0 + y1 + y2) / 3;
+      const mz = (pos[i0 * 3 + 2] + pos[i1 * 3 + 2] + pos[i2 * 3 + 2]) / 3;
+      const rad = Math.hypot(mx, mz);
+      if (kind === 'leaf') ok = my >= 0.65 && my < 1.02 && rad >= 0.10;
+      else if (kind === 'stem') ok = my >= 0.42 && my <= 1.02 && rad < 0.12;
     }
+    if (ok) sel.push(i0, i1, i2);
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', src.attributes.position);
@@ -8446,11 +9648,61 @@ function buildRealPart(kind) {
   const s = kind === 'flower' ? 3.0 : 2.0;
   const m = new THREE.Mesh(g, REAL.mesh.material);
   m.userData.center = c.clone();
+  m.userData.radius = Math.sqrt(
+    Math.pow(mx[0] - mn[0], 2) + Math.pow(mx[1] - mn[1], 2) + Math.pow(mx[2] - mn[2], 2)) / 2;
   m.scale.setScalar(s);
   m.position.set(3.85 - c.x * s, -0.32 - c.y * s, 0.10 - c.z * s);
   m.visible = false;
   scene.add(m);
   REAL.parts[kind] = m;
+  return m;
+}
+
+// 两味药共用的植物灯光：暖主光 @ 右上前 + 冷补光 @ 左后下 + 环境光。
+// 三七就是靠这套强度/角度显出叶片的蜡质高光和根系的圆柱体积；雪上一枝蒿
+// 之前用 0.85/1.75/0.65 再加一盏底部暖光，光比更平、下缘更亮，体积感更弱。
+function makePlantLights() {
+  const lights = new THREE.Group();
+  lights.name = 'plant-lights';
+  lights.add(new THREE.AmbientLight(0xffffff, 1.0));
+  const key = new THREE.DirectionalLight(0xfff2dc, 2.0);
+  key.position.set(2.5, 4, 3);
+  key.userData.baseI = 2.0;
+  lights.add(key);
+  const fill = new THREE.DirectionalLight(0xc8d8ff, 0.75);
+  fill.position.set(-3, 2, -2);
+  fill.userData.baseI = 0.75;
+  lights.add(fill);
+  lights.visible = false;
+  scene.add(lights);
+  return lights;
+}
+
+// 地面暖光贴片：三七和雪上一枝蒿共用同一套画法/材质参数，
+// 让两株植物都"落在药圃里"，而不是悬在纯黑背景上。
+function makeGroundGlow(size, opacity, y) {
+  const S = 256, cv = document.createElement('canvas');
+  cv.width = cv.height = S;
+  const g = cv.getContext('2d');
+  const grd = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+  grd.addColorStop(0.00, 'rgba(255,206,140,.55)');
+  grd.addColorStop(0.34, 'rgba(255,190,120,.22)');
+  grd.addColorStop(0.70, 'rgba(180,150,90,.06)');
+  grd.addColorStop(1.00, 'rgba(0,0,0,0)');
+  g.fillStyle = grd;
+  g.fillRect(0, 0, S, S);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.needsUpdate = true;
+  const m = new THREE.Mesh(
+    new THREE.PlaneGeometry(size, size),
+    new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: opacity,
+      depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })
+  );
+  m.rotation.x = -Math.PI / 2;
+  m.position.set(0, y, 0);
+  m.visible = false;
+  scene.add(m);
   return m;
 }
 
@@ -8484,7 +9736,8 @@ function buildRealSanqi(buf) {
     const blob = new Blob([new Uint8Array(bin.buffer, bin.byteOffset + (bv.byteOffset || 0), bv.byteLength)], { type: img.mimeType });
     const t = new THREE.TextureLoader().load(URL.createObjectURL(blob));
     t.flipY = false;
-    if (srgb) t.encoding = THREE.sRGBEncoding;
+    t.anisotropy = plantAniso();   // 与雪上一枝蒿一致，斜视角下叶脉不被糊成一片
+    if (srgb) t.colorSpace = THREE.SRGBColorSpace;
     return t;
   }
   const base = tex(0, true), normal = tex(1, false), mr = tex(2, false);
@@ -8494,31 +9747,29 @@ function buildRealSanqi(buf) {
     roughness: 1, metalness: 1, side: THREE.DoubleSide,
   });
   const mesh = new THREE.Mesh(geo, mat);
-  mesh.scale.setScalar(2.6);
-  mesh.position.set(0, -1.55, 0);
+  mesh.scale.setScalar(herbMainScale());
+  mesh.position.set(0, herbMainBaseY(), 0);
   mesh.rotation.x = 0.04;
   mesh.visible = false;
   scene.add(mesh);
 
-  const lights = new THREE.Group();
-  // 光照：环境打底 + 暖主光塑体积 + 冷补光勾轮廓。强度取中间值——
-  // 既不回到原先 2.5 的过曝发白，也不会只剩环境光而发暗。
-  lights.add(new THREE.AmbientLight(0xffffff, 1.0));
-  const d1 = new THREE.DirectionalLight(0xfff2dc, 2.0);
-  d1.position.set(2.5, 4, 3);
-  lights.add(d1);
-  const d2 = new THREE.DirectionalLight(0xc8d8ff, 0.75);
-  d2.position.set(-3, 2, -2);
-  lights.add(d2);
-  // 记下基准强度，散气时按比例推亮（sanqi3dTick 里用）
-  lights.children.forEach(L => { if (L.isDirectionalLight) L.userData.baseI = L.intensity; });
-  lights.visible = false;
-  scene.add(lights);
+  // 光照：与环境共用同一套植物灯光（makePlantLights），
+  // 保证三七/雪上一枝蒿的主光角度、冷暖对比完全一致。
+  const lights = makePlantLights();
 
   REAL.mesh = mesh; REAL.group = lights;
   buildRealLeaders(mesh);
   buildRealDust();
   buildRealGlow();
+  // 预构建两块入药部位网格：把 45 万索引的筛选挪到加载后空闲时，
+  // 避免点击/捏合进入特写的第一下出现"过减速带"式的卡顿。
+  setTimeout(() => {
+    try {
+      for (const k of ['root', 'flower', 'leaf', 'stem']) {
+        if (!REAL.parts[k]) buildRealPart(k);
+      }
+    } catch (e) {}
+  }, 1200);
   return mesh;
 }
 
@@ -8526,29 +9777,8 @@ function buildRealSanqi(buf) {
 // 没有它，模型悬在黑色背景里像被抠图贴上去；有它才有地气，也把视线压向根茎。
 function buildRealGlow() {
   if (REAL.glow) return REAL.glow;
-  const S = 256, cv = document.createElement('canvas');
-  cv.width = cv.height = S;
-  const g = cv.getContext('2d');
-  const grd = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
-  grd.addColorStop(0.00, 'rgba(255,206,140,.55)');
-  grd.addColorStop(0.34, 'rgba(255,190,120,.22)');
-  grd.addColorStop(0.70, 'rgba(180,150,90,.06)');
-  grd.addColorStop(1.00, 'rgba(0,0,0,0)');
-  g.fillStyle = grd;
-  g.fillRect(0, 0, S, S);
-  const tex = new THREE.CanvasTexture(cv);
-  tex.needsUpdate = true;
-  const m = new THREE.Mesh(
-    new THREE.PlaneGeometry(3.4, 3.4),
-    new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.85, depthWrite: false,
-                                  blending: THREE.AdditiveBlending, toneMapped: false })
-  );
-  m.rotation.x = -Math.PI / 2;
-  m.position.set(0, -1.56, 0);
-  m.visible = false;
-  scene.add(m);
-  REAL.glow = m;
-  return m;
+  REAL.glow = makeGroundGlow(3.4, 0.85, -1.56);
+  return REAL.glow;
 }
 
 // 药圃里的浮尘：极少量金色微粒在植株周围缓慢上浮、随呼吸微摆。
@@ -8579,11 +9809,46 @@ function buildRealDust() {
   return p;
 }
 
+// 把模型预生成成 Base64 脚本（libs/sanqi_model_fallback.js），用 <script> 加载：
+// file:// 下 fetch 被 CORS 拦死（origin 'null'），但 <script src> 仍可读本地文件。
+function sanqiB64ToBuffer(b64) {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  if (window.__SANQI_GLB_BYTES && out.byteLength !== window.__SANQI_GLB_BYTES) {
+    throw new Error('内嵌模型长度不符（fallback 与 glb 版本不一致？）');
+  }
+  return out.buffer;
+}
+function loadEmbeddedSanqi() {
+  if (window.__SANQI_GLB_B64) {
+    try { return Promise.resolve(sanqiB64ToBuffer(window.__SANQI_GLB_B64)); }
+    catch (e) { return Promise.reject(e); }
+  }
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'libs/sanqi_model_fallback.js' + (typeof ASSET_V === 'undefined' ? '' : '?v=' + ASSET_V);
+    s.onload = () => {
+      try { resolve(sanqiB64ToBuffer(window.__SANQI_GLB_B64)); }
+      catch (e) { reject(e); }
+    };
+    s.onerror = () => reject(new Error('libs/sanqi_model_fallback.js 加载失败'));
+    document.head.appendChild(s);
+  });
+}
 function loadRealSanqi() {
   if (REAL.mesh) return Promise.resolve(REAL.mesh);
   if (REAL.loading) return REAL.loading;
-  REAL.loading = fetch('libs/sanqi_model.glb')
-    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); })
+  // ?v= 走 ASSET_V：libs/ 是长缓存，换模型后必须能拿到新文件
+  const url = 'libs/sanqi_model.glb' + (typeof ASSET_V === 'undefined' ? '' : '?v=' + ASSET_V);
+  // file:// 不走 fetch（必然 CORS 报错、控制台一片红），直接用内嵌副本；
+  // http(s) 正常 fetch，失败（404、离线、缓存里是坏文件）时再回退内嵌副本。
+  const first = location.protocol === 'file:'
+    ? loadEmbeddedSanqi()
+    : fetch(url)
+        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); })
+        .catch(() => loadEmbeddedSanqi());
+  REAL.loading = first
     .then(buf => buildRealSanqi(buf))
     .catch(e => { REAL.error = true; console.warn('[sanqi] 写实模型加载失败', e); throw e; });
   return REAL.loading;
@@ -8596,10 +9861,12 @@ function setXue3D(on) {
     buildXue3D();
     if (XUE3D.group) { XUE3D.group.visible = true; XUE3D.open = 0; XUE3D.openTgt = 0; }
     if (XUE3D.lights) XUE3D.lights.visible = true;
+    if (XUE3D.glow) XUE3D.glow.visible = true;
     if (XUE.points) XUE.points.visible = false;
   } else {
     if (XUE3D.group) XUE3D.group.visible = false;
     if (XUE3D.lights) XUE3D.lights.visible = false;
+    if (XUE3D.glow) XUE3D.glow.visible = false;
     XUE3D.open = 0; XUE3D.openTgt = 0;
   }
 }
@@ -8628,7 +9895,7 @@ function setReal(on, disperse) {
       if (REAL.dust) REAL.dust.visible = true;
       if (REAL.glow) REAL.glow.visible = true;
       REAL.intro = 0;                 // 从 0 起算：进场有一小段"聚形"过渡
-    }).catch(() => { setReal(false); banner('写实模型加载失败，请检查 libs/sanqi_model.glb', true); });
+    }).catch(() => { setReal(false); banner('写实模型加载失败：libs/sanqi_model.glb 与内嵌后备均不可用', true); });
   } else {
     if (REAL.mesh) REAL.mesh.visible = false;
     if (REAL.group) REAL.group.visible = false;
@@ -8657,12 +9924,12 @@ function realTick(realDt, t) {
   if (REAL.intro < 1) {
     REAL.intro = Math.min(1, REAL.intro + realDt / 0.9);
     const k = 1 - Math.pow(1 - REAL.intro, 3);      // easeOutCubic
-    m.scale.setScalar(2.6 * (0.90 + 0.10 * k));
-  } else if (m.scale.x !== 2.6) {
-    m.scale.setScalar(2.6);
+    m.scale.setScalar(herbMainScale() * (0.90 + 0.10 * k));
+  } else if (Math.abs(m.scale.x - herbMainScale()) > 1e-4) {
+    m.scale.setScalar(herbMainScale());
   }
   // 呼吸：整株极轻地上下浮动，模拟植株在空气里的微动
-  m.position.y = -1.55 + Math.sin(t * 0.9) * 0.012;
+  m.position.set(0, herbMainBaseY() + Math.sin(t * 0.9) * 0.012, 0);
   const dust = REAL.dust;
   if (dust && dust.visible) {
     const p = dust.geometry.attributes.position, base = dust.userData.base, seed = dust.userData.seed;
@@ -8675,16 +9942,387 @@ function realTick(realDt, t) {
     p.needsUpdate = true;
     dust.rotation.y = m.rotation.y * 0.35;
   }
+  applyHerbZoom(m);
 }
 
+// ── 中药模型捏合缩放 / 进入部位特写 ─────────────────────────────────────
+// 触控板 ctrl/meta+wheel、Safari gesture、触屏双指统一处理：
+// 只对当前中药模型做"原地等比放大"——不追光标焦点、不移动模型中心，
+// 就是普通图片/地图那种捏合放大；页面本身不缩放。
+// 放大后松手：若捏合点落在花/根茎附近，再过渡到该部位特写。
+const HERB_ZOOM = {
+  k: 1, active: false, locked: false, part: null,
+  anchor: new THREE.Vector3(), localAnchor: new THREE.Vector3(),
+  rot: null, suppressClickUntil: 0,
+};
+const PART_TRANS = {
+  active: false, t0: 0, part: null, fromK: 1, toK: 2.15,
+  handoff: false, pivotFrom: null, pivotTo: null, pivotT0: 0,
+};
+const PINCH = { active: false };
+
+function herbZoomTarget() {
+  if (REAL.on && REAL.mesh && REAL.mesh.visible) return REAL.mesh;
+  if (XUE.on && XUE3D.group && XUE3D.group.visible) return XUE3D.group;
+  return null;
+}
+function herbZoomEligible() {
+  return herbActive() && !PV.on && !PART_TRANS.active && !!herbZoomTarget();
+}
+function herbPartAtScreen(target, clientX, clientY) {
+  // 射线命中网格时按模型局部高度判部位（最准）；没命中（指缝、根须间隙）
+  // 再退回到两个部位锚点的屏幕距离。这里只"选部位"，不参与缩放中心。
+  const cv0 = document.getElementById('stage');
+  const r0 = cv0.getBoundingClientRect();
+  const ndc0 = new THREE.Vector2(((clientX - r0.left) / r0.width) * 2 - 1,
+                                 -((clientY - r0.top) / r0.height) * 2 + 1);
+  const ray0 = new THREE.Raycaster();
+  ray0.setFromCamera(ndc0, camera);
+  const hit0 = ray0.intersectObject(target, true)[0];
+  if (hit0) {
+    if (target === REAL.mesh) {
+      const local = target.worldToLocal(hit0.point.clone());
+      if (local.y > 1.0) return 'flower';
+      if (local.y < 0.42) return 'root';
+      const rad = Math.hypot(local.x, local.z);
+      if (local.y >= 0.65 && rad >= 0.10) return 'leaf';
+      if (local.y >= 0.42 && rad < 0.12) return 'stem';
+    } else {
+      // 雪上一枝蒿：直接看命中网格上的部位标记，比锚点半径可靠
+      const part = xuePartFromObject(hit0.object);
+      if (part) return part;
+    }
+  }
+  let best = null, bestD = 1e9;
+  const test = (key, p, hitR) => {
+    const s = new THREE.Vector3(p[0], p[1], p[2]).applyMatrix4(target.matrixWorld).project(camera);
+    if (s.z > 1) return;
+    const sx = (s.x * 0.5 + 0.5) * window.innerWidth;
+    const sy = (-s.y * 0.5 + 0.5) * window.innerHeight;
+    const d = Math.hypot(clientX - sx, clientY - sy);
+    if (d < hitR && d < bestD) { best = key; bestD = d; }
+  };
+  if (target === REAL.mesh) {
+    for (const L of REAL_LABELS) test(L.kind, L.p, 110);
+  } else {
+    for (const [key, info] of [['flower', MED_FLOWER[HERB]], ['root', MED_INFO[HERB]]]) {
+      if (info && info.anchor) test(key, info.anchor, info.hitR || 110);
+    }
+  }
+  return best;
+}
+// 支点 = 手指/鼠标下面那个点：转成模型的局部坐标后固定住，
+// 每帧反算位置让这个局部点始终留在原来的世界位置（= 屏幕位置）。
+// 这样就是标准触屏逻辑：指哪儿，放大哪儿；旋转/进场动画也不会让支点漂。
+function setHerbZoomAnchorWorld(target, world) {
+  target.updateMatrixWorld(true);
+  HERB_ZOOM.anchor.copy(world);
+  HERB_ZOOM.localAnchor.copy(target.worldToLocal(world.clone()));
+}
+function setHerbZoomAnchorAt(target, clientX, clientY) {
+  const cv = document.getElementById('stage');
+  const r = cv.getBoundingClientRect();
+  const ndc = new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1,
+                                -((clientY - r.top) / r.height) * 2 + 1);
+  const ray = new THREE.Raycaster();
+  ray.setFromCamera(ndc, camera);
+  const hit = ray.intersectObject(target, true)[0];
+  if (hit) { setHerbZoomAnchorWorld(target, hit.point); return; }
+  // 指缝/根须间没命中时，用该屏幕射线与模型中心所在 z 平面的交点
+  target.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(target);
+  const c = box.getCenter(new THREE.Vector3());
+  const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -c.z);
+  const p = new THREE.Vector3();
+  if (ray.ray.intersectPlane(plane, p)) setHerbZoomAnchorWorld(target, p);
+  else setHerbZoomAnchorWorld(target, c);
+}
+function beginHerbZoom(clientX, clientY) {
+  if (!herbZoomEligible()) return false;
+  const target = herbZoomTarget();
+  // 每次捏合都按当前手指中心重新取支点：指哪放大哪
+  setHerbZoomAnchorAt(target, clientX, clientY);
+  HERB_ZOOM.part = herbPartAtScreen(target, clientX, clientY);
+  HERB_ZOOM.active = true;
+  HERB_ZOOM.locked = true;
+  HERB_ZOOM.rot = points.rotation.clone();
+  HERB_ZOOM.suppressClickUntil = performance.now() + 500;
+  return true;
+}
+function updateHerbZoom(factor) {
+  if (!HERB_ZOOM.active || PART_TRANS.active) return;
+  // 单次事件的倍率限幅：触控板一帧可能报很大的 deltaY，
+  // 不限幅会在第一下就把模型顶到最大倍率、看起来像"嗖地飞走"。
+  factor = Math.max(0.90, Math.min(1.10, factor));
+  HERB_ZOOM.k = clamp(HERB_ZOOM.k * factor, 1, 2.35);
+  // 捏合期间只跟手缩放；进入特写统一在松手后由 endHerbZoom 触发，
+  // 避免放大到一半被动画"接管"、手感像过减速带。
+}
+// 模型局部空间的几何中心（固定点）。不能用世界 AABB 的中心：包围盒随旋转
+// 变化，中心会在旋转时漂移。
+function herbLocalCenter(target) {
+  if (target === REAL.mesh && target.geometry) {
+    if (!target.geometry.boundingBox) target.geometry.computeBoundingBox();
+    return target.geometry.boundingBox.getCenter(new THREE.Vector3());
+  }
+  const g = target;
+  const pos = g.position.clone(), quat = g.quaternion.clone(), scl = g.scale.clone();
+  g.position.set(0, 0, 0); g.quaternion.identity(); g.scale.setScalar(1);
+  g.updateMatrixWorld(true);
+  const c = new THREE.Box3().setFromObject(g).getCenter(new THREE.Vector3());
+  g.position.copy(pos); g.quaternion.copy(quat); g.scale.copy(scl);
+  g.updateMatrixWorld(true);
+  return c;
+}
+// 捏合结束（没进特写）后把支点从"手指位置"换成"模型几何中心"：
+// 之后拖拽旋转就是绕着放大后的植物自转，而不是绕着远处那个手指点甩出去。
+function rebaseHerbZoomToCenter(target) {
+  target.updateMatrixWorld(true);
+  const lc = herbLocalCenter(target);
+  HERB_ZOOM.localAnchor.copy(lc);
+  HERB_ZOOM.anchor.copy(target.localToWorld(lc.clone()));
+}
+function endHerbZoom() {
+  if (PART_TRANS.active) return;
+  const goPart = HERB_ZOOM.k >= 1.55 && HERB_ZOOM.part;
+  const zoomed = HERB_ZOOM.k > 1.001;
+  HERB_ZOOM.active = false;
+  HERB_ZOOM.locked = false;
+  HERB_ZOOM.rot = null;
+  // 松手后再进入特写：捏合期间一直是纯缩放（跟触屏地图的手感一致），
+  // 不会在手指还没离开时模型就被切走。
+  if (goPart) { beginPartTransition(HERB_ZOOM.part); return; }
+  // 单纯放大、不进特写：把缩放支点收回到模型中心，后续旋转稳定
+  if (zoomed) {
+    const target = herbZoomTarget();
+    if (target) rebaseHerbZoomToCenter(target);
+  }
+}
+function resetHerbZoom() {
+  if (PART_TRANS.active) return;
+  HERB_ZOOM.k = 1;
+  HERB_ZOOM.active = false;
+  HERB_ZOOM.locked = false;
+  HERB_ZOOM.rot = null;
+  HERB_ZOOM.part = null;
+}
+// 从特写/缩放返回后，把整株放回正中聚光位（正面、基准缩放、居中）
+function resetHerbView() {
+  if (PART_TRANS.active) return;
+  resetHerbZoom();
+  points.rotation.set(0, 0, 0);
+  yawVel = 0; pitchVel = 0;
+  if (REAL.mesh) {
+    REAL.intro = 1;
+    REAL.mesh.position.set(0, herbMainBaseY(), 0);
+    REAL.mesh.scale.setScalar(herbMainScale());
+    REAL.mesh.rotation.set(0.04, 0, 0);
+    REAL.mesh.updateMatrixWorld();
+  }
+  if (XUE3D.group) {
+    XUE3D.group.position.set(0, XUE3D.baseY === undefined ? XUE_BASE_Y : XUE3D.baseY, 0);
+    XUE3D.group.scale.setScalar(XUE3D.baseScale || 0.72);
+    XUE3D.group.rotation.set(0.04, 0, 0.015);
+    XUE3D.group.updateMatrixWorld();
+  }
+}
+// 在 realTick 算好"呼吸基准"之后叠乘缩放：按当前旋转/基准缩放把模型中心
+// 反算回固定世界点，确保放大时视觉中心钉在原屏幕位置，而不是"飘走"。
+function applyHerbZoom(m) {
+  if (HERB_ZOOM.k <= 1.0001) return;
+  const s = m.scale.x * HERB_ZOOM.k;
+  const off = HERB_ZOOM.localAnchor.clone().applyEuler(m.rotation).multiplyScalar(s);
+  m.scale.setScalar(s);
+  m.position.copy(HERB_ZOOM.anchor).sub(off);
+  m.updateMatrixWorld();
+}
+function beginPartTransition(part, anchorWorld) {
+  if (PART_TRANS.active || PV.on) return false;
+  const target = herbZoomTarget();
+  if (!target) return false;
+  PART_TRANS.active = true;
+  PART_TRANS.part = part;
+  PART_TRANS.fromK = HERB_ZOOM.k;
+  PART_TRANS.toK = HERB_ZOOM.k;        // 单段动画：不再先推一遍整株
+  PART_TRANS.handoff = false;
+  PART_TRANS.pivotFrom = PART_TRANS.pivotTo = null;
+  PART_TRANS.pivotT0 = 0;
+  HERB_ZOOM.active = true;
+  HERB_ZOOM.locked = true;
+  HERB_ZOOM.rot = points.rotation.clone();
+  HERB_ZOOM.suppressClickUntil = performance.now() + 1000;
+  const ov = document.getElementById('pvSwoosh');
+  if (ov) ov.style.opacity = '0.4';
+  // 直接把主模型上的同一块部位接过来，一段动画滑到最终特写构图
+  doHerbPartHandoff();
+  return true;
+}
+// 一镜到底的交接：主模型推近到最大时，把部位视图的 pivot 反算到
+// "刚好等于主模型上那块"的位置，然后从那里滑到最终特写构图。
+function doHerbPartHandoff() {
+  const target = herbZoomTarget();            // 此刻整株还没被隐藏
+  let mainMatrix = null, xueInfo = null;
+  if (target) { target.updateMatrixWorld(true); mainMatrix = target.matrixWorld.clone(); }
+  // 雪上一枝蒿没有独立 partMesh：先记下主模型上那块（块根/花序）的世界包围盒与朝向
+  if (target && target === XUE3D.group) {
+    const tag = PART_TRANS.part === 'root' ? 'tuber' : 'flower';
+    const src = XUE3D.group.children.filter(o => o.userData && o.userData.part === tag);
+    if (src.length) {
+      const box = new THREE.Box3();
+      for (const s of src) { s.updateWorldMatrix(true, false); box.expandByObject(s); }
+      if (!box.isEmpty()) {
+        xueInfo = {
+          center: box.getCenter(new THREE.Vector3()),
+          size: box.getSize(new THREE.Vector3()),
+          quat: XUE3D.group.getWorldQuaternion(new THREE.Quaternion()),
+        };
+      }
+    }
+  }
+  PART_TRANS.handoff = true;
+  selectMedPart(PART_TRANS.part);             // 建部位视图（最终构图）并隐藏整株
+  // 记录当前视口，避免过渡结束后的下一帧误判"窗口尺寸变了"又重排一次，
+  // 让部位在最后一刻再跳一下。
+  PV._w = window.innerWidth | 0;
+  PV._h = window.innerHeight | 0;
+  // 讲解卡、化学式/结构/切面在交接的这一刻就出现（随部位一起落位），
+  // 不再等整段动画结束才"慢半拍"地弹出来。
+  const p = PV.pivot;
+  if (!p) return;
+  const endPos = p.position.clone(), endQuat = p.quaternion.clone(), endScale = p.scale.clone();
+  let from = { pos: endPos, quat: endQuat, scale: endScale };
+  if (mainMatrix && PV.partMesh && PV.partMesh !== p) {
+    // 三七：pivot 内那块肉的局部矩阵 m：P0 = mainMatrix * m⁻¹
+    PV.partMesh.updateMatrix();
+    const inv = new THREE.Matrix4().copy(PV.partMesh.matrix).invert();
+    const P0 = new THREE.Matrix4().multiplyMatrices(mainMatrix, inv);
+    P0.decompose(p.position, p.quaternion, p.scale);
+    p.updateMatrixWorld(true);
+    from = { pos: p.position.clone(), quat: p.quaternion.clone(), scale: p.scale.clone() };
+  } else if (xueInfo) {
+    // 雪上一枝蒿：pivot 内容是归一化后的同一组网格，按包围盒/朝向对齐到主模型那块
+    p.position.set(0, 0, 0); p.quaternion.identity(); p.scale.setScalar(1);
+    p.updateMatrixWorld(true);
+    const lb = new THREE.Box3().setFromObject(p);
+    const lc = lb.getCenter(new THREE.Vector3()), ls = lb.getSize(new THREE.Vector3());
+    p.position.copy(endPos); p.quaternion.copy(endQuat); p.scale.copy(endScale);
+    p.updateMatrixWorld(true);
+    if (!lb.isEmpty() && ls.x > 1e-4 && ls.y > 1e-4 && ls.z > 1e-4) {
+      const scale0 = Math.max(xueInfo.size.x / ls.x, xueInfo.size.y / ls.y, xueInfo.size.z / ls.z);
+      const off = lc.clone().applyQuaternion(xueInfo.quat).multiplyScalar(scale0);
+      p.quaternion.copy(xueInfo.quat);
+      p.scale.setScalar(scale0);
+      p.position.copy(xueInfo.center).sub(off);
+      p.updateMatrixWorld(true);
+      from = { pos: p.position.clone(), quat: p.quaternion.clone(), scale: p.scale.clone() };
+    }
+  }
+  PART_TRANS.pivotFrom = from;
+  PART_TRANS.pivotTo = { pos: endPos, quat: endQuat, scale: endScale };
+  PART_TRANS.pivotT0 = performance.now();
+}
+function stepHerbTransition() {
+  if (!PART_TRANS.active) return;
+  if (!PART_TRANS.handoff) { doHerbPartHandoff(); return; }
+  // 单段一镜到底（0.8s）：同一块部位从主模型上的原位直接滑到特写构图，
+  // 中间不再推整株，也不分两段。easeOut 起步即有速度，跟手、不生硬。
+  const ov = document.getElementById('pvSwoosh');
+  const t = Math.min(1, (performance.now() - PART_TRANS.pivotT0) / 800);
+  const e = 1 - Math.pow(1 - t, 3);
+  const p = PV.pivot;
+  if (p && PART_TRANS.pivotFrom && PART_TRANS.pivotTo) {
+    p.position.lerpVectors(PART_TRANS.pivotFrom.pos, PART_TRANS.pivotTo.pos, e);
+    p.quaternion.copy(PART_TRANS.pivotFrom.quat).slerp(PART_TRANS.pivotTo.quat, e);
+    p.scale.lerpVectors(PART_TRANS.pivotFrom.scale, PART_TRANS.pivotTo.scale, e);
+    p.updateMatrixWorld(true);
+  }
+  if (ov) ov.style.opacity = (0.4 * (1 - e)).toFixed(3);
+  if (t >= 1) {
+    PART_TRANS.active = false;
+    PART_TRANS.handoff = false;
+    PART_TRANS.pivotFrom = PART_TRANS.pivotTo = null;
+    HERB_ZOOM.active = false;
+    HERB_ZOOM.locked = false;
+    HERB_ZOOM.rot = null;
+    HERB_ZOOM.k = 1;
+    if (ov) ov.style.opacity = '0';
+  }
+}
+
+// ── 捏合输入：触控板 ctrl/meta + wheel、Safari gesture、触屏双指 ─────────
+function pinchEligible(e) {
+  if (!herbActive() || PV.on) return false;
+  if (!herbZoomTarget()) return false;
+  const t = e.target;
+  if (t && t.closest && t.closest('#herbCard,#partModal,#bar,#herbPop,#btnBack,#err,#topbar,#medUse,#medPart')) return false;
+  return true;
+}
+let _wheelEndTimer = 0;
+window.addEventListener('wheel', e => {
+  if (!(e.ctrlKey || e.metaKey)) return;       // 触控板捏合会带 ctrl；普通滚轮不拦
+  if (!herbActive()) return;
+  const t = e.target;
+  if (t && t.closest && t.closest('#herbCard,#partModal,#bar,#herbPop,#btnBack,#err,#topbar,#medUse,#medPart')) return;
+  // 本草舞台上的捏合一律不放大页面：包括过渡中/部位视图里，
+  // 否则模型推近到一半、手指还没松，浏览器会把整页放大。
+  e.preventDefault();
+  if (PV.on || PART_TRANS.active) return;
+  if (!herbZoomTarget()) return;
+  if (!HERB_ZOOM.active && !beginHerbZoom(e.clientX, e.clientY)) return;
+  updateHerbZoom(Math.exp(-e.deltaY * 0.012));
+  clearTimeout(_wheelEndTimer);
+  _wheelEndTimer = setTimeout(endHerbZoom, 180);
+}, { passive: false });
+let _safariScale = 1;
+['gesturestart', 'gesturechange', 'gestureend'].forEach(type => {
+  document.addEventListener(type, e => {
+    if (!pinchEligible(e)) return;
+    e.preventDefault();
+    if (type === 'gesturestart') {
+      _safariScale = 1;
+      if (!PART_TRANS.active) beginHerbZoom(e.clientX, e.clientY);
+    } else if (type === 'gesturechange') {
+      if (e.scale > 0) { updateHerbZoom(e.scale / _safariScale); _safariScale = e.scale; }
+    } else {
+      endHerbZoom();
+    }
+  }, { passive: false });
+});
+let _touchPinchDist = 0;
+const _stageEl = document.getElementById('stage');
+_stageEl.addEventListener('touchstart', e => {
+  if (e.touches.length < 2 || !pinchEligible(e)) return;
+  e.preventDefault();
+  const a = e.touches[0], b = e.touches[1];
+  _touchPinchDist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+  PINCH.active = true;
+  virtualHand.active = false; virtualHand.down = false;
+  beginHerbZoom((a.clientX + b.clientX) / 2, (a.clientY + b.clientY) / 2);
+}, { passive: false, capture: true });
+_stageEl.addEventListener('touchmove', e => {
+  if (!PINCH.active || e.touches.length < 2) return;
+  e.preventDefault();
+  const a = e.touches[0], b = e.touches[1];
+  const d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+  if (_touchPinchDist > 0) updateHerbZoom(d / _touchPinchDist);
+  _touchPinchDist = d;
+}, { passive: false, capture: true });
+function _endTouchPinch(e) {
+  if (!PINCH.active) return;
+  if (e.touches && e.touches.length >= 2) return;
+  PINCH.active = false;
+  endHerbZoom();
+}
+_stageEl.addEventListener('touchend', _endTouchPinch, { capture: true });
+_stageEl.addEventListener('touchcancel', _endTouchPinch, { capture: true });
+
 // ── 中药目录：两个品种共用一套「聚气/散气」交互，只是几何、卡片、标注不同 ──
-// 属性卡按市面中药查询应用的层级来组织：顶部印章 + 药名 + 性味标签，
+// 属性卡按市面中药查询应用的层级来组织：顶部药名 + 性味标签，
 // 中间分页（药性 / 性状 / 采收 / 炮制），底部物候时间轴。
 // 分页让"一眼抓住要点"和"想看细节"共存，不必把十行字全堆在一张卡上。
 const HERB_INFO = {
   sanqi: {
     name: '三七', en: 'Sanqi (Notoginseng)', latin: 'Panax notoginseng',
-    seal: '参',
     origin: '五加科人参属 · 干燥根及根茎', originEn: 'Araliaceae · dried root & rhizome',
     chips: [['warm', '温'], ['mer', '归肝、胃经'], ['warm', '甘 · 微苦']],
     rows: [
@@ -8714,13 +10352,12 @@ const HERB_INFO = {
     pheno: { title: '物候 · 采收期', titleEn: 'Phenology', stages: [
       ['3–4月', '苗期'], ['5–6月', '展叶'], ['7–8月', '现蕾'], ['9–11月', '果熟·采挖'], ['12–2月', '休眠'],
     ]},
-    big: '三七 · 中药 / Sanqi · TCM',
+    big: '三七 / Sanqi',
     small: '五加科人参属 · 化瘀止血 / Araliaceae · stops bleeding',
     intro: '性温，味甘微苦，归肝、胃经 / Warm; sweet-bitter; Liver & Stomach',
   },
   xue: {
     name: '雪上一枝蒿', en: 'Short-pedicel Aconite', latin: 'Aconitum brachypodum',
-    seal: '蒿',
     origin: '毛茛科乌头属 · 干燥块根', originEn: 'Ranunculaceae · dried tuberous roots',
     chips: [['warm', '温'], ['mer', '归肝、肾经'], ['toxic', '有大毒']],
     rows: [
@@ -8750,7 +10387,7 @@ const HERB_INFO = {
     pheno: { title: '物候 · 采收期', titleEn: 'Phenology', stages: [
       ['4–5月', '返青'], ['6–7月', '展叶'], ['8–9月', '开花'], ['10–11月', '果熟·采挖'], ['12–3月', '休眠'],
     ]},
-    big: '雪上一枝蒿 · 中药 / Aconite · TCM',
+    big: '雪上一枝蒿 / Aconite',
     small: '毛茛科乌头属 · 祛风除湿 / Ranunculaceae · expels wind-damp',
     intro: '性温，味苦辛，有大毒 / Warm, bitter-pungent; highly toxic',
   },
@@ -8759,7 +10396,7 @@ let HERB = 'sanqi';
 let herbTab = '药性';
 // 窄屏默认收起：手机竖屏时铺开的卡片会盖住植株下半截（正好是根茎入药部位）。
 // 先看全株、要看药性再点开，这才是逛图谱的顺序。
-let herbCardFolded = window.innerWidth <= 720;
+let herbCardFolded = (typeof isMobilePortrait === 'function' ? isMobilePortrait() : window.innerWidth <= 720);
 function herbActive() { return SANQI.on || XUE.on; }
 function activeHerbLayer() { return SANQI.on ? SANQI : (XUE.on ? XUE : null); }
 function activeHerbKey() { return XUE.on ? 'xue' : 'sanqi'; }
@@ -8783,14 +10420,12 @@ function renderHerbCard() {
   const ph = info.pheno, phIdx = ph ? phenoCurrent(ph.stages) : -1;
   box.innerHTML =
       '<div class="hc-head">'
-    +   '<div class="hc-seal">' + (info.seal || info.name[0]) + '</div>'
     +   '<div class="hc-headmain">'
     +     '<div class="hc-name"><b>' + info.name + '</b><span>' + info.en + ' · ' + info.latin + '</span></div>'
     +     '<div class="hc-chips">' + (info.chips || []).map(c => '<span class="chip ' + c[0] + '">' + c[1] + '</span>').join('') + '</div>'
     +   '</div>'
     + '</div>'
     + '<div class="hc-origin">' + info.origin + '<small>' + info.originEn + '</small></div>'
-    + '<div class="hc-rule"></div>'
     + '<div class="hc-tabs">' + ['药性'].concat(tabs.map(t => t.k)).map(k =>
         '<button type="button" data-tab="' + k + '"' + (k === herbTab ? ' class="on"' : '') + '>' + k + '</button>').join('')
     + '</div>'
@@ -8821,6 +10456,15 @@ function renderHerbCard() {
   if (pane) requestAnimationFrame(() => pane.classList.toggle('more', pane.scrollHeight - pane.clientHeight > 4));
   renderHerbMenu();
 }
+// 窗口缩放会改变卡片与内容区高度：重算底部渐隐，避免"内容被截断却没有任何提示"。
+let herbPaneRszTimer = 0;
+window.addEventListener('resize', () => {
+  clearTimeout(herbPaneRszTimer);
+  herbPaneRszTimer = setTimeout(() => {
+    const pane = document.querySelector('#herbCard .hc-pane');
+    if (pane) pane.classList.toggle('more', pane.scrollHeight - pane.clientHeight > 4);
+  }, 140);
+});
 function renderHerbMenu() {
   document.querySelectorAll('#herbPop .hp-item').forEach(b => b.classList.toggle('on', b.dataset.herb === HERB));
 }
@@ -8828,8 +10472,24 @@ function closeHerbMenu() {
   const pop = document.getElementById('herbPop');
   if (pop) pop.classList.remove('open');
 }
+// 雪上一枝蒿的第一次构建包含 4 组 PBR 贴图生成 + 块根合并，放在切药材的点击路径上
+// 会卡一下。进入本草展厅后在空闲时先建好（隐藏），真正切换时只做显隐。
+let xueWarmTimer = 0;
+function scheduleXueWarmup() {
+  if (XUE3D.built) return;
+  const run = () => {
+    if (XUE3D.built || !herbActive()) return;
+    try { buildXue3D(); } catch (e) { console.warn('[xue] 预热失败', e); }
+  };
+  if (typeof requestIdleCallback === 'function') {
+    try { requestIdleCallback(run, { timeout: 5000 }); return; } catch (e) {}
+  }
+  clearTimeout(xueWarmTimer);
+  xueWarmTimer = setTimeout(run, 2600);
+}
 // 进入/切换某个品种：建层、显隐、重建标注、刷新属性卡与中央标题
 function activateHerb(name) {
+  resetHerbZoom();                 // 切药材时清掉上一味的捏合倍率/支点
   if (REAL.on) setReal(false);
   HERB = name;
   const isSanqi = name === 'sanqi';
@@ -8901,6 +10561,7 @@ function setHerbMode(on) {
     ambientIdle = 0; ambient = false;
     document.body.classList.add('herb-mode');
     activateHerb(HERB);
+    scheduleXueWarmup();
   } else {
     SANQI.on = false; XUE.on = false;
     if (SANQI.points) SANQI.points.visible = false;
@@ -8914,6 +10575,7 @@ function setHerbMode(on) {
     const badge = document.getElementById('stateBadge');
     if (badge) badge.textContent = ST.AMBIENT;
     document.body.classList.remove('herb-mode');
+    resetHerbZoom();
     if (REAL.on) setReal(false);
     const mp = document.getElementById('medPart');
     if (mp) mp.classList.remove('on');
@@ -8937,6 +10599,7 @@ let _partDown = null;
 document.getElementById('stage').addEventListener('pointerdown', e => { _partDown = { x: e.clientX, y: e.clientY }; });
 document.getElementById('stage').addEventListener('click', e => {
   if (REAL.on || !herbActive()) return;
+  if (PART_TRANS.active || performance.now() < HERB_ZOOM.suppressClickUntil) return;
   if (_partDown && Math.abs(e.clientX - _partDown.x) + Math.abs(e.clientY - _partDown.y) > 8) return;
   // 命中检测必须用【当前实际渲染的那个对象】的矩阵：
   // 雪上一枝蒿现在由 XUE3D.group 呈现（粒子层已隐藏），
@@ -8949,6 +10612,23 @@ document.getElementById('stage').addEventListener('click', e => {
             : null;
   if (!obj) return;
   obj.updateMatrixWorld();
+  // 先用射线直接看命中的是哪块网格（块根/花序有 part 标记），
+  // 比只按锚点半径猜可靠得多。
+  {
+    const cv = document.getElementById('stage');
+    const r = cv.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1,
+                                  -((e.clientY - r.top) / r.height) * 2 + 1);
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(ndc, camera);
+    const hit = ray.intersectObject(obj, true)[0];
+    if (hit) {
+      const part = xuePartFromObject(hit.object);
+      if (part) { beginPartTransition(part, hit.point.clone()); return; }
+      showHerbToast('非药用部位', '雪上一枝蒿以块根入药；花序仅作识别。叶、茎不入药。');
+      return;
+    }
+  }
   const parts = [['flower', MED_FLOWER[HERB]], ['root', MED_INFO[HERB]]];
   for (const [key, info] of parts) {
     if (!info) continue;
@@ -8957,13 +10637,19 @@ document.getElementById('stage').addEventListener('click', e => {
     if (_sqVec.z > 1) continue;
     const sx = (_sqVec.x * 0.5 + 0.5) * window.innerWidth;
     const sy = (-_sqVec.y * 0.5 + 0.5) * window.innerHeight;
-    if (Math.hypot(e.clientX - sx, e.clientY - sy) < info.hitR) { selectMedPart(key); return; }
+    if (Math.hypot(e.clientX - sx, e.clientY - sy) < info.hitR) {
+      const world = new THREE.Vector3(info.anchor[0], info.anchor[1], info.anchor[2])
+        .applyMatrix4(obj.matrixWorld);
+      beginPartTransition(key, world);
+      return;
+    }
   }
   // 点空白：收起
   medRevealed = false; medPart = null; hideMedUI(); hideRealParts();
 });
 document.getElementById('stage').addEventListener('click', e => {
   if (!REAL.on || !REAL.mesh || !REAL.mesh.visible) return;
+  if (PART_TRANS.active || performance.now() < HERB_ZOOM.suppressClickUntil) return;
   if (_partDown && Math.abs(e.clientX - _partDown.x) + Math.abs(e.clientY - _partDown.y) > 8) return;
   const cv = document.getElementById('stage');
   const r = cv.getBoundingClientRect();
@@ -8974,9 +10660,15 @@ document.getElementById('stage').addEventListener('click', e => {
   const hit = ray.intersectObject(REAL.mesh, true)[0];
   if (!hit) return;
   const p = REAL.mesh.worldToLocal(hit.point.clone());
-  if (p.y > 1.0) selectMedPart('flower');
-  else if (p.y < 0.42) selectMedPart('root');
-  else { medRevealed = false; medPart = null; hideMedUI(); hideRealParts(); }
+  // 点击与捏合共用同一段推近过渡（以点击到的部位点为支点）
+  if (p.y > 1.0) beginPartTransition('flower', hit.point.clone());
+  else if (p.y < 0.42) beginPartTransition('root', hit.point.clone());
+  else {
+    const rad = Math.hypot(p.x, p.z);
+    if (p.y >= 0.65 && rad >= 0.10) beginPartTransition('leaf', hit.point.clone());
+    else if (p.y >= 0.42 && rad < 0.12) beginPartTransition('stem', hit.point.clone());
+    else { medRevealed = false; medPart = null; hideMedUI(); hideRealParts(); }
+  }
 });
 document.querySelectorAll('#herbPop .hp-item').forEach(b => {
   b.addEventListener('click', () => setHerb(b.dataset.herb));
@@ -8993,7 +10685,6 @@ document.getElementById('stage').addEventListener('pointermove', e => {
   let best = -1, bestD = 1e9;
   for (let i = 0; i < REAL_LABELS.length; i++) {
     const L = REAL_LABELS[i];
-    if (L.kind !== 'flower' && L.kind !== 'root') continue;
     _sqVec.set(L.p[0], L.p[1], L.p[2]).applyMatrix4(REAL.mesh.matrixWorld).project(camera);
     if (_sqVec.z > 1) continue;
     const sx = (_sqVec.x * 0.5 + 0.5) * window.innerWidth;
@@ -9053,8 +10744,21 @@ function showBackButton() {
   const b = document.getElementById('btnBack');
   if (!b) return;
   b.addEventListener('click', () => {
-    // 用绝对根路径，避免带 ?mode= 的查询串影响相对解析
-    try { location.replace('/index.html'); } catch (e) { location.href = '/index.html'; }
+    // 植物特写（药用部位弹窗 / 部位视图）是本草展厅内的二级视图：
+    // 此时「返回展厅」应先回到本草主界面，而不是直接退回展厅选择页。
+    // 炮制方法弹窗更靠上一层，先关它。
+    const proc = document.getElementById('procModal');
+    if (proc && proc.classList.contains('open')) { closeProcModal(); return; }
+    const part = document.getElementById('partModal');
+    if ((part && part.classList.contains('open')) || (typeof PV !== 'undefined' && PV.on)) {
+      closePartModal();
+      return;
+    }
+    // 已经在本草/甲骨文主界面：回到独立展厅选择页。
+    // 必须用相对路径：查询串不会影响相对解析，而绝对根路径 '/index.html'
+    // 在 file:// 下会指向文件系统根目录，在子目录部署（如 GitHub Pages 的
+    // /Oracle-bone-TCM/）下会跳到域名根，两种常见场景都会 404。
+    try { location.replace('index.html'); } catch (e) { location.href = 'index.html'; }
   });
 })();
 function setSection(name) {
@@ -9164,6 +10868,9 @@ function frame(now) {
   }
   // 中药层放在子步之外推进：它的弹簧刚度低、不参与聚散，单步精度足够；
   // 更重要的是 tick 要写数万点的 position/color 属性，放在子步里会重复写 n 次。
+  // 捏合/过渡期间冻结视角旋转：先恢复，再让各层读取（否则支点会跟着转走）
+  stepHerbTransition();
+  if (HERB_ZOOM.locked && HERB_ZOOM.rot) points.rotation.copy(HERB_ZOOM.rot);
   if (SANQI.on && !REAL.on) {
     // 三七由 GLB 写实模型呈现：这里只推状态与补光，标签走既有的 realLabelsUpdate
     sanqi3dTick(realDt, t);
@@ -9174,14 +10881,15 @@ function frame(now) {
   realTick(realDt, t);
   realLabelsUpdate();
   pvLabelUpdate();
-  if (PV.on && ((window.innerWidth|0) !== PV._w || (window.innerHeight|0) !== PV._h)) {
+  if (PV.on && !PART_TRANS.active && ((window.innerWidth|0) !== PV._w || (window.innerHeight|0) !== PV._h)) {
     PV._w = window.innerWidth|0; PV._h = window.innerHeight|0;
     layoutPartView();
   }
   for (const k in REAL.parts) if (REAL.parts[k] && REAL.parts[k].visible) REAL.parts[k].rotation.y += realDt * 0.3;
   if (PV.on) {
     PV.time += realDt;
-    if (PV.pivot && !PV.drag) PV.pivot.rotation.y += realDt * 0.22;
+    // 一镜到底期间由 stepHerbTransition 控制 pivot 的位姿，别叠加自转
+    if (PV.pivot && !PV.drag && !PART_TRANS.active) PV.pivot.rotation.y += realDt * 0.22;
   }
   if (herbActive()) {
     const hint = document.getElementById('medHint');
@@ -9241,7 +10949,7 @@ function frame(now) {
   }
   renderer.render(scene, camera);
 
-  // 右上角常显：fps / particles / glyph
+  // 右下角常显：fps / particles / glyph
   // 诊断项（检测帧率 / 相机分辨率 / 顿挫）默认隐藏，按 Ctrl(⌘)+Shift+D 可切换显示。
   // 只在「显示出来的内容真的变了」时才重建 DOM：先用签名字符串比对。
   // 原先每帧无条件写 innerHTML（60 次/秒的 HTML 解析 + DOM 重建），
@@ -9268,19 +10976,10 @@ function frame(now) {
       + diagLine + jankLine
       + `</span>`;
     // 竖屏下 #stats 被媒体查询隐藏；诊断模式（Ctrl/⌘+Shift+D）用内联 display 强制显示
-    // —— 与相邻 #statsDiag 的内联 style、下方 statsEl.style.top 保持同一套机制
+    // —— 与相邻 #statsDiag 的内联 style 保持同一套机制
     statsEl.style.display = statsDiag ? 'block' : '';
   }
-  // 右上角：状态胶囊在上、读数（stats）在下 —— 顺序与原先相反。
-  // stats 是 position:fixed，不参与 topbar 的 flex 排版，所以它的 top 必须算：
-  // 取胶囊实际下缘（诊断展开、状态文字变长都会改变它）再加 8px 间距。
-  // 只在数值真正变化时才写 DOM：胶囊上有 transition:all，每帧写会无谓重排。
-  const badgeEl = document.getElementById('stateBadge');
-  if (badgeEl) {
-    const statsEl = document.getElementById('stats');
-    const wantTop = Math.round(badgeEl.getBoundingClientRect().bottom + 8);
-    if (wantTop !== statsTop) { statsTop = wantTop; statsEl.style.top = wantTop + 'px'; }
-  }
+  // 读数固定在右下角（见 #stats CSS），不再随状态胶囊下缘动态定位。
 }
 
 // ── 背景：药坊炮制演示（整屏 2D 壁画）────────────────────────────────────
@@ -11949,11 +13648,15 @@ function drawXueRoot(g, x, y, h, rot) {
   function layout(steps) {
     const n = steps.length;
     const out = [];
-    const top = 168, bot = H - 158;
+    // 竖向：每格的视觉重心并不在格中心 —— 器物在格中心下方（+0.88u），
+    // 文字标签更靠下（底边约 +1.14u+20）。原来 top=168 / bot=H-158 会让
+    // 整列的"视觉包围盒"比屏幕中心低约 55px；右上角状态胶囊与 fps 读数
+    // 隐藏后，这里把整列上移并让上下留白对称（112 / H-216），视觉上正好居中。
+    const top = 112, bot = H - 216;
     const cellH = n > 1 ? (bot - top) / (n - 1) : (bot - top);
     const u = Math.max(30, Math.min(100, cellH * 0.70 / 1.42));
-    // 单列：贴着右缘往内一点
-    const x = W - Math.max(130, W * 0.135);
+    // 单列：贴着右缘往内一点；右上角信息已隐藏，整列再向右收 30~40px
+    const x = W - Math.max(110, W * 0.105);
     steps.forEach((s, i) => {
       const y = n > 1 ? top + i * cellH : (top + bot) / 2;
       out.push({ s, x, y, u, col: 0, row: i });
@@ -12311,13 +14014,9 @@ function drawXueRoot(g, x, y, h, rot) {
 
   if (!sampleGlyph3D(curGlyph3D)) { banner('字形渲染失败', true); return; }
 
-  // file:// 下摄像头手势不可能工作（见 toggleCamera 注释）：鼠标模式照常，
-  // 但把按钮标记为不可用，避免用户反复点击只换来一句 "Load failed"。
-  if (location.protocol === 'file:') {
-    const b = document.getElementById('btnCam');
-    b.style.opacity = '.55';
-    b.title = '手势控制需经 HTTP 打开：python3 serve.py 后访问 http://localhost:8138/gesture3d.html';
-  }
+  // file:// 直开时，本地 libs/ 的 wasm 会被 CORS 拦截；手势模型会自动改用
+  // npm CDN 的 https 源（见 pickHandsSource），联网即可用，故不再禁用按钮。
+  // 离线 file:// 点击后会给出「联网或启动本地服务」的明确提示。
 
   // 跨域 iframe（宿主 App 内置预览面板）里摄像头必然失败，且点下去只会得到
   // NotAllowedError —— 提前把按钮标出来，省得用户反复点击怀疑作品坏了。
@@ -12328,21 +14027,14 @@ function drawXueRoot(g, x, y, h, rot) {
             + '请在系统浏览器打开 ' + location.origin + '/index.html 以使用手势';
   }
 
+  // ── 入口页展厅模式 ────────────────────────────────────────────────
+  // 必须在首帧渲染前应用：已去掉载入层，若等到 rAF 再切，?mode=herb
+  // 会先画出一帧甲骨文粒子再被切走。此处 initScene()/sampleGlyph3D() 已完成，
+  // setSection() 所需的 points 与中药对象均已就绪。
+  try { maybeShowOnboard(); } catch (e) { console.warn('[Oracle] 应用展厅模式失败，稍后重试', e); }
   requestAnimationFrame(frame);
-
-  // ── 首屏骨架退场 + 首次引导 ────────────────────────────────────────
-  // 骨架在首帧真正渲染出来后淡出（不是定时器到点就消失）——
-  // 否则慢设备上用户会看到"骨架没了、画面还空着"。
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    const boot = document.getElementById('boot');
-    if (boot) { boot.classList.add('gone'); setTimeout(() => boot.remove(), 700); }
-    maybeShowOnboard();
-  }));
-  // 保险：无论初始化多慢，加载屏最多 6 秒后退场，避免一直卡在"载入中"
-  setTimeout(() => {
-    const boot = document.getElementById('boot');
-    if (boot) { boot.classList.add('gone'); setTimeout(() => boot.remove(), 700); }
-  }, 6000);
+  // 保险：若上面的调用被异常打断（极慢设备/后台标签页），6 秒后再应用一次。
+  setTimeout(() => { try { maybeShowOnboard(); } catch (e) {} }, 6000);
 })().catch(e => banner('初始化失败：' + e.message, true));
 
 // 首次引导：localStorage 记一次，之后不再打扰。
@@ -12358,7 +14050,9 @@ function maybeShowOnboard() {
     try { localStorage.setItem('ob_onboard_v1', '1'); } catch (e) {}
     const obEl = document.getElementById('onboard'); if (obEl) obEl.remove();
     showBackButton();
-    setTimeout(() => { if (typeof setSection === 'function') setSection(forcedMode); }, 300);
+    // 立即切到入口页选定的展厅：此函数现在在首帧之前调用，
+    // 若延迟到 rAF 再切，中药入口会先露出甲骨文粒子再被切走。
+    if (typeof setSection === 'function') setSection(forcedMode);
     return;
   }
   // 【无 mode 直接打开主页面】展厅选择已交给独立入口页 index.html：

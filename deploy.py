@@ -4,14 +4,15 @@
 #  用法： python3 deploy.py [输出目录]        默认 dist/
 #
 #  为什么不直接上传整个仓库：
-#   · libs/ 共 28MB，但运行时只请求其中 8 个文件；另外有个 AYJGW.ttf（4.2MB）
+#   · libs/ 共约 50MB，但运行时只请求其中 9 个文件；另外有个 AYJGW.ttf（4.2MB）
 #     纯粹是构建时才用的完整字体（页面内嵌的是 base64 子集），传上去毫无用处。
 #   · data/、*.py、docs/、.git/ 都不该出现在站点根目录（会被直接下载）。
 #
-#  ⚠ 有两类文件「没被请求」但**必须保留**，脚本会显式校验它们存在：
+#  ⚠ 有几类文件「没被请求」但**必须保留**，脚本会显式校验它们存在：
 #   · hands_solution_wasm_bin.{js,wasm}（非 SIMD）—— 旧浏览器 fallback，
 #     libs/hands.js 会探测 SIMD 支持后在两个变体间二选一，删了就有一批浏览器跑不起来。
 #   · hand_landmark_lite.tflite —— modelComplexity:0 时用的备用模型。
+#   · sanqi_model_fallback.js —— file:// 或 GLB 请求失败时，三七写实模型的后备副本。
 # ============================================================
 import os
 import shutil
@@ -26,7 +27,6 @@ ROOT_FILES = ["index.html", "gesture3d.html"]
 # 运行时需要 + 必须保留的 fallback（见上方说明）
 LIB_FILES = [
     "three.min.js",
-    "sanqi_model.glb",        # 三七写实模型（150k 面，写实/粒子切换时按需加载）
     "hands.js",
     "hands.binarypb",
     "hands_solution_simd_wasm_bin.js",
@@ -38,6 +38,10 @@ LIB_FILES = [
     "hands_solution_wasm_bin.js",
     "hands_solution_wasm_bin.wasm",
     "hand_landmark_lite.tflite",
+    # 中药展厅：三七写实模型 + file:// / GLB 失败时的脚本内嵌后备
+    # （后备只在 GLB 请求失败时动态加载，HTTP 正常访问不会下载）
+    "sanqi_model.glb",
+    "sanqi_model_fallback.js",
 ]
 
 missing = [f for f in ROOT_FILES if not os.path.isfile(os.path.join(base, f))]

@@ -9,7 +9,7 @@
 #  设计前提（本机实测得出，不是通用假设）：
 #   · 服务器在大陆，raw.githubusercontent.com 不可达（60s 0 字节），
 #     但 github.com 可用（浅克隆 46MB 仅 3.4 秒）→ 故用 git 作为分发通道。
-#   · 本机已有 nginx 与 certbot 在服务 kylinhealth.com.cn，
+#   · 本机已有 nginx 与 certbot 在服务 既有站点，
 #     故本脚本只【新增】一个 server 块，绝不改写或删除既有配置。
 #   · 备案通过前不可加域名解析（阿里云限制），也不可签发证书，
 #     故证书签发与解析绑定留到备案后由运维步骤完成（见 deploy/README.md）。
@@ -24,7 +24,8 @@ SITE_ROOT="${SITE_ROOT:-/var/www/oracletcm}"
 REPO="${REPO:-}"
 CONF="/etc/nginx/conf.d/${DOMAIN}.conf"
 
-# 需要发布的文件：运行时真正被请求的 8 个 + 两个 fallback（详见 deploy/README.md）
+# 需要发布的文件：运行时被请求的 11 个 + 两个 fallback + 两个中药模型文件
+# （详见 deploy/README.md 与根 README 的「部署」一节）
 LIB_FILES=(
   three.min.js
   hands.js
@@ -38,6 +39,9 @@ LIB_FILES=(
   hands_solution_wasm_bin.js
   hands_solution_wasm_bin.wasm
   hand_landmark_lite.tflite
+  # 中药展厅：三七写实模型 + file:// / GLB 失败时的脚本内嵌后备
+  sanqi_model.glb
+  sanqi_model_fallback.js
 )
 
 [ "$(id -u)" -eq 0 ] || { echo "请用 root 或 sudo 执行" >&2; exit 1; }
@@ -60,29 +64,9 @@ echo "==> 站点根: $SITE_ROOT"
 mkdir -p "$SITE_ROOT/libs"
 install -m 644 "$REPO/gesture3d.html" "$SITE_ROOT/gesture3d.html"
 
-# index.html 就地生成（而非从仓库拷贝）：仓库里那份是通用跳转页，
-# 这里顺便把域名写进 canonical，避免线上出现占位域名。
-cat > "$SITE_ROOT/index.html" <<HTML
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="utf-8">
-<title>甲骨文 · 中医密码</title>
-<meta http-equiv="refresh" content="0; url=gesture3d.html">
-<link rel="canonical" href="https://${DOMAIN}/gesture3d.html">
-<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%3E%3Crect%20width='64'%20height='64'%20fill='%2304060a'/%3E%3Ctext%20x='32'%20y='47'%20font-size='40'%20text-anchor='middle'%20fill='%23ffc46b'%20font-family='Kaiti%20SC,STKaiti,serif'%3E%E7%94%B2%3C/text%3E%3C/svg%3E">
-<style>html,body{height:100%;margin:0;background:#04060a;color:#9fb4cd;
-font:15px/1.7 -apple-system,"PingFang SC",sans-serif}
-.w{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px}
-.t{color:#ffc46b;font-size:22px;letter-spacing:2px}a{color:#ffc46b}
-.h{font-size:13px;color:#5d6f86}</style>
-</head>
-<body><div class="w">
-<div class="t">甲骨文 · 中医密码</div>
-<div>正在进入…　若未自动跳转，请点 <a href="gesture3d.html">开始</a></div>
-<div class="h">以手势引气，让三千年前的甲骨文在三维粒子星云中聚形</div>
-</div></body></html>
-HTML
+# index.html 直接从仓库拷贝：新版是独立扉页（展厅选择 + 备案页脚），
+# 不再由脚本生成跳转页，避免线上首页与仓库版本不一致。
+install -m 644 "$REPO/index.html" "$SITE_ROOT/index.html"
 
 for f in "${LIB_FILES[@]}"; do
   src="$REPO/libs/$f"
@@ -171,7 +155,7 @@ server {
 NGINX
 fi
 
-# ── 校验并 reload（kylinhealth 的站点不受影响）──────────────────────────
+# ── 校验并 reload（既有站点 的站点不受影响）──────────────────────────
 nginx -t
 systemctl reload nginx
 
