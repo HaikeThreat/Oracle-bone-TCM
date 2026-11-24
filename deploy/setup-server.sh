@@ -88,6 +88,7 @@ server {
     location = /index.html {
         # 只在用户直接访问 /index.html 时跳转；/ 的内部 index 重写不跳，避免死循环
         if (\$request_uri ~ ^/index\.html) { return 301 /; }
+        add_header Cache-Control "no-cache";
     }
     location = /oracle      { rewrite ^ /gesture3d.html last; }
     location = /herb        { rewrite ^ /gesture3d.html last; }
@@ -137,6 +138,7 @@ server {
     location = /index.html {
         # 只在用户直接访问 /index.html 时跳转；/ 的内部 index 重写不跳，避免死循环
         if (\$request_uri ~ ^/index\.html) { return 301 /; }
+        add_header Cache-Control "no-cache";
     }
     location = /oracle      { rewrite ^ /gesture3d.html last; }
     location = /herb        { rewrite ^ /gesture3d.html last; }
