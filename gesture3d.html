@@ -3634,12 +3634,17 @@ function crossOriginFramed() {
   try { void window.top.location.href; return false; }   // 读得到 ⇒ 同源，摄像头照样可用
   catch (_) { return true; }                             // 读不到 ⇒ 跨域，策略必拦摄像头
 }
+// 首页地址：主站为 /，file:// 为 index.html，子目录部署取当前目录
+function homePageUrl() {
+  if (location.protocol === 'file:') return 'index.html';
+  return location.origin + (location.pathname.replace(/[^/]*$/, '') || '/');
+}
 function camErrAdvice(e) {
   const name = (e && e.name) || '';
   if (name === 'NotAllowedError')
     return crossOriginFramed()
       ? '页面被嵌在预览面板/iframe 中，浏览器按同源策略不授予摄像头（Permission denied）'
-        + ' —— 非作品故障：请在系统浏览器打开 ' + location.origin + '/index.html'
+        + ' —— 非作品故障：请在系统浏览器打开 ' + homePageUrl()
       : '摄像头权限被拒绝 —— 点地址栏左侧摄像头图标 →「允许」，然后刷新页面';
   if (name === 'NotFoundError' || name === 'DevicesNotFoundError')
     return '未找到摄像头设备 —— 在「设备管理器」确认相机未被禁用';
@@ -10400,10 +10405,12 @@ function showBackButton() {
       return;
     }
     // 已经在本草/甲骨文主界面：回到独立展厅选择页。
-    // 必须用相对路径：查询串不会影响相对解析，而绝对根路径 '/index.html'
-    // 在 file:// 下会指向文件系统根目录，在子目录部署（如 GitHub Pages 的
-    // /Oracle-bone-TCM/）下会跳到域名根，两种常见场景都会 404。
-    try { location.replace('index.html'); } catch (e) { location.href = 'index.html'; }
+    // 主站用 '/'（/oracle、/herb 的上一级即首页）；file:// 用 index.html；
+    // 子目录部署（如 GitHub Pages 的 /Oracle-bone-TCM/）取当前目录。
+    var home = location.protocol === 'file:'
+      ? 'index.html'
+      : (location.pathname.replace(/[^/]*$/, '') || '/');
+    try { location.replace(home); } catch (e) { location.href = home; }
   });
 })();
 function setSection(name) {
@@ -13669,7 +13676,7 @@ function drawXueRoot(g, x, y, h, rot) {
     const b = document.getElementById('btnCam');
     b.style.opacity = '.55';
     b.title = '当前被嵌在面板/iframe 中，浏览器不授予摄像头。'
-            + '请在系统浏览器打开 ' + location.origin + '/index.html 以使用手势';
+            + '请在系统浏览器打开 ' + homePageUrl() + ' 以使用手势';
   }
 
   // ── 入口页展厅模式 ────────────────────────────────────────────────
@@ -13688,7 +13695,14 @@ function maybeShowOnboard() {
   // 【独立欢迎页传入 mode】从 index.html 选定展厅后带 ?mode= 进入：
   // 直接解锁门禁、进入对应展厅，跳过本页的欢迎门禁（避免重复入场）。
   let forcedMode = '';
-  try { forcedMode = new URLSearchParams(location.search).get('mode') || ''; } catch (e) {}
+  try {
+    forcedMode = new URLSearchParams(location.search).get('mode') || '';
+    // 清爽地址 /oracle、/herb 没有查询串，按路径判断展厅
+    if (!forcedMode) {
+      const seg = location.pathname.replace(/\/+$/, '').split('/').pop();
+      if (seg === 'oracle' || seg === 'herb') forcedMode = seg;
+    }
+  } catch (e) {}
   if (forcedMode === 'oracle' || forcedMode === 'herb') {
     unlockModules();
     try { localStorage.setItem('ob_modules_unlocked', '1'); } catch (e) {}

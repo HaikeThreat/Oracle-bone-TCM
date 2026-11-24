@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>智解甲骨 中医密码</title>
-<link rel="canonical" href="gesture3d.html">
+<link rel="canonical" href="https://oracletcm.com/">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%3E%3Crect%20width='64'%20height='64'%20fill='%2304060a'/%3E%3Ctext%20x='32'%20y='47'%20font-size='40'%20text-anchor='middle'%20fill='%23ffc46b'%20font-family='Kaiti%20SC,STKaiti,serif'%3E%E7%94%B2%3C/text%3E%3C/svg%3E">
 <noscript><meta http-equiv="refresh" content="1; url=gesture3d.html"></noscript>
 <style>
@@ -207,7 +207,9 @@
 <script>
 (function () {
   'use strict';
-  var TARGET = document.querySelector('link[rel="canonical"]').getAttribute('href');
+  // 展厅地址：主站用清爽路径；GitHub Pages / 本地（file://、localhost、局域网 IP）
+  // 没有服务端重写，继续用 gesture3d.html?mode=……
+  var CLEAN_URLS = /(^|\.)oracletcm\.com$/.test(location.hostname);
   var settled = false;
   var ASSET_V = '1';
   // 静默预热两个较大的运行时文件；页面本身只保留博物馆 / 欢迎 / 作品名 / 展厅选择。
@@ -219,7 +221,9 @@
   function choose(mode) {
     if (settled) return;
     settled = true;
-    var dest = TARGET + '?mode=' + encodeURIComponent(mode);
+    var dest = CLEAN_URLS
+      ? (mode === 'herb' ? '/herb' : '/oracle')
+      : 'gesture3d.html?mode=' + encodeURIComponent(mode);
     try { location.replace(dest); } catch (e) { location.href = dest; }
   }
   ['mpOracle', 'mpHerb'].forEach(function (id) {

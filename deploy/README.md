@@ -56,6 +56,10 @@ nginx 配置里一旦引用 `ssl_certificate` 而证书文件不存在，`nginx 
 | 检查 | 结果 |
 | --- | --- |
 | `oracletcm.com/` | 200 `text/html` |
+| `oracletcm.com/index.html` | 301 → `/` |
+| `oracletcm.com/oracle` | 200 `text/html`（内部交给 `gesture3d.html`，地址栏保持 `/oracle`） |
+| `oracletcm.com/herb` | 200 `text/html`（同上） |
+| `oracletcm.com/gesture3d.html?mode=oracle` | 301 → `/oracle` |
 | `oracletcm.com/gesture3d.html` | 200 `text/html` 1,587,069B |
 | `libs/three.min.js` | 200 `text/javascript` |
 | `libs/hands_solution_simd_wasm_bin.wasm` | 200 **`application/wasm`** |

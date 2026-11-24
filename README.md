@@ -39,7 +39,7 @@
 
 ![中药展馆：三七整株、属性卡与两侧炮制工序](docs/screenshot-herb.png)
 
-从扉页选「中药」，或直接打开 `gesture3d.html?mode=herb`。展馆按「药材实体 + 属性卡 + 炮制演示」组织：中间是 3D 药材，属性卡在桌面端常驻左侧、手机/平板竖屏收为底部抽屉，左右两侧滚动演示炮制工序。
+从扉页选「中药」，或直接打开 `https://oracletcm.com/herb`（本地开发用 `gesture3d.html?mode=herb`）。展馆按「药材实体 + 属性卡 + 炮制演示」组织：中间是 3D 药材，属性卡在桌面端常驻左侧、手机/平板竖屏收为底部抽屉，左右两侧滚动演示炮制工序。
 
 ### 两味药材
 
@@ -83,7 +83,7 @@
 ```bash
 cd /path/to/甲骨文      # 必须在项目目录下执行：serve.py 是相对路径
 python3 serve.py 8138
-# 浏览器打开 http://localhost:8138/index.html（新扉页，选择展厅）
+# 浏览器打开 http://localhost:8138/（新扉页，选择展厅）
 ```
 
 macOS 上还可以直接**双击**项目根目录的 [`启动本地服务.command`](启动本地服务.command)：

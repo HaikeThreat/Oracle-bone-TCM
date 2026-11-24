@@ -84,6 +84,19 @@ server {
     }
     location ~ \.html\$ { add_header Cache-Control "no-cache"; }
 
+    # 清爽地址：/index.html → /；/oracle、/herb 内部交给 gesture3d.html（地址栏保持干净）
+    location = /index.html { return 301 /; }
+    location = /oracle      { rewrite ^ /gesture3d.html last; }
+    location = /herb        { rewrite ^ /gesture3d.html last; }
+    location = /oracle/     { return 301 /oracle; }
+    location = /herb/       { return 301 /herb; }
+    location = /gesture3d.html {
+        if (\$arg_mode = oracle) { return 301 /oracle; }
+        if (\$arg_mode = herb)   { return 301 /herb; }
+        add_header Cache-Control "no-cache";
+        try_files \$uri =404;
+    }
+
     client_max_body_size 32m;
 }
 server {
@@ -116,6 +129,19 @@ server {
         try_files \$uri =404;
     }
     location ~ \.html\$ { add_header Cache-Control "no-cache"; }
+
+    # 清爽地址：/index.html → /；/oracle、/herb 内部交给 gesture3d.html（地址栏保持干净）
+    location = /index.html { return 301 /; }
+    location = /oracle      { rewrite ^ /gesture3d.html last; }
+    location = /herb        { rewrite ^ /gesture3d.html last; }
+    location = /oracle/     { return 301 /oracle; }
+    location = /herb/       { return 301 /herb; }
+    location = /gesture3d.html {
+        if (\$arg_mode = oracle) { return 301 /oracle; }
+        if (\$arg_mode = herb)   { return 301 /herb; }
+        add_header Cache-Control "no-cache";
+        try_files \$uri =404;
+    }
 
     client_max_body_size 32m;
 }
