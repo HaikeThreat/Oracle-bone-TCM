@@ -170,6 +170,9 @@
   #partModal .pm-kicker { color:#ffc46b; font-size:11px; letter-spacing:2px; }
   #partModal h2 { margin:8px 0 2px; font-size:24px; letter-spacing:2px; color:#ffe1b0; font-weight:600; }
   #partModal .pm-en { color:#6f849c; font-size:12px; font-style:italic; }
+  #partModal .pm-zoom-hint { margin-top:12px; padding-top:10px; border-top:1px solid rgba(255,196,107,.16);
+    color:#c8d5e5; font-size:11px; letter-spacing:.4px; }
+  #partModal .pm-zoom-hint small { display:block; margin-top:2px; color:#6f849c; font-size:9px; letter-spacing:.2px; }
   #partModal .pm-desc { margin:12px 0 16px; font-size:13px; line-height:1.75; color:#b9c9da; }
   #partModal .pm-use-title { color:#ffd98c; font-size:12px; letter-spacing:2px; margin-bottom:6px;
                              border-top:1px solid rgba(255,196,107,.18); padding-top:10px; }
@@ -1639,6 +1642,7 @@
       <div class="pm-use-title" id="pmProcTitle">炮制方法 · PROCESSING</div>
       <div class="pm-chips" id="pmChips"></div>
     </div>
+    <div class="pm-zoom-hint" id="pmZoomHint">滚轮缩放 · 拖动旋转<small>Scroll to zoom · drag to rotate</small></div>
   </div>
 </div>
 <div id="procModal">
@@ -1661,7 +1665,7 @@
      把下面的版本号加一即可让浏览器重新拉取；不改则命中本地缓存、零请求。
      两个运行时用 JS 注入加载（而非静态 <script src>）：静态 src 无法拼接 ?v=，
      一旦被 immutable 缓存就再也刷不掉。 -->
-<script>const ASSET_V = '1';</script>
+<script>const ASSET_V = '2';</script>
 <script>
   // 资源 URL 拼装的唯一定义：libs/ 源带 ?v= 破长缓存；npm 源由包版本号固化缓存指纹
   const libUrl = (base, f) => base + f + (base === 'libs/' ? '?v=' + ASSET_V : '');
@@ -3427,12 +3431,7 @@ function updateGestures(dt, t) {
   // 张开手掌 = 打开断面看菊花心，捏合 = 合株。无摄像头时退回鼠标：按住即打开。
   const herbLayer = activeHerbLayer();
   if (herbLayer) {
-    let tgt;
-    if (herbLayer === SANQI && performance.now() < (SANQI._disperseUntil || 0)) {
-      tgt = 1;                       // 写实模型点开后先保持"散开"一小段时间
-    } else if (hands3d[0]) tgt = hands3d[0].open01;
-    else tgt = (virtualHand.active && virtualHand.down) ? 1 : 0;
-    herbLayer.openTgt = clamp01(tgt);
+    herbLayer.openTgt = hands3d[0] ? clamp01(hands3d[0].open01) : 0;
   }
   // 检测节拍自适应：wvxF 只在相机帧刷新，两次检测之间由本函数按 τ 衰减。
   // 若 τ 远短于检测间隔，转速就会"到货时冲高、间隔内掉一半"→ 肉眼即「卡卡的」。
@@ -6167,10 +6166,7 @@ const XUE3D = { built: false, group: null, parts: {}, open: 0, openTgt: 0, light
 // 默认构图基线：在 1706×961 的默认视口下，比原始 0.10 基线约下移 8px
 // （0.048 世界单位；其中上一版已下移 3px，本次再下移 5px）。
 const XUE_BASE_Y = 0.052;
-// 雪上一枝蒿的块根/花序特写，在当前自适应构图倍率上再放大 1.5 倍。
-const XUE_PART_BOOST = 1.5;
-
-// ── 两味药共用的 PBR 渲染基线 ────────────────────────────────────────────
+// ── 三味药共用的 PBR 渲染基线 ────────────────────────────────────────────
 // 三七是外部扫描/烘焙的 GLB：2048 颜色图 + 法线 + 金属粗糙度图，颜色贴图走 sRGB。
 // 雪上一枝蒿是程序化网格，之前用 512 颜色图 + 凹凸图 + 常量粗糙度，颜色图还停在
 // LinearEncoding —— 两条渲染管线不同，观感自然一个像实物、一个像塑料模型。
@@ -7852,7 +7848,7 @@ function selectMedPart(part) {
   if (en) en.textContent = info.en;
   if (desc) desc.textContent = info.desc || '';
   const extra = part === 'leaf' || part === 'stem';
-  // 三七的果实不是《中国药典》药用部位，按「植物部位」介绍；雪上一枝蒿的花序仍走原分支
+  // 花、叶、茎按植物部位介绍；根按药用部位介绍。
   const plantPart = extra || part === 'flower';
   const kicker = document.getElementById('pmKicker');
   const useTitle = document.getElementById('pmUseTitle');
@@ -7867,12 +7863,6 @@ function selectMedPart(part) {
   hideMedUI();
   medRevealed = true;
   medPart = part;
-  // 中间植株隐藏，部位居中放大；粒子化学式/切面/小人炮制动画一起出现。
-  // 之前这里是 `if (HERB === 'sanqi' && REAL.on && REAL.mesh)` ——
-  // 雪上一枝蒿没有 GLB，条件永假，部位视图永远开不出来。
-  // 现在两味药都进：三七走 GLB 裁块，雪上一枝蒿走程序化模型的块根/花序。
-  if (REAL.on && REAL.mesh) enterPartView(part);
-  else if (HERB === 'xue') enterPartView(part);
   const chips = document.getElementById('pmChips');
   const procs = (PART_INFO[HERB] && PART_INFO[HERB][part] ? PART_INFO[HERB][part] : PART_INFO[HERB].root).procs;
   if (chips) {
@@ -7889,6 +7879,7 @@ function selectMedPart(part) {
     setPartCardFolded(isMobilePortrait());
     enableCardDrag(modal.querySelector('.pm-card'));
   }
+  if (REAL.on && REAL.mesh) enterPartView(part);
 }
 
 function openProcModal(p) {
@@ -8004,14 +7995,8 @@ window.addEventListener('pointerup', () => {
 document.getElementById('stage').addEventListener('wheel', e => {
   if (!PV.on || !PV.pivot) return;
   e.preventDefault();
-  const h = pvPick(e.clientX, e.clientY);
-  if (h) {
-    // 附件不响应滚轮缩放：触控板二指滚动极易误触，会把模块“放大/推前”，
-    // 松手后再拖动也回不到原尺寸。只保留拖动与植株缩放。
-    return;
-  }
-  PV.zoom = Math.max(0.6, Math.min(2.2, (PV.zoom || 1) * (1 - Math.sign(e.deltaY) * 0.1)));
-  PV.pivot.scale.setScalar(PV.zoom);
+  const delta = Math.max(-120, Math.min(120, e.deltaY));
+  PV.zoomTgt = Math.max(.55, Math.min(2.4, PV.zoomTgt * Math.exp(-delta * .0015)));
 }, { passive: false });
 
 function cancelHerbTransition() {
@@ -8163,12 +8148,13 @@ const PART_INFO = {
     ]},
   },
   baizhi: {
-    root: { formula: '呋喃香豆素\n欧前胡素 · 异欧前胡素', procs: [
+    root: { formula: '欧前胡素 C16H14O4\n异欧前胡素 C16H14O4', procs: [
       ['净制', 'Cleaning', '除去杂质、须根和泥沙，洗净后切厚片。保留皮部与形成层环，便于辨认油点。'],
       ['干燥', 'Drying', '低温或晒干，避免高温久晒导致香气与呋喃香豆素类成分损失。'],
+      ['炒白芷', 'Stir-fried', '文火炒至微黄色，香气更浓，辛散之力稍缓；炒制后应放凉再贮藏。'],
       ['用法', 'Use', '煎汤 3–10 g；外用适量研末调敷。具体用药须辨证并遵医嘱。'],
     ]},
-    flower: { formula: '呋喃香豆素\n香豆素类成分', procs: [
+    flower: { formula: '欧前胡素 C16H14O4\n香豆素类成分', procs: [
       ['识别', 'Identification', '复伞形花序与羽状分裂叶共同构成白芷的植物学识别特征。'],
       ['提示', 'Note', '花序不作药用，不能替代干燥根。'],
     ]},
@@ -8183,7 +8169,8 @@ const PART_INFO = {
   },
 };
 const PV = { on: false, group: null, formula: null, section: null, figure: null, herb: null,
-             partMesh: null, herbName: null, partName: null, time: 0 };
+             partMesh: null, herbName: null, partName: null, time: 0,
+             zoom: 1, zoomTgt: 1, baseScale: 1 };
 
 function pvPoints(pos, col, size) {
   const g = new THREE.BufferGeometry();
@@ -8334,6 +8321,27 @@ function pvSectionUmbel() {
   const rim = new THREE.Mesh(new THREE.TorusGeometry(.383, .010, 8, 80), new THREE.MeshBasicMaterial({ color: 0x5f704b }));
   rim.position.z = .04; grp.add(rim); grp.position.set(2.02, -.30, .12); grp.userData.real = true;
   return grp;
+}
+
+function pvSectionRaceme() {
+  const S=640,cv=document.createElement('canvas');cv.width=cv.height=S;
+  const g=cv.getContext('2d'),cx=S/2,cy=S/2,R=S*.465;
+  const bg=g.createRadialGradient(cx,cy,R*.05,cx,cy,R);bg.addColorStop(0,'#e9ecdf');bg.addColorStop(1,'#9da88d');
+  g.beginPath();g.arc(cx,cy,R,0,Math.PI*2);g.fillStyle=bg;g.fill();
+  g.strokeStyle='#65734f';g.lineWidth=R*.045;g.beginPath();g.moveTo(cx,cy+R*.78);g.quadraticCurveTo(cx-R*.03,cy,cx+R*.02,cy-R*.78);g.stroke();
+  for(let i=0;i<7;i++){
+    const side=i%2?1:-1,y=cy+R*.62-i*R*.20,x=cx+side*R*.12;
+    g.save();g.translate(x,y);g.rotate(side*.28);
+    g.beginPath();g.ellipse(0,0,R*.17,R*.12,-Math.PI/2,0,Math.PI*2);g.lineTo(R*.06,R*.16);g.quadraticCurveTo(0,R*.24,-R*.06,R*.16);g.closePath();
+    g.fillStyle=i<4?'#7774b8':'#9993cf';g.fill();g.strokeStyle='#56527f';g.lineWidth=2;g.stroke();
+    g.beginPath();g.moveTo(0,R*.12);g.quadraticCurveTo(side*R*.04,R*.25,side*R*.02,R*.30);g.strokeStyle='#6f678f';g.lineWidth=3;g.stroke();g.restore();
+  }
+  g.beginPath();g.arc(cx,cy,R,0,Math.PI*2);g.strokeStyle='#6f795e';g.lineWidth=R*.04;g.stroke();
+  const tex=new THREE.CanvasTexture(cv);tex.colorSpace=THREE.SRGBColorSpace;tex.anisotropy=8;tex.needsUpdate=true;
+  const capMat=new THREE.MeshBasicMaterial({map:tex,transparent:true,toneMapped:false});
+  const sideMat=new THREE.MeshStandardMaterial({color:0x78836a,roughness:.98,metalness:0,transparent:true,opacity:.96});
+  const m=new THREE.Mesh(new THREE.CylinderGeometry(.38,.38,.06,72,1,false),[sideMat,capMat,capMat]);m.rotation.x=Math.PI/2;
+  const grp=new THREE.Group();grp.add(m);const rim=new THREE.Mesh(new THREE.TorusGeometry(.383,.010,8,80),new THREE.MeshBasicMaterial({color:0x59634d}));rim.position.z=.04;grp.add(rim);grp.position.set(2.02,-.30,.12);grp.userData.real=true;return grp;
 }
 
 // 三七果实（红籽）横切面：红色果皮、淡黄果肉、两枚种子。
@@ -8573,7 +8581,7 @@ function pvSectionReal() {
   return grp;
 }
 
-function pvSectionRoot() {
+function pvSectionRoot(key) {
   const S = 640, cv = document.createElement('canvas');
   cv.width = cv.height = S;
   const g = cv.getContext('2d'), cx = S / 2, cy = S / 2, R = S * .465;
@@ -8588,10 +8596,13 @@ function pvSectionRoot() {
     g.lineTo(cx + Math.cos(a + .02) * (r0 + len), cy + Math.sin(a + .02) * (r0 + len));
     g.strokeStyle = 'rgba(130,110,78,' + (.04 + Math.random() * .08) + ')'; g.lineWidth = .6 + Math.random(); g.stroke();
   }
-  g.beginPath(); g.arc(cx, cy, R * .74, 0, Math.PI * 2);
-  g.strokeStyle = 'rgba(112,72,38,.72)'; g.lineWidth = R * .028; g.stroke();
-  for (let i = 0; i < 240; i++) {
-    const a = Math.random() * Math.PI * 2, r = R * (.42 + Math.random() * .48), rr = .8 + Math.random() * 2.2;
+  if (key === 'baizhi') {
+    g.beginPath(); g.arc(cx, cy, R * .74, 0, Math.PI * 2);
+    g.strokeStyle = 'rgba(112,72,38,.72)'; g.lineWidth = R * .028; g.stroke();
+  }
+  const dots = key === 'xue' ? 34 : 240;
+  for (let i = 0; i < dots; i++) {
+    const a = Math.random() * Math.PI * 2, r = R * (.42 + Math.random() * .48), rr = key === 'xue' ? 3 + Math.random() * 4 : .8 + Math.random() * 2.2;
     g.beginPath(); g.arc(cx + Math.cos(a) * r, cy + Math.sin(a) * r, rr, 0, Math.PI * 2);
     g.fillStyle = 'rgba(112,72,38,' + (.10 + Math.random() * .22) + ')'; g.fill();
   }
@@ -8959,20 +8970,12 @@ function layoutPartView() {
   const visH = 2 * 6.2 * Math.tan(camera.fov * Math.PI / 360);
   const wpp = visH / h;
 
-  // 雪上一枝蒿的块根/花序特写：按 1.5× 近景构图处理。
-  // 这两块不再为“避开左侧讲解卡”而右移 —— 用户确认压住卡片也无所谓，
-  // 统一按全屏安全区排，避免直接点开与转场进入落在不同位置。
-  const xueClosePart = PV.herbName === 'xue' &&
-    (PV.partName === 'root' || PV.partName === 'flower');
-  // 手机竖屏：部位模型占上半屏，化学式/结构/切面集中在下半屏的信息带里。
-  // 雪上一枝蒿块根/花序特写仍按原来的 1.5× 近景构图，不改。
   const mobilePart = narrow && isMobilePortrait();
 
   // 属性卡（左侧那块 pm-card）占了画面的实际位置，必须读出来而不是猜。
-  // 雪上一枝蒿的块根/花序例外：故意忽略卡片占位，保持左下近景构图。
   let cardR = 0, cardTop = h;
   const card = document.querySelector('#partModal .pm-card');
-  if (!xueClosePart && card && getComputedStyle(card).display !== 'none') {
+  if (card && getComputedStyle(card).display !== 'none') {
     const q = card.getBoundingClientRect();
     cardR = q.right; cardTop = q.top;
   }
@@ -8981,8 +8984,7 @@ function layoutPartView() {
   let safe;
   if (narrow) {
     // 竖屏：部位在上、信息带在下、卡片在最下。
-    // 手机竖屏给模型留上半屏（约 48% 高度），避免模型压住化学式/结构/切面；
-    // 雪上一枝蒿块根/花序特写例外，仍按原安全区放大。
+    // 手机竖屏给模型留上半屏（约 48% 高度），避免模型压住化学式/结构/切面。
     const modelBottom = mobilePart ? Math.min(cardTop - 14, h * 0.42) : cardTop - 14;
     safe = { x0: 18, x1: w - 18, y0: 62, y1: Math.max(200, modelBottom) };
   } else {
@@ -8997,22 +8999,16 @@ function layoutPartView() {
     // 用包围球拟合：模型自转会改变包围盒宽高，包围球不会，所以不会每转一圈忽大忽小。
     const r = (PV.pivot.userData && PV.pivot.userData.pvR) || 0.9;
     const allowedR = 0.46 * Math.min(safe.x1 - safe.x0, safe.y1 - safe.y0);
-    // 雪上一枝蒿的块根/花序特写再放大 1.5×；其他部位（以及三七的全部部位）保持原适配。
-    const partBoost = xueClosePart ? (mobilePart ? 1.0 : XUE_PART_BOOST) : 1;
-    const fit = Math.min(3.5, Math.max(0.18, (allowedR * wpp) / r)) * partBoost;
+    const fit = Math.min(3.5, Math.max(0.18, (allowedR * wpp) / r));
     // 手机竖屏的叶/花在包围球归一化后偏小，单独放大，填满上半屏。
     const mobileBoost = !mobilePart ? 1
       : (PV.partName === 'leaf' || PV.partName === 'flower') ? 1.4
       : PV.partName === 'root' ? 1.15 : 1.1;
-    const k = fit * (PV.zoom || 1) * mobileBoost;
+    PV.baseScale = fit * mobileBoost;
+    const k = PV.baseScale * (PV.zoom || 1);
     PV.pivot.scale.setScalar(k);
-    // 雪上一枝蒿块根特写：在 1.5× 构图基础上整体往左下挪（屏幕像素）。
-    // 只调位置，不再改倍率；花序仍保持居中构图。y 由 18px 再下移到 48px。
-    const rootNudge = (PV.herbName === 'xue' && PV.partName === 'root');
-    const nudgeX = rootNudge ? (mobilePart ? 0 : -32) : 0;
-    const nudgeY = rootNudge ? (mobilePart ? 0 : 48) : 0;
     // 位置：让部位中心落在安全区中心（屏幕 y 向下，世界 y 向上，故取负）
-    PV.pivot.position.set((cx - w / 2 + nudgeX) * wpp, (h / 2 - (cy + nudgeY)) * wpp, 0);
+    PV.pivot.position.set((cx - w / 2) * wpp, (h / 2 - cy) * wpp, 0);
     PV._fit = fit;
   }
   // 右侧属性列：贴着 attrPx 排，纵向按屏高分三段
@@ -9051,70 +9047,6 @@ function layoutPartView() {
   for (const o of (PV.atts || [])) o.userData.home = o.position.toArray();
 }
 
-// ── 雪上一枝蒿的"药用部位"实体 ──────────────────────────────────────────
-// 这味药没有 GLB，部位视图不能再走 buildRealPart（它依赖 REAL.mesh）。
-// 做法与 GLB 版一致：从 XUE3D 里把那一组网格【原样取出来】居中放大 ——
-// 是同一株植物上真实的那几块，不是另画的粒子。
-// 取不到（还没建好 / 找不到标记）就返回 null，调用方据此放弃，不抛错。
-function xuePickParts(tag) {
-  const g = XUE3D.group;
-  if (!g) return null;
-  const src = g.children.filter(o => o.userData && o.userData.part === tag);
-  if (!src.length) return null;
-  // 用 clone 顶点【归一化】：把整组平移回自身中心、缩放到固定尺寸。
-  // 不能直接对 clone 的 position 做减法 —— 顶点写在 geometry 里，clone 只会复制
-  // position/quaternion/scale，模型仍然待在原地（早前版本就栽在这）。
-  // 在【组局部空间】里求包围盒：先取世界包围盒，再用 group.matrixWorld⁻¹
-  // 转回局部。否则捏合放大后（组带 scale/rotation）再开特写，归一化尺寸
-  // 会随缩放变化，块根时大时小。
-  g.updateWorldMatrix(true, false);
-  const invG = new THREE.Matrix4().copy(g.matrixWorld).invert();
-  const localBox = new THREE.Box3();
-  for (const s of src) {
-    s.updateWorldMatrix(true, false);
-    const b = new THREE.Box3().setFromObject(s);
-    b.applyMatrix4(invG);
-    localBox.union(b);
-  }
-  if (localBox.isEmpty()) return null;
-  const mn = [localBox.min.x, localBox.min.y, localBox.min.z];
-  const mx = [localBox.max.x, localBox.max.y, localBox.max.z];
-  const cx = (mn[0] + mx[0]) / 2, cy = (mn[1] + mx[1]) / 2, cz = (mn[2] + mx[2]) / 2;
-  const ext = Math.max(mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2], 1e-3);
-  // 统一缩放到这一尺寸（世界单位）。视口高约 5.8 世界单位，
-  // 2.2 约占屏幕高度 38%，与三七那块 GLB 局部的视觉体量对齐。
-  const TARGET = tag === 'tuber' ? 2.35 : 2.05;
-  const k = TARGET / ext;                    // 只靠缩放归一化，杜绝几何里的绝对坐标
-  const inner = new THREE.Group();
-  for (const s of src) {
-    const c = s.clone();
-    c.visible = true;
-    // 把源的变换折算进内层再归一化：位置 - 中心，缩放 1/k 随内层统一施加
-    c.position.set((c.position.x - cx) * k, (c.position.y - cy) * k, (c.position.z - cz) * k);
-    c.scale.multiplyScalar(k);
-    inner.add(c);
-  }
-  inner.position.set(0, 0, 0);
-  const pivot = new THREE.Group();
-  pivot.add(inner);
-  pivot.scale.setScalar(1);
-  scene.add(pivot);
-  return { pivot, half: TARGET / 2 };
-}
-const xuePartRoot = () => xuePickParts('tuber');
-const xuePartFlower = () => xuePickParts('flower');
-// 从射线命中的网格向上找部位标记：块根(tuber) → root，花序(flower) → flower
-function xuePartFromObject(obj) {
-  let o = obj;
-  while (o) {
-    const p = o.userData && o.userData.part;
-    if (p === 'tuber') return 'root';
-    if (p === 'flower') return 'flower';
-    o = o.parent;
-  }
-  return null;
-}
-
 function disposePVGroup(group) {
   if (!group) return;
   const geometries = new Set(), materials = new Set(), textures = new Set();
@@ -9138,11 +9070,10 @@ function disposePVGroup(group) {
 function enterPartViewWith(pvPivot, part, half) {
   if (!pvPivot) return;
   // 进入部位视图 = 画面里【只留这一块】。
-  // 早前这里只藏了三七的 GLB，雪上一枝蒿的整株 XUE3D.group 仍站着不动，
-  // 于是"块根特写"背后还立着一整株植物，读起来像模型叠在一起。
   rememberHerbLayer();
   hideHerbLayerForPart();
   pvPivot.visible = true;
+  if (!pvPivot.parent) scene.add(pvPivot);
   pvPivot.position.set(0, 0, 0);
   pvPivot.quaternion.identity();
   pvPivot.scale.setScalar(1);
@@ -9156,7 +9087,7 @@ function enterPartViewWith(pvPivot, part, half) {
   if (xl) xl.classList.remove('on');
   pvPivot.userData.__pvPivot = true;      // 标记：退出时按它清场
   if (PV.group) { scene.remove(PV.group); disposePVGroup(PV.group); }
-  PV.pivot = pvPivot; PV.zoom = 1; PV.drag = false;
+  PV.pivot = pvPivot; PV.zoom = 1; PV.zoomTgt = 1; PV.baseScale = 1; PV.drag = false;
   PV.partMesh = pvPivot;
   PV.on = true; PV.time = 0; PV.herbName = HERB; PV.partName = part;
 
@@ -9171,8 +9102,8 @@ function enterPartViewWith(pvPivot, part, half) {
   struct.scale.setScalar(1.55);
   PV.struct = struct;
   g.add(struct);
-  const section = part === 'flower' ? (HERB === 'sanqi' ? pvSectionFruit() : pvSectionUmbel())
-    : part === 'root' ? (HERB === 'sanqi' ? pvSectionReal() : pvSectionRoot())
+  const section = part === 'flower' ? (HERB === 'sanqi' ? pvSectionFruit() : HERB === 'xue' ? pvSectionRaceme() : pvSectionUmbel())
+    : part === 'root' ? (HERB === 'sanqi' ? pvSectionReal() : pvSectionRoot(HERB))
     : part === 'leaf' ? pvSectionLeaf()
     : part === 'stem' ? pvSectionStem() : pvSectionReal();
   PV.section = section;
@@ -9187,95 +9118,20 @@ function enterPartViewWith(pvPivot, part, half) {
 }
 
 function enterPartView(part) {
-  if (REAL.mesh && REAL.mesh.isGroup && REAL.mesh.userData.multiMesh) {
-    const pivot = buildRealPart(part);
-    if (!pivot) return;
-    enterPartViewWith(pivot, part);
-    return;
-  }
-  // 雪上一枝蒿：直接用程序化模型里那一组实体网格
-  if (HERB === 'xue') {
-    const r = part === 'root' ? xuePartRoot() : xuePartFlower();
-    if (!r) return;
-    enterPartViewWith(r.pivot, part, r.half);
-    return;
-  }
-  const m = buildRealPart(part);
-  if (!m) return;
-  rememberHerbLayer();
-  hideHerbLayerForPart();
-  m.visible = true;
-  REAL.mesh.visible = false;
-  const c = m.userData.center, S = part === 'flower' ? 5.2 : 3.3;
-  m.scale.setScalar(S);
-  m.position.set(-c.x * S, -c.y * S, -c.z * S);
-  scene.remove(m);
-  const pivot = new THREE.Group();
-  pivot.position.set(0.95, 0.02, 0);
-  pivot.add(m);
-  pivot.userData.__pvPivot = true;
-  scene.add(pivot);
-  PV.pivot = pivot; PV.zoom = 1; PV.drag = false;
-  PV.partMesh = m;
-  // 叶/茎的形状比例特殊（扁宽 / 细长），用实际包围球半径参与构图，
-  // 否则细长的茎会顶到屏幕标题、叶片会压到左侧讲解卡。
-  if (part === 'leaf' || part === 'stem') {
-    pivot.userData.pvR = Math.max(0.5, (m.userData.radius || 0.9) * S);
-  }
-  PV.on = true; PV.time = 0; PV.herbName = HERB; PV.partName = part;
-
-  if (PV.group) { scene.remove(PV.group); disposePVGroup(PV.group); }
-  const g = new THREE.Group();
-  const info = PART_INFO[HERB][part];
-  // 茎的「纤维 · 导管 / 皂苷微量」字数少，按同宽归一会被放大；单独收窄
-  const formula = pvTextPoints(info.formula, part === 'stem' ? 0.72 : 1.00, 1.30, [1.0, 1.0, 0.92], 2.02);
-  PV.formula = formula;
-  g.add(formula);
-  // 叶：皂苷结构 + 叶片横切；茎：维管束组织示意 + 茎横切。
-  let struct = null;
-  struct = part === 'stem' ? pvStructureStem() : pvStructure(part === 'flower' ? 'sanqi' : HERB);
-  struct.position.set(2.02, 0.58, 0.16);
-  struct.scale.setScalar(1.55);
-  g.add(struct);
-  PV.struct = struct;
-  let section = null;
-  // 三七顶端是果期红籽（果实）→ 用果实切面；花序切面只留给雪上一枝蒿
-  if (part === 'flower') section = pvSectionFruit();
-  else if (part === 'root') section = HERB === 'sanqi' ? pvSectionReal() : pvSectionRoot();
-  else if (part === 'leaf') section = pvSectionLeaf();
-  else if (part === 'stem') section = pvSectionStem();
-  PV.section = section;
-  if (section) g.add(section);
-  PV.atts = [formula, struct, section].filter(Boolean);
-  for (const o of PV.atts) o.userData.home = o.position.toArray();
-  PV.sel = null;
-  PV.figure = null;          // 小人删除
-  PV.group = g;
-  scene.add(g);
-  layoutPartView();
+  const pivot = buildRealPart(part);
+  if (!pivot) return;
+  enterPartViewWith(pivot, part);
 }
 
 // 部位视图的"进/出"必须成对：进去把整株收起来，出来再原样放回去。
-// 难点在于三七有 GLB、雪上一枝蒿只有网格 —— 写死某一种药材的显隐，
-// 换味药就会串（早前退出时无条件 REAL.mesh.visible = true，
-// 于是在雪上一枝蒿里看完块根，画面会凭空多出一株三七）。
 function rememberHerbLayer() {
   PV.prevLayer = {
-    xue:      XUE3D.group ? XUE3D.group.visible : null,
-    xueGlow:  XUE3D.glow ? XUE3D.glow.visible : null,
-    xuePts:   XUE.points ? XUE.points.visible : null,
-    sqPts:    (typeof SANQI !== 'undefined' && SANQI.points) ? SANQI.points.visible : null,
     realMesh: REAL.mesh ? REAL.mesh.visible : null,
     realDust: REAL.dust ? REAL.dust.visible : null,
     realGlow: REAL.glow ? REAL.glow.visible : null,
   };
 }
 function hideHerbLayerForPart() {
-  if (XUE3D.group) XUE3D.group.visible = false;
-  if (XUE3D.glow) XUE3D.glow.visible = false;
-  if (XUE.points) XUE.points.visible = false;
-  if (BAIZHI.points) BAIZHI.points.visible = false;
-  if (typeof SANQI !== 'undefined' && SANQI.points) SANQI.points.visible = false;
   for (const k in REAL.parts) if (REAL.parts[k]) REAL.parts[k].visible = false;
   if (REAL.mesh) REAL.mesh.visible = false;
   if (REAL.dust) REAL.dust.visible = false;
@@ -9283,11 +9139,6 @@ function hideHerbLayerForPart() {
 }
 function restoreHerbLayer() {
   const prev = PV.prevLayer || {};
-  if (XUE3D.group) XUE3D.group.visible = false;
-  if (XUE3D.glow) XUE3D.glow.visible = false;
-  if (XUE.points) XUE.points.visible = false;
-  if (SANQI.points) SANQI.points.visible = false;
-  if (BAIZHI.points) BAIZHI.points.visible = false;
   const useReal = !!REAL.on && prev.realMesh !== false;
   if (REAL.mesh) REAL.mesh.visible = useReal;
   if (REAL.dust) REAL.dust.visible = useReal;
@@ -9299,9 +9150,7 @@ function exitPartView() {
   if (PV.group) { scene.remove(PV.group); disposePVGroup(PV.group); PV.group = null; }
   const pivot = PV.pivot, mesh = PV.partMesh;
   if (pivot) {
-    // 雪上一枝蒿：pivot 就是"取出来的那一组"，没有一层独立的 partMesh 要还回去。
-    // 早前无条件 scene.add(PV.partMesh)，而 partMesh === pivot，
-    // 于是刚移除又加回去 —— 场景里留下一份看不见的残骸，每开一次就多一份。
+    // pivot 就是"取出来的那一组"，没有一层独立的 partMesh 要还回去。
     if (mesh && mesh !== pivot) {
       pivot.remove(mesh);
       mesh.visible = false;
@@ -9315,6 +9164,7 @@ function exitPartView() {
   }
   restoreHerbLayer();
   PV.on = false;
+  PV.partName = PV.herbName = null;
   PV.formula = PV.section = PV.figure = PV.herb = null;
 }
 
@@ -9329,7 +9179,11 @@ const HERB_MODELS = {
 };
 const REAL_STATES = {};
 for (const key of Object.keys(HERB_MODELS)) {
-  REAL_STATES[key] = { on: false, mesh: null, group: null, loading: null, error: false, parts: {}, dust: null, glow: null, intro: 0 };
+  REAL_STATES[key] = {
+    on: false, mesh: null, group: null, loading: null, error: false,
+    parts: {}, dust: null, glow: null, intro: 0,
+    open: 0, openTgt: 0, vertexCount: 0, triangleCount: 0,
+  };
 }
 let REAL = REAL_STATES.sanqi;
 
@@ -9344,18 +9198,24 @@ const REAL_LABEL_SETS = {
     { t: '茎',       en: 'Stem',    p: [0.03, 0.42, 0.05],  e: [0.36, 0.42, 0.05],  kind: 'stem' },
     { t: '根茎',     en: 'Rhizome', p: [0.03, 0.17, 0.05],  e: [0.36, 0.17, 0.05],  kind: 'root' },
     { t: '根',       en: 'Root',    p: [0.03, 0.06, 0.10],  e: [0.38, 0.06, 0.10],  kind: 'root' },
+    { t: '皂苷 Rg₁/Rb₁', en: 'Notoginsenosides', p: [0.42, 0.20, 0.24], e: [0.72, 0.22, 0.24], kind: 'root', openOnly: true },
+    { t: '菊花心 · 断面', en: 'Chrysanthemum-heart section', p: [-0.18, 0.18, 0.22], e: [-0.54, 0.20, 0.22], kind: 'root', openOnly: true },
   ],
   xue: [
     { t: '花序', en: 'Inflorescence', p: [0.00, 0.94, 0.04], e: [0.34, 0.96, 0.04], kind: 'flower' },
     { t: '叶',   en: 'Leaf',          p: [-0.20, 0.56, 0.05], e: [-0.58, 0.58, 0.05], kind: 'leaf' },
     { t: '茎',   en: 'Stem',          p: [0.02, 0.40, 0.04],  e: [0.34, 0.42, 0.04],  kind: 'stem' },
     { t: '块根', en: 'Tuberous root', p: [0.00, 0.16, 0.10],  e: [0.36, 0.18, 0.10],  kind: 'root' },
+    { t: '乌头碱', en: 'Aconitine', p: [0.26, 0.22, 0.18], e: [0.62, 0.24, 0.18], kind: 'root', openOnly:true },
+    { t: '白色粉性断面', en: 'Powdery section', p: [-0.20, 0.20, 0.16], e: [-0.56, 0.22, 0.16], kind: 'root', openOnly:true },
   ],
   baizhi: [
     { t: '复伞形花序', en: 'Compound umbel', p: [0.00, 1.08, 0.04], e: [0.36, 1.10, 0.04], kind: 'flower' },
     { t: '叶',         en: 'Leaf',           p: [-0.22, 0.74, 0.05], e: [-0.60, 0.76, 0.05], kind: 'leaf' },
     { t: '茎',         en: 'Stem',           p: [0.02, 0.50, 0.04],  e: [0.34, 0.52, 0.04],  kind: 'stem' },
     { t: '根',         en: 'Root',           p: [0.00, 0.18, 0.10],  e: [0.36, 0.20, 0.10],  kind: 'root' },
+    { t: '呋喃香豆素', en: 'Furanocoumarins', p: [0.26, 0.22, 0.18], e: [0.64, 0.24, 0.18], kind: 'root', openOnly:true },
+    { t: '形成层 · 油点', en: 'Cambium & oil ducts', p: [-0.20, 0.20, 0.16], e: [-0.58, 0.22, 0.16], kind: 'root', openOnly:true },
   ],
 };
 let REAL_LABELS = REAL_LABEL_SETS.sanqi;
@@ -9388,10 +9248,12 @@ function buildRealLeaders(mesh, labels=REAL_LABELS) {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-    group.add(new THREE.Points(g, new THREE.PointsMaterial({
+    const line = new THREE.Points(g, new THREE.PointsMaterial({
       size: 0.032, vertexColors: true, transparent: true, opacity: 1.0,
       depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, map: tex, alphaTest: 0.01,
-    })));
+    }));
+    line.userData.openOnly = !!L.openOnly;
+    group.add(line);
   }
   mesh.add(group);
   mesh.userData.leaders = group;
@@ -9448,7 +9310,13 @@ function pvLabelUpdate() {
   if (PV._labelPart !== labelKey) {
     PV._labelPart = labelKey;
     const part = PV.partName;
-    const sanqiFruit = part === 'flower' && PV.herbName === 'sanqi';
+    const herb = PV.herbName;
+    const sanqiFruit = part === 'flower' && herb === 'sanqi';
+    const rootSection = herb === 'sanqi'
+      ? '药物切面 · 菊花心<small>Cross-section</small>'
+      : herb === 'xue'
+        ? '块根切面 · 维管束<small>Tuber cross-section</small>'
+        : '根切面 · 形成层与油点<small>Root cross-section</small>';
     const fEl = document.getElementById('plFormula');
     const sEl = document.getElementById('plStruct');
     const secEl = document.getElementById('plSection');
@@ -9461,7 +9329,7 @@ function pvLabelUpdate() {
           : part === 'flower' ? '花序切面'
           : part === 'leaf' ? '叶片横切'
           : part === 'stem' ? '茎横切'
-          : HERB === 'sanqi' ? '药物切面' : '根切面';
+          : herb === 'sanqi' ? '药物切面' : herb === 'xue' ? '块根切面' : '根切面';
       }
     } else {
       if (fEl) fEl.innerHTML = part === 'stem' ? '成分<small>Composition</small>' : '化学式<small>Formula</small>';
@@ -9472,8 +9340,7 @@ function pvLabelUpdate() {
         else if (part === 'flower') html = '花序切面 · 小花与花萼<small>Floret cross-section</small>';
         else if (part === 'leaf') html = '叶片横切 · 叶脉<small>Leaf section</small>';
         else if (part === 'stem') html = '茎横切 · 维管束<small>Stem cross-section</small>';
-        else html = HERB === 'sanqi' ? '药物切面 · 菊花心<small>Cross-section</small>'
-          : '根切面 · 形成层与油点<small>Root cross-section</small>';
+        else html = rootSection;
         secEl.innerHTML = html;
       }
     }
@@ -9505,11 +9372,20 @@ function pvLabelUpdate() {
   }
 }
 
+function pvZoomTick(realDt) {
+  if (!PV.on || !PV.pivot || PART_TRANS.active) return;
+  if (Math.abs(PV.zoom - PV.zoomTgt) < .0001) return;
+  PV.zoom += (PV.zoomTgt - PV.zoom) * (1 - Math.exp(-realDt / .12));
+  PV.pivot.scale.setScalar(PV.baseScale * PV.zoom);
+  PV.pivot.updateMatrixWorld(true);
+}
+
 function realLabelsUpdate() {
   const box = document.getElementById('realLabels');
   if (!box) return;
   realLabelsInit();
   const show = REAL.on && REAL.mesh && REAL.mesh.visible && !PV.on;
+  if (show) REAL.mesh.updateMatrixWorld(true);
   const narrow = window.innerWidth / window.innerHeight < 0.95;
   let cardTop = Infinity;
   if (show && narrow) {
@@ -9518,9 +9394,10 @@ function realLabelsUpdate() {
   }
   const widths = show ? realLabelEls.map(el => el.offsetWidth || 150) : [];
   for (let i = 0; i < REAL_LABELS.length; i++) {
-    const el = realLabelEls[i];
-    if (!show) { el.classList.remove('on'); continue; }
-    const a = REAL_LABELS[i].e;
+    const el = realLabelEls[i], L = REAL_LABELS[i];
+    const layer = activeHerbLayer();
+    if (!show || (L.openOnly && (!layer || layer.open < .32))) { el.classList.remove('on'); continue; }
+    const a = L.e;
     _sqVec.set(a[0], a[1], a[2]).applyMatrix4(REAL.mesh.matrixWorld).project(camera);
     if (_sqVec.z > 1) { el.classList.remove('on'); continue; }
     const sx = (_sqVec.x * 0.5 + 0.5) * window.innerWidth;
@@ -9545,88 +9422,89 @@ function realLabelsUpdate() {
 function buildRealPart(kind) {
   if (REAL.parts[kind]) return REAL.parts[kind];
   if (!REAL.mesh) return null;
-  if (REAL.mesh.isGroup && REAL.mesh.userData.multiMesh) {
-    const srcs = [];
-    REAL.mesh.traverse(o => { if (o.isMesh && realPartFromName(o.name) === kind) srcs.push(o); });
-    if (!srcs.length) return null;
-    REAL.mesh.updateMatrixWorld(true);
-    const inv = new THREE.Matrix4().copy(REAL.mesh.matrixWorld).invert();
-    const group = new THREE.Group();
-    for (const src of srcs) {
-      src.updateWorldMatrix(true, false);
-      const clone = src.clone();
-      new THREE.Matrix4().multiplyMatrices(inv, src.matrixWorld).decompose(clone.position, clone.quaternion, clone.scale);
-      clone.visible = true;
-      group.add(clone);
+  REAL.mesh.updateMatrixWorld(true);
+  const invRoot = new THREE.Matrix4().copy(REAL.mesh.matrixWorld).invert();
+  const sources = [];
+  if (REAL.mesh.userData.multiMesh) {
+    REAL.mesh.traverse(o => {
+      if (!o.isMesh || !o.userData.plantMesh || realPartFromName(o.name) !== kind) return;
+      o.updateWorldMatrix(true, false);
+      sources.push({
+        geometry: o.geometry,
+        material: o.material,
+        matrix: new THREE.Matrix4().multiplyMatrices(invRoot, o.matrixWorld),
+      });
+    });
+  } else {
+    let srcMesh = null;
+    REAL.mesh.traverse(o => { if (!srcMesh && o.isMesh && o.userData.plantMesh) srcMesh = o; });
+    if (!srcMesh) return null;
+    const src = srcMesh.geometry, pos = src.attributes.position, idx = src.index.array;
+    const sel = [];
+    for (let i = 0; i < idx.length; i += 3) {
+      const i0 = idx[i], i1 = idx[i + 1], i2 = idx[i + 2];
+      const y0 = pos.getY(i0), y1 = pos.getY(i1), y2 = pos.getY(i2);
+      let ok = false;
+      if (kind === 'flower') ok = y0 >= 1.00 && y1 >= 1.00 && y2 >= 1.00;
+      else if (kind === 'root') ok = y0 <= .42 && y1 <= .42 && y2 <= .42;
+      else {
+        const mx = (pos.getX(i0) + pos.getX(i1) + pos.getX(i2)) / 3;
+        const my = (y0 + y1 + y2) / 3;
+        const mz = (pos.getZ(i0) + pos.getZ(i1) + pos.getZ(i2)) / 3;
+        const rad = Math.hypot(mx, mz);
+        if (kind === 'leaf') ok = my >= .65 && my < 1.02 && rad >= .10;
+        else if (kind === 'stem') ok = my >= .42 && my <= 1.02 && rad < .12;
+      }
+      if (ok) sel.push(i0, i1, i2);
     }
-    group.updateMatrixWorld(true);
-    const box = new THREE.Box3().setFromObject(group);
-    if (box.isEmpty()) return null;
-    const center = box.getCenter(new THREE.Vector3());
-    for (const child of group.children) child.position.sub(center);
-    group.updateMatrixWorld(true);
-    const centered = new THREE.Box3().setFromObject(group);
-    group.userData.center = new THREE.Vector3();
-    group.userData.radius = centered.getBoundingSphere(new THREE.Sphere()).radius;
-    group.userData.pvR = Math.max(0.3, group.userData.radius);
-    group.visible = false;
-    scene.add(group);
-    REAL.parts[kind] = group;
-    return group;
+    if (!sel.length) return null;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', src.attributes.position);
+    geo.setAttribute('normal', src.attributes.normal);
+    if (src.attributes.uv) geo.setAttribute('uv', src.attributes.uv);
+    if (src.attributes.color) geo.setAttribute('color', src.attributes.color);
+    geo.setIndex(sel);
+    const partBox = new THREE.Box3();
+    const v = new THREE.Vector3();
+    for (const vi of sel) partBox.expandByPoint(v.fromBufferAttribute(pos, vi));
+    geo.boundingBox = partBox;
+    geo.boundingSphere = partBox.getBoundingSphere(new THREE.Sphere());
+    srcMesh.updateWorldMatrix(true, false);
+    sources.push({
+      geometry: geo,
+      material: srcMesh.material,
+      matrix: new THREE.Matrix4().multiplyMatrices(invRoot, srcMesh.matrixWorld),
+    });
   }
-  let srcMesh = REAL.mesh;
-  if (REAL.mesh.isGroup) {
-    REAL.mesh.traverse(o => { if (!srcMesh.isMesh && o.isMesh) srcMesh = o; });
+  if (!sources.length) return null;
+  const inner = new THREE.Group();
+  for (const source of sources) {
+    const clone = new THREE.Mesh(source.geometry, source.material);
+    clone.name = 'part-' + kind;
+    clone.userData.part = kind;
+    clone.visible = true;
+    source.matrix.decompose(clone.position, clone.quaternion, clone.scale);
+    inner.add(clone);
   }
-  const src = srcMesh.geometry;
-  const pos = src.attributes.position.array, idx = src.index.array;
-  const sel = [];
-  for (let i = 0; i < idx.length; i += 3) {
-    const i0 = idx[i], i1 = idx[i + 1], i2 = idx[i + 2];
-    const y0 = pos[i0 * 3 + 1], y1 = pos[i1 * 3 + 1], y2 = pos[i2 * 3 + 1];
-    let ok = false;
-    if (kind === 'flower') {
-      ok = y0 >= 1.00 && y1 >= 1.00 && y2 >= 1.00;
-    } else if (kind === 'root') {
-      ok = y0 <= 0.42 && y1 <= 0.42 && y2 <= 0.42;
-    } else {
-      const mx = (pos[i0 * 3] + pos[i1 * 3] + pos[i2 * 3]) / 3;
-      const my = (y0 + y1 + y2) / 3;
-      const mz = (pos[i0 * 3 + 2] + pos[i1 * 3 + 2] + pos[i2 * 3 + 2]) / 3;
-      const rad = Math.hypot(mx, mz);
-      if (kind === 'leaf') ok = my >= 0.65 && my < 1.02 && rad >= 0.10;
-      else if (kind === 'stem') ok = my >= 0.42 && my <= 1.02 && rad < 0.12;
-    }
-    if (ok) sel.push(i0, i1, i2);
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', src.attributes.position);
-  g.setAttribute('normal', src.attributes.normal);
-  if (src.attributes.uv) g.setAttribute('uv', src.attributes.uv);
-  g.setIndex(sel);
-  let mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9];
-  for (const vi of sel) {
-    for (let k = 0; k < 3; k++) {
-      const v = pos[vi * 3 + k];
-      if (v < mn[k]) mn[k] = v;
-      if (v > mx[k]) mx[k] = v;
-    }
-  }
-  const c = new THREE.Vector3((mn[0] + mx[0]) / 2, (mn[1] + mx[1]) / 2, (mn[2] + mx[2]) / 2);
-  const s = kind === 'flower' ? 3.0 : 2.0;
-  const m = new THREE.Mesh(g, srcMesh.material);
-  m.userData.center = c.clone();
-  m.userData.radius = Math.sqrt(
-    Math.pow(mx[0] - mn[0], 2) + Math.pow(mx[1] - mn[1], 2) + Math.pow(mx[2] - mn[2], 2)) / 2;
-  m.scale.setScalar(s);
-  m.position.set(3.85 - c.x * s, -0.32 - c.y * s, 0.10 - c.z * s);
-  m.visible = false;
-  scene.add(m);
-  REAL.parts[kind] = m;
-  return m;
+  inner.updateMatrixWorld(true);
+  const sourceBox = new THREE.Box3().setFromObject(inner);
+  if (sourceBox.isEmpty()) return null;
+  const center = sourceBox.getCenter(new THREE.Vector3());
+  inner.position.sub(center);
+  const pivot = new THREE.Group();
+  pivot.add(inner);
+  pivot.updateMatrixWorld(true);
+  const centered = new THREE.Box3().setFromObject(pivot);
+  pivot.userData.sourceBox = sourceBox;
+  pivot.userData.center = new THREE.Vector3();
+  pivot.userData.radius = centered.getBoundingSphere(new THREE.Sphere()).radius;
+  pivot.userData.pvR = Math.max(.3, pivot.userData.radius);
+  pivot.visible = false;
+  REAL.parts[kind] = pivot;
+  return pivot;
 }
 
-// 两味药共用的植物灯光：暖主光 @ 右上前 + 冷补光 @ 左后下 + 环境光。
+// 三味药共用的植物灯光：暖主光 @ 右上前 + 冷补光 @ 左后下 + 环境光。
 // 三七就是靠这套强度/角度显出叶片的蜡质高光和根系的圆柱体积；雪上一枝蒿
 // 之前用 0.85/1.75/0.65 再加一盏底部暖光，光比更平、下缘更亮，体积感更弱。
 function makePlantLights() {
@@ -9691,28 +9569,258 @@ function realPartFromObject(obj) {
   }
   return null;
 }
+function realPlantMeshes(root) {
+  if (root.userData.plantMeshes) return root.userData.plantMeshes;
+  const meshes = [];
+  root.traverse(o => { if (o.isMesh && o.userData.plantMesh) meshes.push(o); });
+  root.userData.plantMeshes = meshes;
+  return meshes;
+}
 function calibrateRealLabels(root, labels) {
-  if (!root.userData.multiMesh) return;
-  root.updateMatrixWorld(true);
-  const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
+  const content = root.userData.content;
+  if (!content) return;
+  content.updateWorldMatrix(true, true);
+  const invContent = new THREE.Matrix4().copy(content.matrixWorld).invert();
+  root.userData.partCenters = root.userData.partCenters || {};
   for (const L of labels) {
+    if (L.openOnly) continue;
     const src = [];
-    root.traverse(o => { if (o.isMesh && realPartFromName(o.name) === L.kind) src.push(o); });
+    content.traverse(o => { if (o.isMesh && o.userData.plantMesh && realPartFromName(o.name) === L.kind) src.push(o); });
     if (!src.length) continue;
     const box = new THREE.Box3();
-    for (const s of src) {
-      s.updateWorldMatrix(true, false);
-      box.union(new THREE.Box3().setFromObject(s).applyMatrix4(inv));
+    if (L.kind === 'stem') {
+      const contentBox = new THREE.Box3().setFromObject(content).applyMatrix4(invContent);
+      const ceiling = contentBox.min.y + (contentBox.max.y - contentBox.min.y) * .45;
+      const v = new THREE.Vector3();
+      for (const s of src) {
+        s.updateWorldMatrix(true, false);
+        const p = s.geometry.attributes.position;
+        for (let i = 0; i < p.count; i++) {
+          v.fromBufferAttribute(p, i);
+          if (v.y > ceiling) continue;
+          box.expandByPoint(v.applyMatrix4(s.matrixWorld).applyMatrix4(invContent));
+        }
+      }
+    } else {
+      for (const s of src) {
+        s.updateWorldMatrix(true, false);
+        box.union(new THREE.Box3().setFromObject(s).applyMatrix4(invContent));
+      }
     }
     if (box.isEmpty()) continue;
     const p = box.getCenter(new THREE.Vector3());
+    root.userData.partCenters[L.kind] = p.clone();
     if (L.kind === 'leaf') p.x -= .18;
     if (L.kind === 'stem') p.x += .02;
     p.z = Math.max(.04, p.z + .06);
+    p.applyMatrix4(content.matrix);
     L.p = p.toArray();
     const side = L.kind === 'leaf' ? -1 : 1;
     L.e = [p.x + side * .36, p.y + .02, p.z];
   }
+}
+
+function calibrateOpenLabels(root, labels, rootBox) {
+  if (rootBox.isEmpty()) return;
+  const center = rootBox.getCenter(new THREE.Vector3());
+  const size = rootBox.getSize(new THREE.Vector3());
+  const unit = 1 / root.userData.content.scale.x;
+  const radius = Math.max(.12, Math.min(.23, Math.min(size.x, size.y) * root.userData.content.scale.x * .38)) * unit;
+  const z = rootBox.max.z + .08 * unit;
+  const openLabels = labels.filter(L => L.openOnly);
+  openLabels.forEach((L, i) => {
+    const p = new THREE.Vector3(
+      center.x + (i ? -radius * .85 : radius * .95),
+      center.y + (i ? -.015 : .025),
+      z,
+    ).applyMatrix4(root.userData.content.matrix);
+    L.p = p.toArray();
+    L.e = [p.x + (i ? -.58 : .58), p.y + .02, p.z];
+  });
+}
+
+function makeHerbSectionTexture(key) {
+  const S = 512, cv = document.createElement('canvas');
+  cv.width = cv.height = S;
+  const g = cv.getContext('2d'), c = S / 2, R = S * .45;
+  const body = g.createRadialGradient(c - R * .12, c - R * .10, R * .03, c, c, R);
+  body.addColorStop(0, '#fffdf3'); body.addColorStop(.68, '#eee9d8'); body.addColorStop(1, '#b9a584');
+  g.beginPath(); g.arc(c, c, R, 0, Math.PI * 2); g.fillStyle = body; g.fill();
+  g.save(); g.beginPath(); g.arc(c, c, R, 0, Math.PI * 2); g.clip();
+  if (key === 'sanqi') {
+    for (let i = 0; i < 420; i++) {
+      const a = Math.random() * Math.PI * 2, r0 = R * (.08 + Math.random() * .78), len = R * (.015 + Math.random() * .055);
+      g.beginPath(); g.moveTo(c + Math.cos(a) * r0, c + Math.sin(a) * r0);
+      g.lineTo(c + Math.cos(a + .02) * (r0 + len), c + Math.sin(a + .02) * (r0 + len));
+      g.strokeStyle = 'rgba(120,86,48,' + (.08 + Math.random() * .14) + ')'; g.lineWidth = .8 + Math.random(); g.stroke();
+    }
+    for (let ring = 1; ring <= 5; ring++) {
+      g.beginPath(); g.arc(c, c, R * (.16 + ring * .14), 0, Math.PI * 2);
+      g.strokeStyle = 'rgba(132,94,52,.20)'; g.lineWidth = 2; g.stroke();
+    }
+  } else if (key === 'xue') {
+    for (let i = 0; i < 18; i++) {
+      const a = i * 2.399963, r = R * (.18 + .62 * ((i * 37 % 17) / 17));
+      g.beginPath(); g.arc(c + Math.cos(a) * r, c + Math.sin(a) * r, R * .035, 0, Math.PI * 2);
+      g.fillStyle = 'rgba(112,72,38,.48)'; g.fill();
+    }
+  } else {
+    g.beginPath(); g.arc(c, c, R * .70, 0, Math.PI * 2);
+    g.strokeStyle = 'rgba(112,72,38,.72)'; g.lineWidth = R * .045; g.stroke();
+    for (let i = 0; i < 42; i++) {
+      const a = i * 2.399963, r = R * (.28 + .62 * ((i * 29 % 23) / 23));
+      g.beginPath(); g.arc(c + Math.cos(a) * r, c + Math.sin(a) * r, R * .016 + (i % 3) * R * .004, 0, Math.PI * 2);
+      g.fillStyle = 'rgba(112,72,38,.58)'; g.fill();
+    }
+  }
+  g.restore();
+  g.beginPath(); g.arc(c, c, R, 0, Math.PI * 2);
+  g.strokeStyle = key === 'sanqi' ? '#6d4423' : '#6f4c2e'; g.lineWidth = R * .075; g.stroke();
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = plantAniso(); tex.needsUpdate = true;
+  return tex;
+}
+
+function realRootBounds(content, multiMesh) {
+  content.updateWorldMatrix(true, true);
+  const inv = new THREE.Matrix4().copy(content.matrixWorld).invert();
+  const box = new THREE.Box3();
+  content.traverse(o => {
+    if (!o.isMesh || !o.userData.plantMesh) return;
+    if (multiMesh) {
+      if (o.userData.part !== 'root') return;
+      o.updateWorldMatrix(true, false);
+      box.union(new THREE.Box3().setFromObject(o).applyMatrix4(inv));
+      return;
+    }
+    const p = o.geometry.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      if (p.getY(i) <= .42) box.expandByPoint(new THREE.Vector3(p.getX(i), p.getY(i), p.getZ(i)).applyMatrix4(o.matrix));
+    }
+  });
+  return box;
+}
+
+function buildRealOpenRig(content, key, rootBox, multiMesh) {
+  const rig = { section: null, slices: [], molecule: null, dust: null, materials: [] };
+  if (rootBox.isEmpty()) return rig;
+  const center = rootBox.getCenter(new THREE.Vector3());
+  const size = rootBox.getSize(new THREE.Vector3());
+  const unit = 1 / content.scale.x;
+  const radius = Math.max(.12, Math.min(.23, Math.min(size.x, size.y) * content.scale.x * .38)) * unit;
+  const sectionTex = makeHerbSectionTexture(key);
+  const sectionMat = new THREE.MeshBasicMaterial({
+    map: sectionTex, transparent: true, opacity: 0, depthWrite: false,
+    depthTest: false, side: THREE.DoubleSide, toneMapped: false,
+  });
+  const section = new THREE.Mesh(new THREE.CircleGeometry(1, 64), sectionMat);
+  section.name = 'teaching-section';
+  section.position.set(center.x, center.y, rootBox.max.z + .035 * unit);
+  section.scale.setScalar(radius);
+  section.renderOrder = 5;
+  section.visible = false;
+  section.userData.basePos = section.position.clone();
+  section.userData.baseScale = radius;
+  content.add(section);
+  rig.section = section;
+  rig.materials.push(sectionMat);
+
+  const capMat = new THREE.MeshBasicMaterial({ map: sectionTex, transparent: true, opacity: 0, toneMapped: false });
+  const sideMat = new THREE.MeshStandardMaterial({
+    color: key === 'xue' ? 0x513b28 : 0x6f4a24,
+    roughness: .96, metalness: 0, transparent: true, opacity: 0,
+  });
+  rig.materials.push(capMat, sideMat);
+  const sliceSpecs = [
+    [-.40 * unit, center.y - .015 * unit, rootBox.max.z + .10 * unit, .088 * unit, -.24],
+    [-.50 * unit, center.y + .13 * unit, rootBox.max.z + .04 * unit, .070 * unit, .18],
+  ];
+  for (const [x, y, z, r, rz] of sliceSpecs) {
+    const slice = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, .16, 48), [sideMat, capMat, capMat]);
+    slice.name = 'teaching-slice';
+    slice.rotation.set(Math.PI / 2, 0, rz);
+    slice.position.set(x, y, z);
+    slice.scale.setScalar(r);
+    slice.visible = false;
+    slice.userData.basePos = slice.position.clone();
+    slice.userData.baseScale = r;
+    slice.userData.baseRotZ = rz;
+    content.add(slice);
+    rig.slices.push(slice);
+  }
+
+  const molecule = new THREE.Group();
+  molecule.name = 'teaching-molecule';
+  const moleculeMat = new THREE.MeshStandardMaterial({
+    color: key === 'xue' ? 0xa998ff : (key === 'baizhi' ? 0x7de0c2 : 0x7ec8e8),
+    emissive: key === 'xue' ? 0x2b205e : 0x163c46,
+    emissiveIntensity: .55, roughness: .42, metalness: .05,
+    transparent: true, opacity: 0, depthWrite: false,
+  });
+  rig.materials.push(moleculeMat);
+  for (let i = 0; i < 4; i++) {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(.036, .006, 10, 36), moleculeMat);
+    ring.position.set((i - 1.5) * .052, 0, 0);
+    molecule.add(ring);
+  }
+  for (const [x, y] of [[.065, -.070], [.115, -.092]]) {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(.021, .004, 8, 28), moleculeMat);
+    ring.position.set(x, y, .005);
+    molecule.add(ring);
+  }
+  molecule.position.set(Math.min(.66 * unit, rootBox.max.x + .20 * unit), center.y + .025 * unit, rootBox.max.z + .08 * unit);
+  molecule.visible = false;
+  molecule.userData.baseScale = .82 * unit;
+  content.add(molecule);
+  rig.molecule = molecule;
+
+  const candidates = [];
+  content.traverse(o => {
+    if (!o.isMesh || !o.userData.plantMesh) return;
+    if (multiMesh && o.userData.part !== 'root') return;
+    const p = o.geometry.attributes.position;
+    const step = Math.max(1, Math.floor(p.count / 2600));
+    for (let i = 0; i < p.count; i += step) {
+      const v = new THREE.Vector3(p.getX(i), p.getY(i), p.getZ(i)).applyMatrix4(o.matrix);
+      if (v.y <= .42 && v.z > .025) candidates.push(v);
+    }
+  });
+  const count = Math.min(1700, candidates.length);
+  if (count) {
+    const pos = new Float32Array(count * 3), dir = new Float32Array(count * 3), seed = new Float32Array(count);
+    const col = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      const v = candidates[Math.floor(i * candidates.length / count)];
+      pos[i * 3] = v.x; pos[i * 3 + 1] = v.y; pos[i * 3 + 2] = v.z;
+      const dx = v.x * .7 + (Math.random() - .5) * .24;
+      const dy = .18 + Math.random() * .36;
+      const dz = .55 + Math.random() * .55;
+      const dl = Math.hypot(dx, dy, dz) || 1;
+      dir[i * 3] = dx / dl; dir[i * 3 + 1] = dy / dl; dir[i * 3 + 2] = dz / dl;
+      seed[i] = Math.random();
+      const a = .55 + Math.random() * .35;
+      col[i * 3] = a; col[i * 3 + 1] = a * .78; col[i * 3 + 2] = a * .48;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    const mat = new THREE.PointsMaterial({
+      size: .018, vertexColors: true, transparent: true, opacity: 0,
+      depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending,
+      map: points.material.map, alphaTest: .01,
+    });
+    const dust = new THREE.Points(geo, mat);
+    dust.name = 'teaching-root-dust';
+    dust.visible = false;
+    dust.renderOrder = 4;
+    dust.userData.base = pos.slice();
+    dust.userData.dir = dir;
+    dust.userData.seed = seed;
+    content.add(dust);
+    rig.dust = dust;
+    rig.materials.push(mat);
+  }
+  return rig;
 }
 function buildRealModel(buf, state, key) {
   const dv = new DataView(buf);
@@ -9757,7 +9865,10 @@ function buildRealModel(buf, state, key) {
       if (prim.attributes.COLOR_0 !== undefined) geo.setAttribute('color', new THREE.BufferAttribute(acc(prim.attributes.COLOR_0), 3));
       geo.setIndex(new THREE.BufferAttribute(acc(prim.indices), 1));
       const md = (g.materials[prim.material] || {}).pbrMetallicRoughness || {};
+      const baseColor = new THREE.Color();
+      if (md.baseColorFactor) baseColor.setRGB(md.baseColorFactor[0], md.baseColorFactor[1], md.baseColorFactor[2]);
       const mat = new THREE.MeshStandardMaterial({
+        color: baseColor,
         map: baseTex, normalMap: normalTex,
         roughnessMap: mrTex, metalnessMap: mrTex,
         roughness: textured ? 1 : (md.roughnessFactor === undefined ? .75 : md.roughnessFactor),
@@ -9765,9 +9876,28 @@ function buildRealModel(buf, state, key) {
         vertexColors: prim.attributes.COLOR_0 !== undefined,
         side: THREE.DoubleSide,
       });
+      const openUniform = { value: 0 };
+      const peelRoot = key === 'sanqi' || realPartFromName(meshDef.name) === 'root';
+      mat.userData.openUniform = openUniform;
+      mat.userData.baseColor = baseColor.clone();
+      if (peelRoot) {
+        mat.onBeforeCompile = shader => {
+          shader.uniforms.herbOpen = openUniform;
+          shader.vertexShader = 'varying vec3 vHerbLocal;\n' + shader.vertexShader.replace(
+            '#include <begin_vertex>',
+            '#include <begin_vertex>\nvHerbLocal = position;'
+          );
+          shader.fragmentShader = 'uniform float herbOpen;\nvarying vec3 vHerbLocal;\n' + shader.fragmentShader.replace(
+            '#include <clipping_planes_fragment>',
+            '#include <clipping_planes_fragment>\nfloat peel = smoothstep(0.02, 0.92, herbOpen);\nif (vHerbLocal.y < 0.42 && vHerbLocal.z > mix(1.0, 0.025, peel)) discard;'
+          );
+        };
+        mat.customProgramCacheKey = () => 'herb-root-peel-v1';
+      }
       const mesh = new THREE.Mesh(geo, mat);
       mesh.name = meshDef.name || 'herb';
       mesh.userData.part = realPartFromName(mesh.name);
+      mesh.userData.plantMesh = true;
       content.add(mesh);
     }
   }
@@ -9780,7 +9910,23 @@ function buildRealModel(buf, state, key) {
   content.position.set(-(box.min.x + box.max.x) * .5 * k, -box.min.y * k, -(box.min.z + box.max.z) * .5 * k);
   const root = new THREE.Group();
   root.add(content);
+  root.userData.content = content;
+  root.userData.contentBasePos = content.position.clone();
+  root.userData.contentBaseScale = content.scale.clone();
   root.userData.multiMesh = g.meshes.length > 1;
+  let vertexCount = 0, triangleCount = 0;
+  content.traverse(o => {
+    if (!o.isMesh) return;
+    o.userData.basePos = o.position.clone();
+    o.userData.baseQuat = o.quaternion.clone();
+    o.userData.baseScale = o.scale.clone();
+    if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+    o.userData.geoCenter = o.geometry.boundingBox.getCenter(new THREE.Vector3());
+    vertexCount += o.geometry.attributes.position.count;
+    triangleCount += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3;
+  });
+  state.vertexCount = vertexCount;
+  state.triangleCount = triangleCount;
   root.scale.setScalar(herbMainScale());
   root.position.set(0, herbMainBaseY(), 0);
   root.rotation.x = 0.04;
@@ -9788,18 +9934,37 @@ function buildRealModel(buf, state, key) {
   scene.add(root);
 
   const lights = makePlantLights();
-  state.mesh = root; state.group = lights;
-  calibrateRealLabels(root, REAL_LABEL_SETS[key]);
-  buildRealLeaders(root, REAL_LABEL_SETS[key]);
-  buildRealDust(state);
-  buildRealGlow(state);
-  const warm = () => {
-    if (REAL !== state || state.parts.root) return;
-    try { buildRealPart('root'); } catch (e) {}
-  };
-  if (typeof requestIdleCallback === 'function') requestIdleCallback(warm, { timeout: 4000 });
-  else setTimeout(warm, 1600);
-  return root;
+  try {
+    calibrateRealLabels(root, REAL_LABEL_SETS[key]);
+    const rootBox = realRootBounds(content, root.userData.multiMesh);
+    root.userData.rootBox = rootBox;
+    calibrateOpenLabels(root, REAL_LABEL_SETS[key], rootBox);
+    root.userData.openRig = buildRealOpenRig(content, key, rootBox, root.userData.multiMesh);
+    root.userData.sectionDisc = root.userData.openRig.section;
+    buildRealLeaders(root, REAL_LABEL_SETS[key]);
+    buildRealDust(state);
+    buildRealGlow(state);
+    state.mesh = root;
+    state.group = lights;
+    const warm = () => {
+      if (REAL !== state || state.parts.root) return;
+      try { buildRealPart('root'); } catch (e) {}
+    };
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(warm, { timeout: 4000 });
+    else setTimeout(warm, 1600);
+    return root;
+  } catch (e) {
+    scene.remove(root);
+    scene.remove(lights);
+    if (state.dust) { scene.remove(state.dust); state.dust = null; }
+    if (state.glow) { scene.remove(state.glow); state.glow = null; }
+    state.mesh = null;
+    state.group = null;
+    state.vertexCount = 0;
+    state.triangleCount = 0;
+    disposePVGroup(root);
+    throw e;
+  }
 }
 
 // 脚下的一圈暖光：给写实模型一个"立在药圃里"的落点。
@@ -9905,23 +10070,6 @@ function loadRealModel() {
   return state.loading;
 }
 
-// 雪上一枝蒿的实体模型显隐。粒子层 XUE.points 不再常显 —— 它只剩
-// "散气"过渡时的意义，常态看的是网格；这样画面里是"一株真的植物"。
-function setXue3D(on) {
-  if (on) {
-    buildXue3D();
-    if (XUE3D.group) { XUE3D.group.visible = true; XUE3D.open = 0; XUE3D.openTgt = 0; }
-    if (XUE3D.lights) XUE3D.lights.visible = true;
-    if (XUE3D.glow) XUE3D.glow.visible = true;
-    if (XUE.points) XUE.points.visible = false;
-  } else {
-    if (XUE3D.group) XUE3D.group.visible = false;
-    if (XUE3D.lights) XUE3D.lights.visible = false;
-    if (XUE3D.glow) XUE3D.glow.visible = false;
-    XUE3D.open = 0; XUE3D.openTgt = 0;
-  }
-}
-
 function hideRealParts() {
   for (const k in REAL.parts) if (REAL.parts[k]) REAL.parts[k].visible = false;
 }
@@ -9933,12 +10081,9 @@ function hideMedUI() {
   const lb = document.getElementById('herbLabels'); if (lb) lb.classList.remove('on');
 }
 
-function setReal(on, disperse) {
+function setReal(on) {
   REAL.on = on;
   if (on) {
-    if (SANQI.points) SANQI.points.visible = false;
-    if (XUE.points) XUE.points.visible = false;
-    if (BAIZHI.points) BAIZHI.points.visible = false;
     hideMedUI();
     const state = REAL, key = HERB;
     loadRealModel().then(m => {
@@ -9948,7 +10093,12 @@ function setReal(on, disperse) {
       if (state.dust) state.dust.visible = true;
       if (state.glow) state.glow.visible = true;
       state.intro = 0;
-    }).catch(() => { if (REAL === state) { setReal(false); banner('写实模型加载失败：' + HERB_MODELS[key].glb + ' 与内嵌后备均不可用', true); } });
+    }).catch(() => {
+      if (REAL === state) {
+        setReal(false);
+        banner('写实模型加载失败：' + HERB_MODELS[key].glb + ' 与内嵌后备均不可用', true);
+      }
+    });
   } else {
     if (REAL.mesh) REAL.mesh.visible = false;
     if (REAL.group) REAL.group.visible = false;
@@ -9958,22 +10108,83 @@ function setReal(on, disperse) {
     hideRealParts();
     const toast = document.getElementById('herbToast');
     if (toast) toast.classList.remove('on');
-    if (SANQI.on && SANQI.points) SANQI.points.visible = true;
-    // 从写实模型点进来：粒子直接以"散开"状态出现
-    if (disperse && SANQI.on) {
-      SANQI.open = 1; SANQI.openTgt = 1; SANQI._lastOpen = -1;
-      SANQI._disperseUntil = performance.now() + 2600;   // 这段时间手势不再把它合上
-      if (SANQI.points) SANQI.points.visible = true;
-      hideMedUI();
-    }
   }
+}
+
+function applyRealHerbOpen(root, open, t) {
+  const content = root.userData.content;
+  if (!content) return;
+  if (!root.userData.multiMesh) {
+    content.position.copy(root.userData.contentBasePos);
+    content.position.y += open * .06;
+    content.scale.copy(root.userData.contentBaseScale).multiplyScalar(1 - open * .02);
+  }
+  content.traverse(o => {
+    if (!o.isMesh || !o.userData.plantMesh) return;
+    const bp = o.userData.basePos, bq = o.userData.baseQuat, bs = o.userData.baseScale;
+    if (!bp) return;
+    o.position.copy(bp);
+    o.quaternion.copy(bq);
+    o.scale.copy(bs);
+    const part = o.userData.part;
+    const aerial = root.userData.multiMesh && part !== 'root';
+    if (aerial) {
+      o.position.y += open * .16 / content.scale.y;
+      o.position.x += Math.sin(t * .7 + bp.y * 4) * open * .010 / content.scale.x;
+      o.rotateZ((bp.x < 0 ? -1 : 1) * (part === 'leaf' ? .025 : .012) * open);
+      o.scale.multiplyScalar(1 - open * .07);
+    }
+    const baseColor = o.material.userData.baseColor || new THREE.Color(0xffffff);
+    o.material.color.copy(baseColor).multiplyScalar(aerial ? 1 - open * .26 : 1);
+    if (o.material.userData.openUniform) o.material.userData.openUniform.value = open;
+  });
+
+  const rig = root.userData.openRig;
+  if (rig) {
+    const fade = Math.max(0, Math.min(1, (open - .06) / .64));
+    if (rig.section) {
+      rig.section.visible = fade > 0;
+      rig.section.material.opacity = fade * .96;
+      rig.section.position.copy(rig.section.userData.basePos);
+      rig.section.position.z += open * .025 / content.scale.z;
+      const r = rig.section.userData.baseScale * (.72 + .28 * open);
+      rig.section.scale.setScalar(r);
+    }
+    for (const slice of rig.slices) {
+      slice.visible = fade > 0;
+      slice.position.copy(slice.userData.basePos);
+      slice.position.y += open * .035 / content.scale.y;
+      slice.rotation.z = slice.userData.baseRotZ + Math.sin(t * .8 + slice.userData.basePos.y * 8) * .02 * open;
+      slice.scale.setScalar(slice.userData.baseScale * (.72 + .28 * open));
+    }
+    if (rig.molecule) {
+      rig.molecule.visible = fade > 0;
+      rig.molecule.rotation.z = t * .22;
+      rig.molecule.scale.setScalar(rig.molecule.userData.baseScale * (.72 + .28 * open));
+    }
+    if (rig.dust) {
+      rig.dust.visible = fade > 0;
+      const p = rig.dust.geometry.attributes.position;
+      const base = rig.dust.userData.base, dir = rig.dust.userData.dir, seed = rig.dust.userData.seed;
+      for (let i = 0; i < seed.length; i++) {
+        const d = open * (.28 + seed[i] * .52) / content.scale.x;
+        p.array[i * 3] = base[i * 3] + dir[i * 3] * d;
+        p.array[i * 3 + 1] = base[i * 3 + 1] + dir[i * 3 + 1] * d + Math.sin(t * 1.2 + seed[i] * 6.28) * .012 * open;
+        p.array[i * 3 + 2] = base[i * 3 + 2] + dir[i * 3 + 2] * d;
+      }
+      p.needsUpdate = true;
+    }
+    for (const mat of rig.materials) mat.opacity = mat.isPointsMaterial ? fade * .62 : fade * .96;
+  }
+  const leaders = root.userData.leaders;
+  if (leaders) leaders.children.forEach(line => { line.visible = !line.userData.openOnly || open > .32; });
 }
 
 // 写实植株的"活着"：进场聚形 + 呼吸起伏 + 浮尘上浮。
 // 用极小的幅度（缩放 1→2.6 只在进场 0.9 秒内，之后 0.4% 起伏），避免像呼吸灯那样抢戏。
 function realTick(realDt, t) {
   const m = REAL.mesh;
-  if (!REAL.on || !m || !m.visible) return;
+  if (!REAL.on || !m) return;
   if (REAL.intro < 1) {
     REAL.intro = Math.min(1, REAL.intro + realDt / 0.9);
     const k = 1 - Math.pow(1 - REAL.intro, 3);      // easeOutCubic
@@ -9983,6 +10194,25 @@ function realTick(realDt, t) {
   }
   // 呼吸：整株极轻地上下浮动，模拟植株在空气里的微动
   m.position.set(0, herbMainBaseY() + Math.sin(t * 0.9) * 0.012, 0);
+  const layer = activeHerbLayer();
+  if (layer) {
+    layer.open += (layer.openTgt - layer.open) * (1 - Math.exp(-realDt / .22));
+    const visibleOpen = PV.on ? 0 : layer.open;
+    applyRealHerbOpen(m, visibleOpen, t);
+    if (REAL.group) {
+      for (const light of REAL.group.children) {
+        if (light.isDirectionalLight && light.userData.baseI) {
+          light.intensity = light.userData.baseI * (1 + .40 * visibleOpen);
+        }
+      }
+    }
+    const badge = document.getElementById('stateBadge');
+    if (badge) {
+      const name = HERB_INFO[HERB].name;
+      const label = layer.open > .5 ? '散气 · 药形展开' : '聚气 · ' + name + '敛形';
+      if (badge.textContent !== label) badge.textContent = label;
+    }
+  }
   const dust = REAL.dust;
   if (dust && dust.visible) {
     const p = dust.geometry.attributes.position, base = dust.userData.base, seed = dust.userData.seed;
@@ -10015,60 +10245,10 @@ const PART_TRANS = {
 const PINCH = { active: false };
 
 function herbZoomTarget() {
-  if (REAL.on && REAL.mesh && REAL.mesh.visible) return REAL.mesh;
-  if (XUE.on && XUE3D.group && XUE3D.group.visible) return XUE3D.group;
-  return null;
+  return REAL.on && REAL.mesh && REAL.mesh.visible ? REAL.mesh : null;
 }
 function herbZoomEligible() {
   return herbActive() && !PV.on && !PART_TRANS.active && !!herbZoomTarget();
-}
-function herbPartAtScreen(target, clientX, clientY, hit0=null) {
-  // 射线命中网格时按模型局部高度判部位（最准）；没命中（指缝、根须间隙）
-  // 再退回到两个部位锚点的屏幕距离。这里只"选部位"，不参与缩放中心。
-  if (!hit0) {
-    const cv0 = document.getElementById('stage');
-    const r0 = cv0.getBoundingClientRect();
-    const ndc0 = new THREE.Vector2(((clientX - r0.left) / r0.width) * 2 - 1,
-                                   -((clientY - r0.top) / r0.height) * 2 + 1);
-    const ray0 = new THREE.Raycaster();
-    ray0.setFromCamera(ndc0, camera);
-    hit0 = ray0.intersectObject(target, true)[0];
-  }
-  if (hit0) {
-    if (target === REAL.mesh) {
-      if (target.userData.multiMesh) {
-        const part = realPartFromObject(hit0.object);
-        if (part) return part;
-      }
-      const local = target.worldToLocal(hit0.point.clone());
-      if (local.y > 1.0) return 'flower';
-      if (local.y < 0.42) return 'root';
-      const rad = Math.hypot(local.x, local.z);
-      if (local.y >= 0.65 && rad >= 0.10) return 'leaf';
-      if (local.y >= 0.42 && rad < 0.12) return 'stem';
-    } else {
-      // 雪上一枝蒿：直接看命中网格上的部位标记，比锚点半径可靠
-      const part = xuePartFromObject(hit0.object);
-      if (part) return part;
-    }
-  }
-  let best = null, bestD = 1e9;
-  const test = (key, p, hitR) => {
-    const s = new THREE.Vector3(p[0], p[1], p[2]).applyMatrix4(target.matrixWorld).project(camera);
-    if (s.z > 1) return;
-    const sx = (s.x * 0.5 + 0.5) * window.innerWidth;
-    const sy = (-s.y * 0.5 + 0.5) * window.innerHeight;
-    const d = Math.hypot(clientX - sx, clientY - sy);
-    if (d < hitR && d < bestD) { best = key; bestD = d; }
-  };
-  if (target === REAL.mesh) {
-    for (const L of REAL_LABELS) test(L.kind, L.p, 110);
-  } else {
-    for (const [key, info] of [['flower', MED_FLOWER[HERB]], ['root', MED_INFO[HERB]]]) {
-      if (info && info.anchor) test(key, info.anchor, info.hitR || 110);
-    }
-  }
-  return best;
 }
 // 支点 = 手指/鼠标下面那个点：转成模型的局部坐标后固定住，
 // 每帧反算位置让这个局部点始终留在原来的世界位置（= 屏幕位置）。
@@ -10085,24 +10265,36 @@ function setHerbZoomAnchorAt(target, clientX, clientY) {
                                 -((clientY - r.top) / r.height) * 2 + 1);
   const ray = new THREE.Raycaster();
   ray.setFromCamera(ndc, camera);
-  const hit = ray.intersectObject(target, true)[0];
-  if (hit) { setHerbZoomAnchorWorld(target, hit.point); return hit; }
-  // 指缝/根须间没命中时，用该屏幕射线与模型中心所在 z 平面的交点
+  const hits = ray.intersectObjects(realPlantMeshes(target), false);
+  const picked = pickRealPart(target, hits, clientX, clientY);
+  if (picked.hit && (!target.userData.multiMesh || realPartFromObject(picked.hit.object) === picked.part)) {
+    setHerbZoomAnchorWorld(target, picked.hit.point);
+    return picked;
+  }
+  if (picked.part) {
+    const label = REAL_LABELS.find(L => L.kind === picked.part && !L.openOnly);
+    if (label) {
+      const world = new THREE.Vector3(label.p[0], label.p[1], label.p[2]).applyMatrix4(target.matrixWorld);
+      setHerbZoomAnchorWorld(target, world);
+      return picked;
+    }
+  }
   target.updateMatrixWorld(true);
-  const box = new THREE.Box3().setFromObject(target);
+  const box = new THREE.Box3();
+  for (const mesh of realPlantMeshes(target)) box.expandByObject(mesh);
   const c = box.getCenter(new THREE.Vector3());
   const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -c.z);
   const p = new THREE.Vector3();
   if (ray.ray.intersectPlane(plane, p)) setHerbZoomAnchorWorld(target, p);
   else setHerbZoomAnchorWorld(target, c);
-  return null;
+  return picked;
 }
 function beginHerbZoom(clientX, clientY) {
   if (!herbZoomEligible()) return false;
   const target = herbZoomTarget();
   // 每次捏合都按当前手指中心重新取支点：指哪放大哪
-  const hit = setHerbZoomAnchorAt(target, clientX, clientY);
-  HERB_ZOOM.part = herbPartAtScreen(target, clientX, clientY, hit);
+  const picked = setHerbZoomAnchorAt(target, clientX, clientY);
+  HERB_ZOOM.part = picked.part;
   HERB_ZOOM.active = true;
   HERB_ZOOM.locked = true;
   HERB_ZOOM.rot = points.rotation.clone();
@@ -10125,14 +10317,9 @@ function herbLocalCenter(target) {
     if (!target.geometry.boundingBox) target.geometry.computeBoundingBox();
     return target.geometry.boundingBox.getCenter(new THREE.Vector3());
   }
-  const g = target;
-  const pos = g.position.clone(), quat = g.quaternion.clone(), scl = g.scale.clone();
-  g.position.set(0, 0, 0); g.quaternion.identity(); g.scale.setScalar(1);
-  g.updateMatrixWorld(true);
-  const c = new THREE.Box3().setFromObject(g).getCenter(new THREE.Vector3());
-  g.position.copy(pos); g.quaternion.copy(quat); g.scale.copy(scl);
-  g.updateMatrixWorld(true);
-  return c;
+  const box = new THREE.Box3();
+  for (const mesh of realPlantMeshes(target)) box.expandByObject(mesh);
+  return box.getCenter(new THREE.Vector3());
 }
 // 捏合结束（没进特写）后把支点从"手指位置"换成"模型几何中心"：
 // 之后拖拽旋转就是绕着放大后的植物自转，而不是绕着远处那个手指点甩出去。
@@ -10179,12 +10366,6 @@ function resetHerbView() {
     REAL.mesh.rotation.set(0.04, 0, 0);
     REAL.mesh.updateMatrixWorld();
   }
-  if (XUE3D.group) {
-    XUE3D.group.position.set(0, XUE3D.baseY === undefined ? XUE_BASE_Y : XUE3D.baseY, 0);
-    XUE3D.group.scale.setScalar(XUE3D.baseScale || 0.72);
-    XUE3D.group.rotation.set(0.04, 0, 0.015);
-    XUE3D.group.updateMatrixWorld();
-  }
 }
 // 在 realTick 算好"呼吸基准"之后叠乘缩放：按当前旋转/基准缩放把模型中心
 // 反算回固定世界点，确保放大时视觉中心钉在原屏幕位置，而不是"飘走"。
@@ -10220,33 +10401,15 @@ function beginPartTransition(part, anchorWorld) {
 // 一镜到底的交接：主模型推近到最大时，把部位视图的 pivot 反算到
 // "刚好等于主模型上那块"的位置，然后从那里滑到最终特写构图。
 function doHerbPartHandoff() {
-  const target = herbZoomTarget();            // 此刻整株还没被隐藏
-  let mainMatrix = null, xueInfo = null, realInfo = null;
-  if (target) { target.updateMatrixWorld(true); mainMatrix = target.matrixWorld.clone(); }
-  // 雪上一枝蒿没有独立 partMesh：先记下主模型上那块（块根/花序）的世界包围盒与朝向
-  if (target && target === XUE3D.group) {
-    const tag = PART_TRANS.part === 'root' ? 'tuber' : 'flower';
-    const src = XUE3D.group.children.filter(o => o.userData && o.userData.part === tag);
-    if (src.length) {
-      const box = new THREE.Box3();
-      for (const s of src) { s.updateWorldMatrix(true, false); box.expandByObject(s); }
+  const target = herbZoomTarget();
+  let info = null;
+  if (target) {
+    target.updateMatrixWorld(true);
+    const part = buildRealPart(PART_TRANS.part);
+    if (part && part.userData.sourceBox) {
+      const box = part.userData.sourceBox.clone().applyMatrix4(target.matrixWorld);
       if (!box.isEmpty()) {
-        xueInfo = {
-          center: box.getCenter(new THREE.Vector3()),
-          size: box.getSize(new THREE.Vector3()),
-          quat: XUE3D.group.getWorldQuaternion(new THREE.Quaternion()),
-        };
-      }
-    }
-  }
-  if (target && target === REAL.mesh && target.userData.multiMesh) {
-    const src = [];
-    target.traverse(o => { if (o.isMesh && realPartFromName(o.name) === PART_TRANS.part) src.push(o); });
-    if (src.length) {
-      const box = new THREE.Box3();
-      for (const s of src) { s.updateWorldMatrix(true, false); box.expandByObject(s); }
-      if (!box.isEmpty()) {
-        realInfo = {
+        info = {
           center: box.getCenter(new THREE.Vector3()),
           size: box.getSize(new THREE.Vector3()),
           quat: target.getWorldQuaternion(new THREE.Quaternion()),
@@ -10255,36 +10418,24 @@ function doHerbPartHandoff() {
     }
   }
   PART_TRANS.handoff = true;
-  selectMedPart(PART_TRANS.part);             // 建部位视图（最终构图）并隐藏整株
-  // 记录当前视口，避免过渡结束后的下一帧误判"窗口尺寸变了"又重排一次，
-  // 让部位在最后一刻再跳一下。
+  selectMedPart(PART_TRANS.part);
   PV._w = window.innerWidth | 0;
   PV._h = window.innerHeight | 0;
-  // 讲解卡、化学式/结构/切面在交接的这一刻就出现（随部位一起落位），
-  // 不再等整段动画结束才"慢半拍"地弹出来。
   const p = PV.pivot;
   if (!p) return;
   const endPos = p.position.clone(), endQuat = p.quaternion.clone(), endScale = p.scale.clone();
   let from = { pos: endPos, quat: endQuat, scale: endScale };
-  if (mainMatrix && PV.partMesh && PV.partMesh !== p) {
-    // 三七：pivot 内那块肉的局部矩阵 m：P0 = mainMatrix * m⁻¹
-    PV.partMesh.updateMatrix();
-    const inv = new THREE.Matrix4().copy(PV.partMesh.matrix).invert();
-    const P0 = new THREE.Matrix4().multiplyMatrices(mainMatrix, inv);
-    P0.decompose(p.position, p.quaternion, p.scale);
-    p.updateMatrixWorld(true);
-    from = { pos: p.position.clone(), quat: p.quaternion.clone(), scale: p.scale.clone() };
-  } else if (xueInfo || realInfo) {
-    const info = xueInfo || realInfo;
+  if (info) {
     p.position.set(0, 0, 0); p.quaternion.identity(); p.scale.setScalar(1);
     p.updateMatrixWorld(true);
-    const lb = new THREE.Box3().setFromObject(p);
-    const lc = lb.getCenter(new THREE.Vector3()), ls = lb.getSize(new THREE.Vector3());
+    const localBox = new THREE.Box3().setFromObject(p);
+    const localCenter = localBox.getCenter(new THREE.Vector3());
+    const localSize = localBox.getSize(new THREE.Vector3());
     p.position.copy(endPos); p.quaternion.copy(endQuat); p.scale.copy(endScale);
     p.updateMatrixWorld(true);
-    if (!lb.isEmpty() && ls.x > 1e-4 && ls.y > 1e-4 && ls.z > 1e-4) {
-      const scale0 = Math.max(info.size.x / ls.x, info.size.y / ls.y, info.size.z / ls.z);
-      const off = lc.clone().applyQuaternion(info.quat).multiplyScalar(scale0);
+    if (!localBox.isEmpty() && localSize.x > 1e-4 && localSize.y > 1e-4 && localSize.z > 1e-4) {
+      const scale0 = Math.max(info.size.x / localSize.x, info.size.y / localSize.y, info.size.z / localSize.z);
+      const off = localCenter.clone().applyQuaternion(info.quat).multiplyScalar(scale0);
       p.quaternion.copy(info.quat);
       p.scale.setScalar(scale0);
       p.position.copy(info.center).sub(off);
@@ -10324,7 +10475,7 @@ function stepHerbTransition() {
   }
 }
 
-// ── 捏合输入：触控板 ctrl/meta + wheel、Safari gesture、触屏双指 ─────────
+// ── 缩放输入：舞台滚轮、触控板 ctrl/meta + wheel、Safari gesture、触屏双指 ─────────
 function pinchEligible(e) {
   if (!herbActive() || PV.on) return false;
   if (!herbZoomTarget()) return false;
@@ -10334,9 +10485,10 @@ function pinchEligible(e) {
 }
 let _wheelEndTimer = 0;
 window.addEventListener('wheel', e => {
-  if (!(e.ctrlKey || e.metaKey)) return;       // 触控板捏合会带 ctrl；普通滚轮不拦
   if (!herbActive()) return;
   const t = e.target;
+  const onStage = t === document.getElementById('stage');
+  if (!(e.ctrlKey || e.metaKey) && !onStage) return;
   if (t && t.closest && t.closest('#herbCard,#partModal,#bar,#herbPop,#btnBack,#err,#topbar,#medUse,#medPart')) return;
   // 本草舞台上的捏合一律不放大页面：包括过渡中/部位视图里，
   // 否则模型推近到一半、手指还没松，浏览器会把整页放大。
@@ -10391,7 +10543,7 @@ function _endTouchPinch(e) {
 _stageEl.addEventListener('touchend', _endTouchPinch, { capture: true });
 _stageEl.addEventListener('touchcancel', _endTouchPinch, { capture: true });
 
-// ── 中药目录：两个品种共用一套「聚气/散气」交互，只是几何、卡片、标注不同 ──
+// ── 中药目录：三个品种共用一套「聚气/散气」交互，只是几何、卡片、标注不同 ──
 // 属性卡按市面中药查询应用的层级来组织：顶部药名 + 性味标签，
 // 中间分页（药性 / 性状 / 采收 / 炮制），底部物候时间轴。
 // 分页让"一眼抓住要点"和"想看细节"共存，不必把十行字全堆在一张卡上。
@@ -10507,8 +10659,8 @@ let herbTab = '药性';
 // 窄屏默认收起：手机竖屏时铺开的卡片会盖住植株下半截（正好是根茎入药部位）。
 // 先看全株、要看药性再点开，这才是逛图谱的顺序。
 let herbCardFolded = (typeof isMobilePortrait === 'function' ? isMobilePortrait() : window.innerWidth <= 720);
-function herbActive() { return SANQI.on || XUE.on || BAIZHI.on; }
-function activeHerbLayer() { return SANQI.on ? SANQI : (XUE.on ? XUE : (BAIZHI.on ? BAIZHI : null)); }
+function herbActive() { return !!REAL_STATES[HERB] && REAL_STATES[HERB].on; }
+function activeHerbLayer() { return herbActive() ? REAL_STATES[HERB] : null; }
 function activeHerbKey() { return HERB; }
 
 // 当前月份落在物候哪一段：把「什么时候采」与真实时间对上，卡片因此不是静态说明
@@ -10582,27 +10734,13 @@ function closeHerbMenu() {
   const pop = document.getElementById('herbPop');
   if (pop) pop.classList.remove('open');
 }
-// 雪上一枝蒿的第一次构建包含 4 组 PBR 贴图生成 + 块根合并，放在切药材的点击路径上
-// 会卡一下。进入本草展厅后在空闲时先建好（隐藏），真正切换时只做显隐。
-let xueWarmTimer = 0;
-function scheduleXueWarmup() {
-  if (XUE3D.built) return;
-  const run = () => {
-    if (XUE3D.built || !herbActive()) return;
-    try { buildXue3D(); } catch (e) { console.warn('[xue] 预热失败', e); }
-  };
-  if (typeof requestIdleCallback === 'function') {
-    try { requestIdleCallback(run, { timeout: 5000 }); return; } catch (e) {}
-  }
-  clearTimeout(xueWarmTimer);
-  xueWarmTimer = setTimeout(run, 2600);
-}
 // 进入/切换某个品种：建层、显隐、重建标注、刷新属性卡与中央标题
 function activateHerb(name) {
   resetHerbZoom();
   if (REAL.on) setReal(false);
   HERB = name;
   REAL = REAL_STATES[name];
+  REAL.on = true;
   REAL_LABELS = REAL_LABEL_SETS[name];
   realLabelEls = null;
   const labelBox = document.getElementById('realLabels');
@@ -10610,10 +10748,6 @@ function activateHerb(name) {
   SANQI.on = name === 'sanqi';
   XUE.on = name === 'xue';
   BAIZHI.on = name === 'baizhi';
-  if (SANQI.points) SANQI.points.visible = false;
-  if (XUE.points) XUE.points.visible = false;
-  if (BAIZHI.points) BAIZHI.points.visible = false;
-  setXue3D(false);
   const layer = activeHerbLayer();
   layer.open = 0; layer.openTgt = 0; layer._lastOpen = -1;
   const ob = document.getElementById('herbLabels');
@@ -10624,6 +10758,9 @@ function activateHerb(name) {
   for (const key of Object.keys(MED_INSET)) if (MED_INSET[key].points) MED_INSET[key].points.visible = false;
   for (const key of Object.keys(FLOWER_INSET)) if (FLOWER_INSET[key].points) FLOWER_INSET[key].points.visible = false;
   hideMedUI();
+  PV.partName = PV.herbName = null;
+  const hint = document.getElementById('medHint');
+  if (hint) hint.innerHTML = '滚轮缩放 · 拖动旋转 · 点击部位<small>Scroll to zoom · drag to rotate · click a part</small>';
   const mp = MED_INFO[name];
   const mpVal = document.querySelector('#medPart .mp-val');
   if (mpVal) mpVal.innerHTML = mp.text + '<small>' + mp.en + '</small>';
@@ -10642,8 +10779,18 @@ function activateHerb(name) {
 }
 function setHerb(name) {
   closeHerbMenu();
+  if (PV.on) {
+    if (_partCloseFade) {
+      clearTimeout(_partCloseFade);
+      _partCloseFade = 0;
+      finishPartClose();
+      const stage = document.getElementById('stage');
+      if (stage) { stage.style.transition = ''; stage.style.opacity = ''; stage.style.pointerEvents = ''; }
+    } else closePartModal();
+  }
+  if (PART_TRANS.active) cancelHerbTransition();
   if (name === HERB && herbActive()) return;
-  if (!herbActive()) { HERB = name; renderHerbCard(); return; }
+  if (!herbActive()) { HERB = name; REAL = REAL_STATES[name]; }
   activateHerb(name);
 }
 function setHerbMode(on) {
@@ -10662,10 +10809,6 @@ function setHerbMode(on) {
     activateHerb(HERB);
   } else {
     SANQI.on = false; XUE.on = false; BAIZHI.on = false;
-    if (SANQI.points) SANQI.points.visible = false;
-    if (XUE.points) XUE.points.visible = false;
-    if (BAIZHI.points) BAIZHI.points.visible = false;
-    setXue3D(false);
     points.visible = true;
     const l = document.getElementById('label');
     if (l) { clearTimeout(SANQI._labelTimer); clearTimeout(XUE._labelTimer); clearTimeout(BAIZHI._labelTimer); l.style.opacity = 0; }
@@ -10696,59 +10839,52 @@ document.getElementById('btnHerbs').addEventListener('click', e => {
   e.stopPropagation();
   document.getElementById('herbPop').classList.toggle('open');
 });
-// 点模型本体也走同一条转场：写实 → 粒子（散开）
+function nearestRealLabel(target, clientX, clientY) {
+  let nearest = null, nearestD = 1e9;
+  for (const L of REAL_LABELS) {
+    if (L.openOnly) continue;
+    _sqVec.set(L.p[0], L.p[1], L.p[2]).applyMatrix4(target.matrixWorld).project(camera);
+    if (_sqVec.z > 1) continue;
+    const sx = (_sqVec.x * .5 + .5) * window.innerWidth;
+    const sy = (-_sqVec.y * .5 + .5) * window.innerHeight;
+    const d = Math.hypot(clientX - sx, clientY - sy);
+    const radius = L.kind === 'flower' ? 66 : 78;
+    if (d < radius && d < nearestD) { nearest = L; nearestD = d; }
+  }
+  return nearest ? { label: nearest, distance: nearestD } : null;
+}
+
+function pickRealPart(target, hits, clientX, clientY) {
+  const first = hits[0];
+  const nearest = nearestRealLabel(target, clientX, clientY);
+  if (nearest) return { part: nearest.label.kind, hit: first };
+  if (target.userData.multiMesh) {
+    const firstPart = first ? realPartFromObject(first.object) : null;
+    if (firstPart === 'leaf' || firstPart === 'stem') {
+      const wanted = firstPart === 'leaf' ? 'stem' : 'leaf';
+      for (const hit of hits) {
+        if (realPartFromObject(hit.object) !== wanted) continue;
+        const y = target.worldToLocal(hit.point.clone()).y;
+        if ((wanted === 'stem' && y < .52) || (wanted === 'leaf' && y > .55)) {
+          return { part: wanted, hit };
+        }
+      }
+    }
+    return { part: firstPart, hit: first };
+  }
+  if (first) {
+    const p = target.worldToLocal(first.point.clone());
+    if (p.y > 1.0) return { part: 'flower', hit: first };
+    if (p.y < .42) return { part: 'root', hit: first };
+    const rad = Math.hypot(p.x, p.z);
+    if (p.y >= .65 && rad >= .10) return { part: 'leaf', hit: first };
+    if (p.y >= .42 && rad < .12) return { part: 'stem', hit: first };
+  }
+  return { part: null, hit: null };
+}
+
 let _partDown = null;
 document.getElementById('stage').addEventListener('pointerdown', e => { _partDown = { x: e.clientX, y: e.clientY }; });
-document.getElementById('stage').addEventListener('click', e => {
-  if (REAL.on || !herbActive()) return;
-  if (PART_TRANS.active || performance.now() < HERB_ZOOM.suppressClickUntil) return;
-  if (_partDown && Math.abs(e.clientX - _partDown.x) + Math.abs(e.clientY - _partDown.y) > 8) return;
-  // 命中检测必须用【当前实际渲染的那个对象】的矩阵：
-  // 雪上一枝蒿现在由 XUE3D.group 呈现（粒子层已隐藏），
-  // 若仍拿 XUE.points 的矩阵去投影，锚点会落在完全错误的位置 ——
-  // 这就是"点块根没反应"的原因。
-  const layer = activeHerbLayer();
-  if (!layer) return;
-  const obj = (XUE.on && XUE3D.group && XUE3D.group.visible) ? XUE3D.group
-            : (layer.points && layer.points.visible) ? layer.points
-            : null;
-  if (!obj) return;
-  obj.updateMatrixWorld();
-  // 先用射线直接看命中的是哪块网格（块根/花序有 part 标记），
-  // 比只按锚点半径猜可靠得多。
-  {
-    const cv = document.getElementById('stage');
-    const r = cv.getBoundingClientRect();
-    const ndc = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1,
-                                  -((e.clientY - r.top) / r.height) * 2 + 1);
-    const ray = new THREE.Raycaster();
-    ray.setFromCamera(ndc, camera);
-    const hit = ray.intersectObject(obj, true)[0];
-    if (hit) {
-      const part = xuePartFromObject(hit.object);
-      if (part) { beginPartTransition(part, hit.point.clone()); return; }
-      showHerbToast('非药用部位', '雪上一枝蒿以块根入药；花序仅作识别。叶、茎不入药。');
-      return;
-    }
-  }
-  const parts = [['flower', MED_FLOWER[HERB]], ['root', MED_INFO[HERB]]];
-  for (const [key, info] of parts) {
-    if (!info) continue;
-    _sqVec.set(info.anchor[0], info.anchor[1], info.anchor[2])
-          .applyMatrix4(obj.matrixWorld).project(camera);
-    if (_sqVec.z > 1) continue;
-    const sx = (_sqVec.x * 0.5 + 0.5) * window.innerWidth;
-    const sy = (-_sqVec.y * 0.5 + 0.5) * window.innerHeight;
-    if (Math.hypot(e.clientX - sx, e.clientY - sy) < info.hitR) {
-      const world = new THREE.Vector3(info.anchor[0], info.anchor[1], info.anchor[2])
-        .applyMatrix4(obj.matrixWorld);
-      beginPartTransition(key, world);
-      return;
-    }
-  }
-  // 点空白：收起
-  medRevealed = false; medPart = null; hideMedUI(); hideRealParts();
-});
 document.getElementById('stage').addEventListener('click', e => {
   if (!REAL.on || !REAL.mesh || !REAL.mesh.visible) return;
   if (PART_TRANS.active || performance.now() < HERB_ZOOM.suppressClickUntil) return;
@@ -10759,20 +10895,8 @@ document.getElementById('stage').addEventListener('click', e => {
                                 -((e.clientY - r.top) / r.height) * 2 + 1);
   const ray = new THREE.Raycaster();
   ray.setFromCamera(ndc, camera);
-  const hit = ray.intersectObject(REAL.mesh, true)[0];
-  if (!hit) return;
-  let part = REAL.mesh.userData.multiMesh ? realPartFromObject(hit.object) : null;
-  if (!part) {
-    const p = REAL.mesh.worldToLocal(hit.point.clone());
-    if (p.y > 1.0) part = 'flower';
-    else if (p.y < 0.42) part = 'root';
-    else {
-      const rad = Math.hypot(p.x, p.z);
-      if (p.y >= 0.65 && rad >= 0.10) part = 'leaf';
-      else if (p.y >= 0.42 && rad < 0.12) part = 'stem';
-    }
-  }
-  if (part) beginPartTransition(part, hit.point.clone());
+  const picked = pickRealPart(REAL.mesh, ray.intersectObjects(realPlantMeshes(REAL.mesh), false), e.clientX, e.clientY);
+  if (picked.part) beginPartTransition(picked.part, picked.hit?.point.clone());
   else { medRevealed = false; medPart = null; hideMedUI(); hideRealParts(); }
 });
 document.querySelectorAll('#herbPop .hp-item').forEach(b => {
@@ -10979,16 +11103,11 @@ function frame(now) {
   // 捏合/过渡期间冻结视角旋转：先恢复，再让各层读取（否则支点会跟着转走）
   stepHerbTransition();
   if (HERB_ZOOM.locked && HERB_ZOOM.rot) points.rotation.copy(HERB_ZOOM.rot);
-  if (SANQI.on && !REAL.on) {
-    // 三七由 GLB 写实模型呈现：这里只推状态与补光，标签走既有的 realLabelsUpdate
-    sanqi3dTick(realDt, t);
-  }
-  if (XUE.on && !REAL.on) xueTick(realDt, t);
-  if (XUE3D.group && XUE3D.group.visible) xue3dTick(realDt, t);
   if (REAL.on && REAL.mesh) { REAL.mesh.rotation.copy(points.rotation); REAL.mesh.rotation.x += 0.04; }
   realTick(realDt, t);
   realLabelsUpdate();
   pvLabelUpdate();
+  pvZoomTick(realDt);
   if (PV.on && !PART_TRANS.active && ((window.innerWidth|0) !== PV._w || (window.innerHeight|0) !== PV._h)) {
     PV._w = window.innerWidth|0; PV._h = window.innerHeight|0;
     layoutPartView();
@@ -11003,7 +11122,7 @@ function frame(now) {
     const hint = document.getElementById('medHint');
     if (REAL.on) {
       hideMedUI();
-      if (hint) hint.classList.remove('on');
+      if (hint) hint.classList.toggle('on', !PV.on && noInput);
     } else {
       const rec = medPart === 'flower' ? FLOWER_INSET[HERB] : MED_INSET[HERB];
       if (MED_INSET[HERB].points) MED_INSET[HERB].points.visible = medRevealed && medPart === 'root';
@@ -11073,7 +11192,7 @@ function frame(now) {
   const herbLayerNow = activeHerbLayer();
   const statKind = herbLayerNow ? 'herb' : 'glyph';
   const statName = herbLayerNow ? HERB_INFO[activeHerbKey()].name : curGlyph3D.ch;
-  const statN = herbLayerNow ? herbLayerNow.n : N;
+  const statN = herbLayerNow ? herbLayerNow.vertexCount : N;
   const statsSigNow = [fpsShow, statN, statKind, statName, statsDiag ? 1 : 0, diagLine, jankLine].join('\u0001');
   if (statsSigNow !== statsSig) {
     statsSig = statsSigNow;
@@ -11308,8 +11427,18 @@ function drawWorkshopRoot(g, x, y, h, rot) {
   else if (HERB === 'xue') drawXueRoot(g, x, y, h, rot);
   else drawSanqiRoot(g, x, y, h, rot);
 }
+function drawXueSlice(g, x, y, r, rot) {
+  g.save(); g.translate(x, y); g.rotate(rot);
+  g.beginPath(); g.ellipse(0,0,r,r*.42,0,0,Math.PI*2); g.fillStyle='#5b422d'; g.fill();
+  g.strokeStyle='rgba(35,24,15,.6)'; g.lineWidth=Math.max(.5,r*.06); g.stroke();
+  g.beginPath(); g.ellipse(0,-r*.02,r*.84,r*.33,0,0,Math.PI*2); g.fillStyle='#f1eddf'; g.fill();
+  g.fillStyle='rgba(112,72,38,.48)';
+  for(let i=0;i<12;i++){const a=i*2.399,rr=r*(.25+.55*((i*31%13)/13));g.beginPath();g.arc(Math.cos(a)*rr,-r*.02+Math.sin(a)*rr*.36,Math.max(.5,r*.022),0,Math.PI*2);g.fill();}
+  g.restore();
+}
 function drawWorkshopSlice(g, x, y, r, rot) {
   if (HERB === 'baizhi') drawBaizhiSlice(g, x, y, r, rot);
+  else if (HERB === 'xue') drawXueSlice(g, x, y, r, rot);
   else drawSanqiSlice(g, x, y, r, rot);
 }
 
