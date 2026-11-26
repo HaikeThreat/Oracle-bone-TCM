@@ -23,6 +23,14 @@
 - 许可：SIL Open Font License 1.1 — <https://scripts.sil.org/OFL>
 - 说明：用于保证 iPad / 电脑 / 手机 Safari 上扉页中文（馆名、欢迎您、展厅名等）字形一致。
 
+## 化学结构式线稿
+
+- 文件：`libs/struct_aconitine.png`、`libs/struct_rg1.png`、
+  `libs/struct_quercetin.png`、`libs/struct_imperatorin.png`
+- 来源：PubChem（NCBI）公开化合物记录中的 2D 结构图（CID 245005 / 441923 /
+  5280343 / 10212），已转为透明背景线稿用于展馆部位特写。
+- 说明：这些是化学结构数据库中的标准骨架图，仅用于本站教学展示。
+
 ## 三七写实模型 ⚠ 来源/授权待确认
 
 - 文件：`libs/sanqi_model.glb`（约 9.2MB）及自动生成的 `libs/sanqi_model_fallback.js`

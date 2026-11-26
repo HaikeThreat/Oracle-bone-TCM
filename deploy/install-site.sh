@@ -24,7 +24,7 @@ SITE_ROOT="${SITE_ROOT:-/var/www/oracletcm}"
 REPO="${REPO:-}"
 CONF="/etc/nginx/conf.d/${DOMAIN}.conf"
 
-# 需要发布的文件：运行时被请求的 11 个 + 两个 fallback + 两个中药模型文件
+# 需要发布的文件：运行时被请求的 11 个 + 两个 fallback + 三味中药模型及后备
 # （详见 deploy/README.md 与根 README 的「部署」一节）
 LIB_FILES=(
   three.min.js
@@ -39,9 +39,22 @@ LIB_FILES=(
   hands_solution_wasm_bin.js
   hands_solution_wasm_bin.wasm
   hand_landmark_lite.tflite
-  # 中药展厅：三七写实模型 + file:// / GLB 失败时的脚本内嵌后备
+  # 中药展厅：三七 / 白芷写实模型 + file:// / GLB 失败时的脚本内嵌后备
   sanqi_model.glb
   sanqi_model_fallback.js
+  baizhi_model.glb
+  baizhi_model_fallback.js
+  # 部位特写右侧的化学结构式线稿
+  struct_aconitine.png
+  struct_rg1.png
+  struct_quercetin.png
+  struct_imperatorin.png
+  struct_orig_aconitine.png
+  struct_orig_rg1.png
+  struct_orig_quercetin.png
+  struct_orig_imperatorin.png
+  structure_data.js
+  structure_points_v2.js
 )
 
 [ "$(id -u)" -eq 0 ] || { echo "请用 root 或 sudo 执行" >&2; exit 1; }
@@ -114,6 +127,17 @@ server {
     gzip_types text/css application/javascript text/javascript application/json;
 
     # libs/ 首屏约 16MB，长缓存后只在首次付；页面顶部 ASSET_V 可破缓存
+    # .glb 模型启用 gzip（约 44MB → 19MB）；其余 libs 仍保持 gzip off
+    location ~ ^/libs/.+\.glb\$ {
+        gzip on;
+        gzip_types model/gltf-binary;
+        gzip_comp_level 6;
+        gzip_min_length 1024;
+        gzip_vary on;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        try_files \$uri =404;
+    }
+
     location /libs/ {
         add_header Cache-Control "public, max-age=31536000, immutable";
         gzip off;                # wasm/tflite 已是压缩格式，再压无益
@@ -142,6 +166,17 @@ server {
     gzip_comp_level 6;
     gzip_min_length 1024;
     gzip_types text/css application/javascript text/javascript application/json;
+
+    # .glb 模型启用 gzip（约 44MB → 19MB）；其余 libs 仍保持 gzip off
+    location ~ ^/libs/.+\.glb\$ {
+        gzip on;
+        gzip_types model/gltf-binary;
+        gzip_comp_level 6;
+        gzip_min_length 1024;
+        gzip_vary on;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        try_files \$uri =404;
+    }
 
     location /libs/ {
         add_header Cache-Control "public, max-age=31536000, immutable";

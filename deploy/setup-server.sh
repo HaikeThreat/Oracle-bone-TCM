@@ -77,6 +77,17 @@ server {
     gzip_types text/html text/css application/javascript text/javascript application/json;
 
     # libs/ 约 50MB，开长缓存后只在首次付；页面顶部 ASSET_V 可破缓存
+    # .glb 模型启用 gzip（约 44MB → 19MB）；其余 libs 仍保持 gzip off
+    location ~ ^/libs/.+\.glb\$ {
+        gzip on;
+        gzip_types model/gltf-binary;
+        gzip_comp_level 6;
+        gzip_min_length 1024;
+        gzip_vary on;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        try_files \$uri =404;
+    }
+
     location /libs/ {
         add_header Cache-Control "public, max-age=31536000, immutable";
         gzip off;                # wasm/tflite 已是压缩格式，再压无益
@@ -126,6 +137,17 @@ server {
     gzip_comp_level 6;
     gzip_min_length 1024;
     gzip_types text/html text/css application/javascript text/javascript application/json;
+
+    # .glb 模型启用 gzip（约 44MB → 19MB）；其余 libs 仍保持 gzip off
+    location ~ ^/libs/.+\.glb\$ {
+        gzip on;
+        gzip_types model/gltf-binary;
+        gzip_comp_level 6;
+        gzip_min_length 1024;
+        gzip_vary on;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        try_files \$uri =404;
+    }
 
     location /libs/ {
         add_header Cache-Control "public, max-age=31536000, immutable";

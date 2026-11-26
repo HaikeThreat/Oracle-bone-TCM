@@ -38,10 +38,23 @@ LIB_FILES = [
     "hands_solution_wasm_bin.js",
     "hands_solution_wasm_bin.wasm",
     "hand_landmark_lite.tflite",
-    # 中药展厅：三七写实模型 + file:// / GLB 失败时的脚本内嵌后备
+    # 中药展厅：三七 / 白芷写实模型 + file:// / GLB 失败时的脚本内嵌后备
     # （后备只在 GLB 请求失败时动态加载，HTTP 正常访问不会下载）
     "sanqi_model.glb",
     "sanqi_model_fallback.js",
+    "baizhi_model.glb",
+    "baizhi_model_fallback.js",
+    # 部位特写右侧的化学结构式线稿
+    "struct_aconitine.png",
+    "struct_rg1.png",
+    "struct_quercetin.png",
+    "struct_imperatorin.png",
+    "struct_orig_aconitine.png",
+    "struct_orig_rg1.png",
+    "struct_orig_quercetin.png",
+    "struct_orig_imperatorin.png",
+    "structure_data.js",
+    "structure_points_v2.js",
 ]
 
 missing = [f for f in ROOT_FILES if not os.path.isfile(os.path.join(base, f))]
