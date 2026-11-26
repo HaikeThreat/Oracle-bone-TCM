@@ -9447,10 +9447,15 @@ function buildRealLeaders(mesh, labels = REAL_LABELS) {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-    group.add(new THREE.Points(g, new THREE.PointsMaterial({
+    const lp = new THREE.Points(g, new THREE.PointsMaterial({
       size: 0.032, vertexColors: true, transparent: true, opacity: 1.0,
       depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, map: tex, alphaTest: 0.01,
-    })));
+    }));
+    // 引线只负责视觉。Points 的射线默认有 1 个【世界单位】的胖命中半径，
+    // 会把点击/捏合从模型上抢走（白芷整株缩放约 3 倍，相当于屏幕几百像素），
+    // 曾导致「指着茎点下去却打开叶」。让它彻底退出拾取。
+    lp.raycast = function () {};
+    group.add(lp);
   }
   mesh.add(group);
   mesh.userData.leaders = group;
@@ -9626,6 +9631,104 @@ function realPartFromObject(obj) {
   }
   return null;
 }
+// 只认真正的网格。模型上还挂着粒子引线（Points）等装饰层，
+// 它们不是部位，也不该参与"点到了什么"的判断。
+function firstMeshHit(raycaster, obj, recursive = true) {
+  const hits = raycaster.intersectObject(obj, recursive);
+  for (const h of hits) if (h.object && h.object.isMesh) return h;
+  return null;
+}
+
+// ── 白芷的 GPU 像素拾取 ───────────────────────────────────────────────
+// 白芷由 10 块网格、约 75 万三角形组成：用 Raycaster 在花序上做一次命中
+// 要 50ms 左右，鼠标一移动就卡；而按锚点猜"最近的部位"又会把叶和茎
+// （两者锚点在屏幕上只差十几像素）判反。这里把每块部位涂成纯色，
+// 用同一台相机渲染到 1×1 离屏画布，再读回光标下那一个像素 ——
+// 约 1ms，且悬停与点击使用完全相同的命中依据。
+const REAL_PICK = {
+  colors: { flower: 0xff0000, leaf: 0x00ff00, stem: 0x0000ff, root: 0xffff00, whole: 0xffffff },
+  parts: { '255,0,0': 'flower', '0,255,0': 'leaf', '0,0,255': 'stem', '255,255,0': 'root' },
+  clear: new THREE.Color(),
+};
+function buildRealPicker(state) {
+  if (!state || !state.mesh || !state.mesh.userData.multiMesh) return null;
+  if (state.pick && state.pick.src === state.mesh) return state.pick;
+  const rt = new THREE.WebGLRenderTarget(1, 1, {
+    minFilter: THREE.NearestFilter,
+    magFilter: THREE.NearestFilter,
+    depthBuffer: true,
+    stencilBuffer: false,
+  });
+  const pickScene = new THREE.Scene();
+  const pickRoot = state.mesh.clone(true);
+  pickRoot.visible = true;
+  pickRoot.matrixAutoUpdate = false;
+  const mats = {};
+  for (const kind of Object.keys(REAL_PICK.colors)) {
+    mats[kind] = new THREE.MeshBasicMaterial({
+      color: REAL_PICK.colors[kind],
+      side: THREE.DoubleSide,
+      toneMapped: false,
+    });
+  }
+  const strip = [];
+  // clone 共享 geometry / 层级，只换材质；引线 Points 一并摘掉。
+  pickRoot.traverse(o => {
+    if (o.isMesh) {
+      o.material = mats[o.userData.part] || mats.whole;
+      o.frustumCulled = false;
+      o.castShadow = false;
+      o.receiveShadow = false;
+    } else if (o.isPoints) {
+      strip.push(o);
+    }
+  });
+  for (const o of strip) if (o.parent) o.parent.remove(o);
+  pickScene.add(pickRoot);
+  state.pick = {
+    src: state.mesh, rt, scene: pickScene, root: pickRoot,
+    cam: camera.clone(), buf: new Uint8Array(4),
+  };
+  return state.pick;
+}
+function realPickAt(clientX, clientY, state = REAL) {
+  if (!state || !state.mesh || !state.mesh.userData.multiMesh) return null;
+  const pk = state.pick || buildRealPicker(state);
+  if (!pk) return null;
+  const cvs = renderer.domElement;
+  const rect = cvs.getBoundingClientRect();
+  const W = cvs.width, H = cvs.height;
+  if (!W || !H || !rect.width || !rect.height) return null;
+  const px = Math.max(0, Math.min(W - 1, Math.round((clientX - rect.left) * W / rect.width)));
+  const py = Math.max(0, Math.min(H - 1, Math.round((clientY - rect.top) * H / rect.height)));
+  state.mesh.updateMatrixWorld();
+  pk.root.matrix.copy(state.mesh.matrixWorld);
+  pk.root.matrixWorldNeedsUpdate = true;
+  pk.root.updateMatrixWorld(true);
+  pk.cam.copy(camera);
+  pk.cam.clearViewOffset();
+  pk.cam.setViewOffset(W, H, px, py, 1, 1);
+  pk.cam.updateProjectionMatrix();
+  const prevRT = renderer.getRenderTarget();
+  const prevAlpha = renderer.getClearAlpha();
+  const prevClear = renderer.getClearColor(REAL_PICK.clear);
+  const prevAuto = renderer.autoClear;
+  try {
+    renderer.setRenderTarget(pk.rt);
+    renderer.setClearColor(0x000000, 1);
+    renderer.autoClear = true;
+    renderer.clear();
+    renderer.render(pk.scene, pk.cam);
+    renderer.readRenderTargetPixels(pk.rt, 0, 0, 1, 1, pk.buf);
+  } catch (e) {
+    return null;
+  } finally {
+    renderer.setRenderTarget(prevRT);
+    renderer.setClearColor(prevClear, prevAlpha);
+    renderer.autoClear = prevAuto;
+  }
+  return REAL_PICK.parts[pk.buf[0] + ',' + pk.buf[1] + ',' + pk.buf[2]] || null;
+}
 // 多网格模型（白芷）的标签锚点：按各部位实际网格的包围盒校准，
 // 而不是沿用写死的坐标 —— 否则叶片/花序尺寸一变，标签就飘到空白处。
 function calibrateRealLabels(root, labels) {
@@ -9634,37 +9737,82 @@ function calibrateRealLabels(root, labels) {
   content.updateWorldMatrix(true, true);
   const invContent = new THREE.Matrix4().copy(content.matrixWorld).invert();
   root.userData.partCenters = root.userData.partCenters || {};
+  const contentBox = new THREE.Box3().setFromObject(content).applyMatrix4(invContent);
+  const contentH = Math.max(1e-4, contentBox.max.y - contentBox.min.y);
+  const v = new THREE.Vector3();
+  const meshesOf = kind => {
+    const arr = [];
+    content.traverse(o => { if (o.isMesh && o.userData.plantMesh && realPartFromName(o.name) === kind) arr.push(o); });
+    return arr;
+  };
   for (const L of labels) {
     if (L.openOnly) continue;
-    const src = [];
-    content.traverse(o => { if (o.isMesh && o.userData.plantMesh && realPartFromName(o.name) === L.kind) src.push(o); });
+    const src = meshesOf(L.kind);
     if (!src.length) continue;
-    const box = new THREE.Box3();
-    if (L.kind === 'stem') {
-      // 茎锚点取下半段：上半段被花序和叶遮住，标签容易叠在花球上
-      const contentBox = new THREE.Box3().setFromObject(content).applyMatrix4(invContent);
-      const ceiling = contentBox.min.y + (contentBox.max.y - contentBox.min.y) * .45;
-      const v = new THREE.Vector3();
+    let p = null;               // content 局部坐标
+    if (L.kind === 'leaf') {
+      // 叶片绕着茎四周生长，把所有叶片并成一个包围盒再取中心，
+      // 中心恰好落在茎上 —— 引线会指着茎说"叶"。改为取一片真实叶面上的点：
+      // 高度取叶冠中段、默认镜头最靠前（+z）的那片叶。
+      let leafBox = new THREE.Box3();
       for (const s of src) {
         s.updateWorldMatrix(true, false);
-        const p = s.geometry.attributes.position;
-        for (let i = 0; i < p.count; i++) {
-          v.fromBufferAttribute(p, i);
-          if (v.y > ceiling) continue;
-          box.expandByPoint(v.applyMatrix4(s.matrixWorld).applyMatrix4(invContent));
+        leafBox.union(new THREE.Box3().setFromObject(s).applyMatrix4(invContent));
+      }
+      const yMin = leafBox.min.y + (leafBox.max.y - leafBox.min.y) * .12;
+      const yMax = leafBox.max.y - (leafBox.max.y - leafBox.min.y) * .12;
+      let bestZ = -Infinity;
+      for (const s of src) {
+        s.updateWorldMatrix(true, false);
+        const pos = s.geometry.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+          v.fromBufferAttribute(pos, i).applyMatrix4(s.matrixWorld).applyMatrix4(invContent);
+          if (v.y < yMin || v.y > yMax) continue;
+          if (v.z > bestZ) { bestZ = v.z; p = v.clone(); }
         }
       }
-    } else {
+    } else if (L.kind === 'stem') {
+      // 茎：从叶鞘（真正的可见茎筒）上取花序下方、露出叶冠的一小段。
+      // 不要用"茎网格下半段"的包围盒中心 —— 那里的点落在叶片上，
+      // 会重演"茎标签的锚点指着叶，悬停显示茎、点开却是叶"。
+      const sheath = src.filter(s => String(s.name).toLowerCase().startsWith('sheath'));
+      const pool = sheath.length ? sheath : src;
+      let targetY = contentBox.min.y + contentH * .48;
+      const flowerSrc = meshesOf('flower');
+      if (flowerSrc.length) {
+        const fBox = new THREE.Box3();
+        for (const s of flowerSrc) {
+          s.updateWorldMatrix(true, false);
+          fBox.union(new THREE.Box3().setFromObject(s).applyMatrix4(invContent));
+        }
+        if (!fBox.isEmpty()) targetY = fBox.min.y - contentH * .005;
+      }
+      // 取离目标高度最近的一圈叶鞘顶点（同高再取最靠镜头的一点）。
+      // 不用"整段里最靠镜头"：那会因为叶片/花序的遮挡，把锚点拉到叶后面。
+      let bestD = Infinity, bestZ = -Infinity;
+      for (const s of pool) {
+        s.updateWorldMatrix(true, false);
+        const pos = s.geometry.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+          v.fromBufferAttribute(pos, i).applyMatrix4(s.matrixWorld).applyMatrix4(invContent);
+          const d = Math.abs(v.y - targetY);
+          if (d > contentH * .02) continue;
+          if (d < bestD - 1e-6 || (Math.abs(d - bestD) < 1e-6 && v.z > bestZ)) {
+            bestD = d; bestZ = v.z; p = v.clone();
+          }
+        }
+      }
+    }
+    if (!p) {
+      const box = new THREE.Box3();
       for (const s of src) {
         s.updateWorldMatrix(true, false);
         box.union(new THREE.Box3().setFromObject(s).applyMatrix4(invContent));
       }
+      if (box.isEmpty()) continue;
+      p = box.getCenter(new THREE.Vector3());
     }
-    if (box.isEmpty()) continue;
-    const p = box.getCenter(new THREE.Vector3());
     root.userData.partCenters[L.kind] = p.clone();
-    if (L.kind === 'leaf') p.x -= .18;
-    if (L.kind === 'stem') p.x += .02;
     p.z = Math.max(.04, p.z + .06);
     p.applyMatrix4(content.matrix);
     L.p = p.toArray();
@@ -9969,6 +10117,14 @@ function buildRealBaizhi(buf, state = REAL) {
   state.mesh = root;
   state.group = lights;
   if (typeof BAIZHI !== 'undefined') BAIZHI.n = vertexCount;
+  buildRealPicker(state);
+  // 首次拾取要新建 FBO、编译拾取材质，约几十毫秒；模型加载完的空闲时段先跑一次，
+  // 免得用户第一次把鼠标移到植株上时卡一下。
+  const warmPick = () => {
+    try { realPickAt(window.innerWidth / 2, window.innerHeight / 2, state); } catch (e) {}
+  };
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(warmPick, { timeout: 4000 });
+  else setTimeout(warmPick, 2000);
   setTimeout(() => {
     if (state !== REAL) return;
     try {
@@ -10204,7 +10360,7 @@ function herbPartAtScreen(target, clientX, clientY) {
                                  -((clientY - r0.top) / r0.height) * 2 + 1);
   const ray0 = new THREE.Raycaster();
   ray0.setFromCamera(ndc0, camera);
-  const hit0 = ray0.intersectObject(target, true)[0];
+  const hit0 = firstMeshHit(ray0, target);
   if (hit0) {
     if (target === REAL.mesh) {
       // 多网格模型（白芷）：网格名本身就带部位，直接按命中的网格判断
@@ -10257,7 +10413,7 @@ function setHerbZoomAnchorAt(target, clientX, clientY) {
                                 -((clientY - r.top) / r.height) * 2 + 1);
   const ray = new THREE.Raycaster();
   ray.setFromCamera(ndc, camera);
-  const hit = ray.intersectObject(target, true)[0];
+  const hit = firstMeshHit(ray, target);
   if (hit) { setHerbZoomAnchorWorld(target, hit.point); return; }
   // 指缝/根须间没命中时，用该屏幕射线与模型中心所在 z 平面的交点
   target.updateMatrixWorld(true);
@@ -10376,6 +10532,7 @@ function beginPartTransition(part, anchorWorld) {
     const tip = document.getElementById('hitTip');
     if (tip) tip.classList.remove('on');
     _hoverIdx = -1;
+    _hoverPart = null;
   }
   PART_TRANS.active = true;
   PART_TRANS.part = part;
@@ -10937,7 +11094,7 @@ document.getElementById('stage').addEventListener('click', e => {
                                   -((e.clientY - r.top) / r.height) * 2 + 1);
     const ray = new THREE.Raycaster();
     ray.setFromCamera(ndc, camera);
-    const hit = ray.intersectObject(obj, true)[0];
+    const hit = firstMeshHit(ray, obj);
     if (hit) {
       const part = xuePartFromObject(hit.object);
       if (part) { beginPartTransition(part, hit.point.clone()); return; }
@@ -10973,13 +11130,17 @@ document.getElementById('stage').addEventListener('click', e => {
                                 -((e.clientY - r.top) / r.height) * 2 + 1);
   const ray = new THREE.Raycaster();
   ray.setFromCamera(ndc, camera);
-  const hit = ray.intersectObject(REAL.mesh, true)[0];
-  if (!hit) return;
-  // 多网格模型（白芷）：按命中的网格名判部位，比高度阈值可靠
+  const hit = firstMeshHit(ray, REAL.mesh);
+  // 多网格模型（白芷）：用与悬停提示相同的 GPU 拾取判部位。
+  // 绝不能再落到三七那套"按高度/半径猜"的阈值上 —— 两个模型的
+  // 比例、叶冠高度完全不同，猜出来的经常是相邻部位（指茎打开叶）。
   if (REAL.mesh.userData.multiMesh) {
-    const part = realPartFromObject(hit.object);
-    if (part) { beginPartTransition(part, hit.point.clone()); return; }
+    const part = realPickAt(e.clientX, e.clientY, REAL) || (hit && realPartFromObject(hit.object));
+    if (part) { beginPartTransition(part, hit ? hit.point.clone() : null); return; }
+    medRevealed = false; medPart = null; hideMedUI(); hideRealParts();
+    return;
   }
+  if (!hit) return;
   const p = REAL.mesh.worldToLocal(hit.point.clone());
   // 点击与捏合共用同一段推近过渡（以点击到的部位点为支点）
   if (p.y > 1.0) beginPartTransition('flower', hit.point.clone());
@@ -10999,13 +11160,66 @@ document.querySelectorAll('#herbPop .hp-item').forEach(b => {
   }
 });
 
-// 模型上的「可点提示」：鼠标靠近花或根茎时，在光标旁浮出部位名与"点击查看"。
-// 只做两次锚点投影（不 raycast 15 万面），每帧成本可忽略，却把"哪里能点"讲明白了。
-let _hoverIdx = -1;
+// 模型上的「可点提示」：光标下是什么部位，就在光标旁浮出部位名与"点击查看"。
+// 三七（单网格）：用两个锚点的屏幕距离近似，成本可忽略。
+// 白芷（10 块网格）：叶与茎的锚点在屏幕上只隔十几像素，按距离猜必然判反；
+// 改用 GPU 像素拾取（见 realPickAt），与点击使用完全相同的命中依据。
+let _hoverIdx = -1, _hoverPart = null;
+let _hoverX = 0, _hoverY = 0, _hoverPickT = 0, _hoverPickTimer = 0;
+function realHoverTip(part) {
+  const tip = document.getElementById('hitTip');
+  if (!tip) return;
+  if (part) {
+    const L = REAL_LABELS.find(x => x.kind === part);
+    if (L) {
+      if (_hoverPart !== part) {
+        tip.innerHTML = L.t + '<small>' + L.en + ' · 点击查看</small>';
+        _hoverPart = part;
+      }
+      tip.style.left = _hoverX + 'px';
+      tip.style.top = _hoverY + 'px';
+      tip.classList.add('on');
+      return;
+    }
+  }
+  tip.classList.remove('on');
+  _hoverPart = null;
+}
+function realHoverPick() {
+  _hoverPickTimer = 0;
+  if (!REAL.on || !REAL.mesh || !REAL.mesh.visible || PV.on || PART_TRANS.active) {
+    realHoverTip(null);
+    return;
+  }
+  _hoverPickT = performance.now();
+  realHoverTip(realPickAt(_hoverX, _hoverY, REAL));
+}
+function scheduleRealHoverPick(x, y) {
+  _hoverX = x; _hoverY = y;
+  const tip = document.getElementById('hitTip');
+  if (tip) { tip.style.left = x + 'px'; tip.style.top = y + 'px'; }
+  if (_hoverPickTimer) return;
+  // 限定约 20 次/秒：像素拾取本身约 1ms，没必要每个 pointermove 都跑一遍
+  const wait = Math.max(0, 48 - (performance.now() - _hoverPickT));
+  if (wait === 0) realHoverPick();
+  else _hoverPickTimer = setTimeout(realHoverPick, wait);
+}
 document.getElementById('stage').addEventListener('pointermove', e => {
   const tip = document.getElementById('hitTip');
   if (!tip) return;
-  if (!REAL.on || !REAL.mesh || !REAL.mesh.visible || PV.on) { tip.classList.remove('on'); _hoverIdx = -1; return; }
+  if (!REAL.on || !REAL.mesh || !REAL.mesh.visible || PV.on) {
+    tip.classList.remove('on'); _hoverIdx = -1; _hoverPart = null;
+    if (_hoverPickTimer) { clearTimeout(_hoverPickTimer); _hoverPickTimer = 0; }
+    return;
+  }
+  if (REAL.mesh.userData.multiMesh) {
+    _hoverIdx = -1;
+    // 触屏没有"悬停"，拖动时不该弹提示
+    if (e.pointerType === 'touch') { tip.classList.remove('on'); _hoverPart = null; return; }
+    scheduleRealHoverPick(e.clientX, e.clientY);
+    return;
+  }
+  if (_hoverPart !== null) { _hoverIdx = -1; _hoverPart = null; }
   REAL.mesh.updateMatrixWorld();
   let best = -1, bestD = 1e9;
   for (let i = 0; i < REAL_LABELS.length; i++) {
@@ -11031,7 +11245,8 @@ document.getElementById('stage').addEventListener('pointermove', e => {
 document.getElementById('stage').addEventListener('pointerleave', () => {
   const tip = document.getElementById('hitTip');
   if (tip) tip.classList.remove('on');
-  _hoverIdx = -1;
+  _hoverIdx = -1; _hoverPart = null;
+  if (_hoverPickTimer) { clearTimeout(_hoverPickTimer); _hoverPickTimer = 0; }
 });
 document.addEventListener('pointerdown', e => {
   const pop = document.getElementById('herbPop');
