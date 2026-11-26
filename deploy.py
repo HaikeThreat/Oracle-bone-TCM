@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ============================================================
 #  deploy.py —— 生成「上传就绪」的站点目录
-#  用法： python3 deploy.py [输出目录]        默认 dist/
+#  用法： python3 deploy.py [输出目录] [--force]   默认 dist/；自定义已存在目录需 --force
 #
 #  为什么不直接上传整个仓库：
 #   · libs/ 共约 50MB，但运行时只请求其中 9 个文件；另外有个 AYJGW.ttf（4.2MB）
@@ -12,14 +12,26 @@
 #   · hands_solution_wasm_bin.{js,wasm}（非 SIMD）—— 旧浏览器 fallback，
 #     libs/hands.js 会探测 SIMD 支持后在两个变体间二选一，删了就有一批浏览器跑不起来。
 #   · hand_landmark_lite.tflite —— modelComplexity:0 时用的备用模型。
-#   · sanqi_model_fallback.js —— file:// 或 GLB 请求失败时，三七写实模型的后备副本。
+#   · *_model_fallback.js —— file:// 或 GLB 请求失败时，三味药写实模型的后备副本。
 # ============================================================
 import os
 import shutil
 import sys
 
 base = os.path.dirname(os.path.abspath(__file__))
-out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(base, "dist")
+force = "--force" in sys.argv[1:]
+args = [a for a in sys.argv[1:] if a != "--force"]
+if len(args) > 1:
+    sys.exit("用法: python3 deploy.py [输出目录] [--force]")
+out = args[0] if args else os.path.join(base, "dist")
+base_real = os.path.realpath(base)
+out_real = os.path.realpath(out)
+try:
+    contains_source = os.path.commonpath([base_real, out_real]) == out_real
+except ValueError:
+    contains_source = False
+if contains_source:
+    sys.exit("输出目录不能是项目根目录或其祖先: " + out)
 
 # 站点根文件
 ROOT_FILES = ["index.html", "gesture3d.html"]
@@ -38,10 +50,14 @@ LIB_FILES = [
     "hands_solution_wasm_bin.js",
     "hands_solution_wasm_bin.wasm",
     "hand_landmark_lite.tflite",
-    # 中药展厅：三七写实模型 + file:// / GLB 失败时的脚本内嵌后备
+    # 中药展厅：三味药的写实模型 + file:// / GLB 失败时的脚本内嵌后备
     # （后备只在 GLB 请求失败时动态加载，HTTP 正常访问不会下载）
     "sanqi_model.glb",
     "sanqi_model_fallback.js",
+    "xue_model.glb",
+    "xue_model_fallback.js",
+    "baizhi_model.glb",
+    "baizhi_model_fallback.js",
 ]
 
 missing = [f for f in ROOT_FILES if not os.path.isfile(os.path.join(base, f))]
@@ -49,18 +65,23 @@ missing += [f for f in LIB_FILES if not os.path.isfile(os.path.join(base, "libs"
 if missing:
     sys.exit("缺少必需文件: " + " ".join(missing))
 
-if os.path.exists(out):
-    shutil.rmtree(out)
-os.makedirs(os.path.join(out, "libs"))
+if os.path.exists(out_real):
+    if not os.path.isdir(out_real):
+        sys.exit("输出路径不是目录: " + out)
+    default_dist = out_real == os.path.join(base_real, "dist")
+    if not default_dist and not force:
+        sys.exit("输出目录已存在；如确认要清空，请加 --force: " + out)
+    shutil.rmtree(out_real)
+os.makedirs(os.path.join(out_real, "libs"))
 
 total = 0
 for f in ROOT_FILES:
     src = os.path.join(base, f)
-    shutil.copy2(src, os.path.join(out, f))
+    shutil.copy2(src, os.path.join(out_real, f))
     total += os.path.getsize(src)
 for f in LIB_FILES:
     src = os.path.join(base, "libs", f)
-    shutil.copy2(src, os.path.join(out, "libs", f))
+    shutil.copy2(src, os.path.join(out_real, "libs", f))
     total += os.path.getsize(src)
 
 # 许可与来源声明一并随站点发布（公开部署时应可查）
@@ -68,10 +89,10 @@ extra = 0
 for f in ("LICENSE", "THIRD-PARTY-NOTICE.md", "README.md"):
     p = os.path.join(base, f)
     if os.path.isfile(p):
-        shutil.copy2(p, os.path.join(out, f))
+        shutil.copy2(p, os.path.join(out_real, f))
         extra += 1
 
-print(f"✔ 已生成站点目录: {out}")
+print(f"✔ 已生成站点目录: {out_real}")
 print(f"  文件 {len(ROOT_FILES) + len(LIB_FILES) + extra} 个，合计 {total / 1024 / 1024:.1f} MB")
 print(f"  （仓库 libs/ 为 {sum(os.path.getsize(os.path.join(base,'libs',f)) for f in os.listdir(os.path.join(base,'libs')) if os.path.isfile(os.path.join(base,'libs',f))) / 1024 / 1024:.1f} MB，"
       f"未纳入 AYJGW.ttf —— 它仅供 build_glyphs.py 构建时子集化）")

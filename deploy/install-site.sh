@@ -24,7 +24,11 @@ SITE_ROOT="${SITE_ROOT:-/var/www/oracletcm}"
 REPO="${REPO:-}"
 CONF="/etc/nginx/conf.d/${DOMAIN}.conf"
 
-# 需要发布的文件：运行时被请求的 11 个 + 两个 fallback + 两个中药模型文件
+[[ "$DOMAIN" =~ ^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$ ]] || { echo "非法域名: $DOMAIN" >&2; exit 1; }
+SITE_ROOT="$(readlink -m "$SITE_ROOT")"
+case "$SITE_ROOT" in /|/root|/home|/etc|/usr|/opt|/tmp|/var) echo "危险的站点根目录: $SITE_ROOT" >&2; exit 1;; esac
+
+# 需要发布的文件：运行时被请求的 11 个 + 两个手势 fallback + 三味药模型及后备
 # （详见 deploy/README.md 与根 README 的「部署」一节）
 LIB_FILES=(
   three.min.js
@@ -39,9 +43,13 @@ LIB_FILES=(
   hands_solution_wasm_bin.js
   hands_solution_wasm_bin.wasm
   hand_landmark_lite.tflite
-  # 中药展厅：三七写实模型 + file:// / GLB 失败时的脚本内嵌后备
+  # 中药展厅：三味药写实模型 + file:// / GLB 失败时的脚本内嵌后备
   sanqi_model.glb
   sanqi_model_fallback.js
+  xue_model.glb
+  xue_model_fallback.js
+  baizhi_model.glb
+  baizhi_model_fallback.js
 )
 
 [ "$(id -u)" -eq 0 ] || { echo "请用 root 或 sudo 执行" >&2; exit 1; }
@@ -55,6 +63,11 @@ if [ -z "$REPO" ]; then
 fi
 [ -n "$REPO" ] && [ -f "$REPO/gesture3d.html" ] || {
   echo "找不到源目录（需含 gesture3d.html）。用 REPO=/path sudo -E bash $0 指定。" >&2; exit 1; }
+
+for f in index.html gesture3d.html "${LIB_FILES[@]}"; do
+  src="$REPO/$f"; [ "$f" = index.html ] || [ "$f" = gesture3d.html ] || src="$REPO/libs/$f"
+  [ -f "$src" ] || { echo "缺少 $src" >&2; exit 1; }
+done
 
 echo "==> 源目录: $REPO"
 echo "==> 域名:   $DOMAIN / $WWW"
@@ -120,6 +133,13 @@ server {
         try_files \$uri =404;
     }
     location ~ \.html\$ { add_header Cache-Control "no-cache"; }
+    location = /oracle { rewrite ^ /gesture3d.html last; }
+    location = /herb   { rewrite ^ /gesture3d.html last; }
+    location = /oracle/ { return 301 /oracle; }
+    location = /herb/   { return 301 /herb; }
+    location = /gesture3d.html { add_header Cache-Control "no-cache"; try_files \$uri =404; }
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
 
     client_max_body_size 32m;
 }
@@ -149,6 +169,13 @@ server {
         try_files \$uri =404;
     }
     location ~ \.html\$ { add_header Cache-Control "no-cache"; }
+    location = /oracle { rewrite ^ /gesture3d.html last; }
+    location = /herb   { rewrite ^ /gesture3d.html last; }
+    location = /oracle/ { return 301 /oracle; }
+    location = /herb/   { return 301 /herb; }
+    location = /gesture3d.html { add_header Cache-Control "no-cache"; try_files \$uri =404; }
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
 
     client_max_body_size 32m;
 }
@@ -158,6 +185,15 @@ fi
 # ── 校验并 reload（既有站点 的站点不受影响）──────────────────────────
 nginx -t
 systemctl reload nginx
+
+if command -v curl >/dev/null 2>&1; then
+  probe="http://127.0.0.1"; curl_opt=""
+  [ -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ] && { probe="https://127.0.0.1"; curl_opt="-k"; }
+  for path in / /oracle /herb /libs/baizhi_model.glb /libs/xue_model.glb; do
+    code="$(curl $curl_opt -s -o /dev/null -w '%{http_code}' -H "Host: ${DOMAIN}" "${probe}${path}")"
+    [ "$code" = 200 ] || { echo "自检失败 ${path}: HTTP ${code}" >&2; exit 1; }
+  done
+fi
 
 echo
 echo "✔ 部署完成: $CONF"
