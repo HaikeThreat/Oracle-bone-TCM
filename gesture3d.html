@@ -7561,7 +7561,7 @@ let medRevealed = false;
 // 时长对手机和电脑一致，不做设备区分。
 let medHintShowTimer = 0;
 let medHintHideTimer = 0;
-const MED_HINT_DELAY_MS = 200;   // 切换药材后先空 0.2 秒再出现
+const MED_HINT_DELAY_MS = 0;     // 切换药材后立即出现
 const MED_HINT_MS = 2200;        // 出现后保持 2.2 秒
 function clearMedHintTimers() {
   clearTimeout(medHintShowTimer);
@@ -10971,7 +10971,7 @@ function activateHerb(name) {
     if (FLOWER_INSET[key].points) FLOWER_INSET[key].points.visible = false;
   }
   hideMedUI();
-  // 操作提示：切换药材后先停 0.2 秒，再出现 2.2 秒，随后自然淡出。
+  // 操作提示：切换药材后立即出现，保持 2.2 秒，随后自然淡出。
   const hint = document.getElementById('medHint');
   if (hint) {
     hint.innerHTML = '滚轮缩放 · 拖动旋转 · 点击部位<small>Scroll to zoom · drag to rotate · click a part</small>';
