@@ -194,11 +194,11 @@
   #procModal .pr-close { position:absolute; right:10px; top:8px; border:0; background:transparent;
                          color:#8fa3bd; font-size:22px; cursor:pointer; }
   #medPart .mp-val { color:#ffe1b0; }
-  /* 操作提示：出现和淡出都用 opacity 过渡，避免 class 切换时动画被抽走造成“硬切” */
+  /* 操作提示：出现不做淡入（立即显示），消失时保留 .45s opacity 淡出 */
   #medHint { position:fixed; left:50%; bottom:150px; transform:translateX(-50%); z-index:9;
              pointer-events:none; text-align:center; color:#8fa3bd; font-size:12px;
              letter-spacing:1px; opacity:0; transition:opacity .45s ease; }
-  #medHint.on { opacity:1; }
+  #medHint.on { opacity:1; transition:none; }
   #medHint small { display:block; margin-top:4px; color:#5d6f86; font-size:10px; letter-spacing:.6px; }
   @keyframes hintBreath { 0%,100% { opacity:.55; } 50% { opacity:.95; } }
   @keyframes medPulse {
