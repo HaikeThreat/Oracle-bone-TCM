@@ -7557,11 +7557,12 @@ function renderMedUse(name) {
 }
 // 药用部位只在「点击画面 / 手进入画面」后出现；首次进入不直接亮出来。
 let medRevealed = false;
-// 切到中药模型时的操作提示：只显示 3 秒，随后自然淡出（不随待机反复出现）
+// 切到中药模型时的操作提示：短暂出现后自然淡出（不随待机反复出现）。
+// 时长对手机和电脑一致，不做设备区分。
 let medHintShowTimer = 0;
 let medHintHideTimer = 0;
-const MED_HINT_DELAY_MS = 500;   // 切换药材后先空 0.5 秒再出现
-const MED_HINT_MS = 2500;        // 出现后保持 2.5 秒
+const MED_HINT_DELAY_MS = 200;   // 切换药材后先空 0.2 秒再出现
+const MED_HINT_MS = 2200;        // 出现后保持 2.2 秒
 function clearMedHintTimers() {
   clearTimeout(medHintShowTimer);
   clearTimeout(medHintHideTimer);
@@ -7750,6 +7751,9 @@ function isMobilePortrait() {
 const HERB_MAIN_SCALE = { baizhi: 1.15 };
 // 白芷部位特写以整株的展厅显示尺寸为 1×：花 2×、叶 2.5×、根 3×、茎 1.5×。
 const PART_MAGNIFICATION = { baizhi: { flower: 2, leaf: 2.5, root: 3, stem: 1.5 } };
+// 手机竖屏按窄画面重新配平同一组部位（同样以整株显示尺寸为 1×）：
+// 花 1.5×、根 2×、茎 2.5×、叶 2×。茎细长，竖屏上不放大到 2.5× 就只剩一条细线。
+const PART_MAGNIFICATION_MOBILE = { baizhi: { flower: 1.5, root: 2, stem: 2.5, leaf: 2 } };
 function herbMainScale() {
   let s = 2.6;
   if (isMobilePortrait()) {
@@ -7765,8 +7769,8 @@ function herbMainBaseY() {
   if (HERB === 'baizhi') return -1.55;
   return -1.55 * herbMainScale() / 2.6;
 }
-function partMagnification(part) {
-  const table = PART_MAGNIFICATION[HERB];
+function partMagnification(part, mobile = false) {
+  const table = (mobile && PART_MAGNIFICATION_MOBILE[HERB]) || PART_MAGNIFICATION[HERB];
   return table && table[part] ? table[part] : 0;
 }
 function setPartCardFolded(folded) {
@@ -9030,17 +9034,21 @@ function layoutPartView() {
     const partBoost = xueClosePart ? (mobilePart ? 1.0 : XUE_PART_BOOST) : 1;
     const fit = Math.min(3.5, Math.max(0.18, (allowedR * wpp) / r)) * partBoost;
     // 手机竖屏的叶/花在包围球归一化后偏小，单独放大，填满上半屏。
+    // 白芷不走这组系数 —— 它在手机竖屏有自己的一整套部位倍率（见下）。
     const mobileBoost = !mobilePart ? 1
       : (PV.partName === 'leaf' || PV.partName === 'flower') ? 1.4
       : PV.partName === 'root' ? 1.15 : 1.1;
-    // 白芷：部位特写的基准是「整株在展厅聚光灯下的显示尺寸」再乘部位倍率
-    // （花 2×、叶 2.5×、根 3×、茎 1.5×）。不再把所有部位归一成同一大小，
-    // 这样同一株植物上的局部放大关系是真实的。安全区不足时退回 fit 兜底。
+    // 白芷：部位特写的基准是「整株在展厅聚光灯下的显示尺寸」再乘部位倍率。
+    // 桌面/横屏：花 2×、叶 2.5×、根 3×、茎 1.5×；
+    // 手机竖屏：花 1.5×、根 2×、茎 2.5×、叶 2×（窄画面重新配平）。
+    // 不再把所有部位归一成同一大小，这样同一株植物上的局部放大关系是真实的。
+    // 桌面安全区不足时退回 fit 兜底；竖屏按这套倍率直接排，免得被安全区压回原状。
     const mag = PV.pivot.userData.baizhiMag || 0;
     let k;
     if (mag) {
       if (mobilePart) {
-        k = Math.min(mag, fit * mobileBoost);
+        const mobileMag = partMagnification(PV.partName, true);
+        k = mobileMag ? herbMainScale() * mobileMag : mag;
       } else {
         const sz = PV.pivot.userData.localSize;
         if (sz && sz.x > 1e-4 && sz.y > 1e-4) {
@@ -9245,8 +9253,9 @@ function enterPartView(part) {
   hideHerbLayerForPart();
   m.visible = true;
   REAL.mesh.visible = false;
-  // 白芷部位按「整株显示尺寸 × 部位倍率」构图（花 2×、叶 2.5×、根 3×、茎 1.5×），
-  // 不再把所有部位归一成同一大小；pivot 的最终缩放由 layoutPartView 计算。
+  // 白芷部位按「整株显示尺寸 × 部位倍率」构图（桌面：花 2×、叶 2.5×、根 3×、茎 1.5×；
+  // 手机竖屏：花 1.5×、根 2×、茎 2.5×、叶 2×），不再把所有部位归一成同一大小；
+  // pivot 的最终缩放由 layoutPartView 计算。
   const baizhiPart = HERB === 'baizhi';
   const c = m.userData.center, S = baizhiPart ? 1 : (part === 'flower' ? 5.2 : 3.3);
   m.scale.setScalar(S);
@@ -10962,7 +10971,7 @@ function activateHerb(name) {
     if (FLOWER_INSET[key].points) FLOWER_INSET[key].points.visible = false;
   }
   hideMedUI();
-  // 操作提示：切换药材后先停 0.5 秒，再出现 2.5 秒，随后自然淡出。
+  // 操作提示：切换药材后先停 0.2 秒，再出现 2.2 秒，随后自然淡出。
   const hint = document.getElementById('medHint');
   if (hint) {
     hint.innerHTML = '滚轮缩放 · 拖动旋转 · 点击部位<small>Scroll to zoom · drag to rotate · click a part</small>';
