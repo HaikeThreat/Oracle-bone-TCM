@@ -7752,8 +7752,8 @@ const HERB_MAIN_SCALE = { baizhi: 1.15 };
 // 白芷部位特写以整株的展厅显示尺寸为 1×：花 2×、叶 2.5×、根 3×、茎 1.5×。
 const PART_MAGNIFICATION = { baizhi: { flower: 2, leaf: 2.5, root: 3, stem: 1.5 } };
 // 手机竖屏按窄画面重新配平同一组部位（同样以整株显示尺寸为 1×）：
-// 花 1.5×、根 2×、茎 2.5×、叶 2×。茎细长，竖屏上不放大到 2.5× 就只剩一条细线。
-const PART_MAGNIFICATION_MOBILE = { baizhi: { flower: 1.5, root: 2, stem: 2.5, leaf: 2 } };
+// 花 1.5×、根 2×、茎 1.25×、叶 2×。茎细长，2.5× 会顶满画面，已回收一半。
+const PART_MAGNIFICATION_MOBILE = { baizhi: { flower: 1.5, root: 2, stem: 1.25, leaf: 2 } };
 function herbMainScale() {
   let s = 2.6;
   if (isMobilePortrait()) {
@@ -9040,7 +9040,7 @@ function layoutPartView() {
       : PV.partName === 'root' ? 1.15 : 1.1;
     // 白芷：部位特写的基准是「整株在展厅聚光灯下的显示尺寸」再乘部位倍率。
     // 桌面/横屏：花 2×、叶 2.5×、根 3×、茎 1.5×；
-    // 手机竖屏：花 1.5×、根 2×、茎 2.5×、叶 2×（窄画面重新配平）。
+    // 手机竖屏：花 1.5×、根 2×、茎 1.25×、叶 2×（窄画面重新配平）。
     // 不再把所有部位归一成同一大小，这样同一株植物上的局部放大关系是真实的。
     // 桌面安全区不足时退回 fit 兜底；竖屏按这套倍率直接排，免得被安全区压回原状。
     const mag = PV.pivot.userData.baizhiMag || 0;
@@ -9254,7 +9254,7 @@ function enterPartView(part) {
   m.visible = true;
   REAL.mesh.visible = false;
   // 白芷部位按「整株显示尺寸 × 部位倍率」构图（桌面：花 2×、叶 2.5×、根 3×、茎 1.5×；
-  // 手机竖屏：花 1.5×、根 2×、茎 2.5×、叶 2×），不再把所有部位归一成同一大小；
+  // 手机竖屏：花 1.5×、根 2×、茎 1.25×、叶 2×），不再把所有部位归一成同一大小；
   // pivot 的最终缩放由 layoutPartView 计算。
   const baizhiPart = HERB === 'baizhi';
   const c = m.userData.center, S = baizhiPart ? 1 : (part === 'flower' ? 5.2 : 3.3);
